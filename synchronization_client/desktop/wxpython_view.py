@@ -11,17 +11,35 @@ class MyListCtrl(wx.ListCtrl):
 		self.InsertColumn(1, "From",  width=111 )
 		self.InsertColumn(2, "Clipping (Double-click to copy)", width=333 )
 		self.InsertColumn(3, "Date",  width=111 )
-
+		
+		self.resizeColumns(self) #ListCtrl instance also has method GetSize()
+		
 		self.Bind(wx.EVT_LIST_ITEM_SELECTED,
 		self.onItemSelected)
 		
 		self.Bind(wx.EVT_LIST_ITEM_ACTIVATED, #DOUBLE CLICK ##SEE PDF http://www.blog.pythonlibrary.org/2013/12/12/wxpython-objectlistview-double-click-items/
-		self.onItemDoubleClick)
+			self.onItemDoubleClick)
+		
+		self.Bind(wx.EVT_SIZE,
+			self.resizeColumns)
 		
 		# Setup
 		#data = [ ("row %d" % x,"value %d" % x,"data %d" % x) for x in range(10) ]
 		#self.PopulateList(data)
 
+	
+	def resizeColumns(self, resize_event):
+		width = resize_event.GetSize()[0]
+
+		col0 = width*0.05
+		col1 = width*0.20
+		col2 = width*0.55
+		col3 = width*0.20
+
+		colwidths = [col0, col1, col2, col3]
+		
+		for number, width in enumerate(colwidths):
+			self.SetColumnWidth(number, width)
 	
 	def PopulateList(self, data):
 		"""Populate the list with the set of data. Data
