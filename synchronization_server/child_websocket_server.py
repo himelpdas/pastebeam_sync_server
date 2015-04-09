@@ -1,3 +1,5 @@
+from gevent import monkey; monkey.patch_all() #declare BEFORE all imports
+
 from base_non_blocking_server import *
 
 from gevent.event import AsyncResult

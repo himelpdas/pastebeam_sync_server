@@ -30,7 +30,7 @@ class MyListCtrl(wx.ListCtrl):
 	
 	def resizeColumns(self, resize_event):
 		width = resize_event.GetSize()[0]
-		bleed = 20 #make width sligtly smaller so that vScroll can be hidden
+		bleed = 25 #make width sligtly smaller so that vScroll can be hidden
 		width = width - bleed
 
 		col0 = width*0.05

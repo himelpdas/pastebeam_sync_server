@@ -1,0 +1,17 @@
+*pyinstaller
+
+*pywin32 - install via wheel pywin32-219-cp26-none-win32.whl (RESET)
+
+*mmh3
+
+*zbarlib - use instructions here basically you need python 2.6 32 bit, the windows installer for zbar, and the windows installer for the python module. For that reason, the virtualenv must be made with --system-site-packages
+
+*Pillow
+
+then follow instructions here: http://stackoverflow.com/questions/7775339/python26-win32-zbar-importerror-dll-load-failed
+
+RESET cmd so path can take effect
+
+*SimpleCV - makes life easier to access camera and decode barcode
+
+*pygame, scipy, numpy, opencv - needed by simplecv to open camera
