@@ -328,7 +328,6 @@ class Main(wx.Frame):
 		#NEEDS TO BE IN MAIN LOOP FOR WRITING TO WORK, OR ELSE WE WILL 
 		#GET SOMETHING LIKE: "Failed to put data on the clipboard 
 		#(error 2147221008: coInitialize has not been called.)"
-		success = False
 		try:
 			with wx.TheClipboard.Get() as clipboard:
 				clip_data = wx.TextDataObject()
@@ -336,18 +335,23 @@ class Main(wx.Frame):
 				success = clipboard.SetData(clip_data)
 		except TypeError:
 			wx.MessageBox("Unable to access the clipboard. Another application seems to be locking it.", "Error")
-		return bool(success)
 		
 	@staticmethod
 	def getClipboardContent():
-		success = False
 		try:
 			with wx.TheClipboard.Get() as clipboard:
 				clip_data = wx.TextDataObject()
 				success = clipboard.GetData(clip_data)
-		except TypeError:
+				if success:
+					return clip_data
+	
+
+					
+				return None
+				
+		except:# TypeError:
 			wx.MessageBox("Unable to access the clipboard. Another application seems to be locking it.", "Error")
-		return bool(success)
+			return None
 		
 	def runAsyncWorker(self): 
 		#since reading/writing clipboard takes very little time, 
@@ -356,12 +360,12 @@ class Main(wx.Frame):
 		#race issues). wx.Yield simply switches back and forth
 		#between mainloop and this coroutine.
 		while WorkerThread.KEEP_RUNNING:
-			success = self.getClipboardContent()
-			if success:
-				clip =  (do.GetText() or ' ').encode("utf-8", "replace").encode("zlib").encode("base64") #MUST ENCODE in base64 before transmitting obsfucated data #null clip causes serious looping problems, put some text! Prevent setText's TypeError: String or Unicode type required 
+			clip_data = self.getClipboardContent()
+			if clip_data:
+				clip = clip_data.GetText().encode("utf-8", "replace").encode("zlib").encode("base64") #MUST ENCODE in base64 before transmitting obsfucated data #null clip causes serious looping problems, put some text! Prevent setText's TypeError: String or Unicode type required 
 				HOST_CLIP_CONTENT.set( clip )#encode it to a data compatible with murmurhash and wxpython settext, which only expect ascii ie "heart symbol" to u/2339
 				CLIENT_LATEST_SIG.set( hex( mmh3.hash( clip ) ) )  #NOTE SERVER_LATEST_SIG.get() was not set
-			gevent.sleep() #let the greenlets run
+			gevent.sleep(0.25) #let the greenlets run #NEVER sleep(), aslways with a few milliseconds or else cpu overwhelemed!
 			wx.Yield() #http://goo.gl/6Jea2t
 
 if __name__ == "__main__":
