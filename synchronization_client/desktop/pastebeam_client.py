@@ -292,7 +292,7 @@ class Main(wx.Frame):
 			self.websocket_worker = WebSocketThread(self)
 		else:
 			self.long_poller_worker = LongPollerThread(self)
-		self.async_worker = True ; self.runAsyncWorker()
+		self.runAsyncWorker()
 
 	def onStop(self, button_event):
 		"""Stop Computation."""
@@ -329,12 +329,24 @@ class Main(wx.Frame):
 		#GET SOMETHING LIKE: "Failed to put data on the clipboard 
 		#(error 2147221008: coInitialize has not been called.)"
 		success = False
-		if not wx.TheClipboard.IsOpened():
-			clipdata = wx.TextDataObject()
-			clipdata.SetText(content)
-			wx.TheClipboard.Open()
-			success = wx.TheClipboard.SetData(clipdata)
-			wx.TheClipboard.Close()
+		try:
+			with wx.TheClipboard.Get() as clipboard:
+				clip_data = wx.TextDataObject()
+				clip_data.SetText(content)
+				success = clipboard.SetData(clip_data)
+		except TypeError:
+			wx.MessageBox("Unable to access the clipboard. Another application seems to be locking it.", "Error")
+		return bool(success)
+		
+	@staticmethod
+	def getClipboardContent():
+		success = False
+		try:
+			with wx.TheClipboard.Get() as clipboard:
+				clip_data = wx.TextDataObject()
+				success = clipboard.GetData(clip_data)
+		except TypeError:
+			wx.MessageBox("Unable to access the clipboard. Another application seems to be locking it.", "Error")
 		return bool(success)
 		
 	def runAsyncWorker(self): 
@@ -343,12 +355,8 @@ class Main(wx.Frame):
 		#use async to modify a global variable (with a lock to prevent
 		#race issues). wx.Yield simply switches back and forth
 		#between mainloop and this coroutine.
-		while self.async_worker:
-			if not wx.TheClipboard.IsOpened():
-				do = wx.TextDataObject()
-				wx.TheClipboard.Open()
-				success = wx.TheClipboard.GetData(do)
-				wx.TheClipboard.Close()
+		while WorkerThread.KEEP_RUNNING:
+			success = self.getClipboardContent()
 			if success:
 				clip =  (do.GetText() or ' ').encode("utf-8", "replace").encode("zlib").encode("base64") #MUST ENCODE in base64 before transmitting obsfucated data #null clip causes serious looping problems, put some text! Prevent setText's TypeError: String or Unicode type required 
 				HOST_CLIP_CONTENT.set( clip )#encode it to a data compatible with murmurhash and wxpython settext, which only expect ascii ie "heart symbol" to u/2339
