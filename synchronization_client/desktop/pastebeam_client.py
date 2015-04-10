@@ -18,7 +18,7 @@ from threading import *
 from wxpython_view import *
 
 #general stuff
-import time, sys, zlib, datetime
+import time, sys, zlib, datetime, uuid
 
 #debug
 import pdb
@@ -322,7 +322,15 @@ class Main(wx.Frame):
 			self.setClipboardContent(latest_content)
 		# In either event, the worker is done
 		self.websocket_worker = self.long_poller_worker = None
-
+		
+	@staticmethod
+	def decodeClip(clip):
+		return clip.decode("base64").decode("zlib").decode("utf-8", "replace")
+	
+	@staticmethod
+	def encodeClip(clip):
+		return clip.encode("utf-8", "replace").encode("zlib").encode("base64")
+		
 	@staticmethod
 	def setClipboardContent(content): 
 		#NEEDS TO BE IN MAIN LOOP FOR WRITING TO WORK, OR ELSE WE WILL 
@@ -336,20 +344,36 @@ class Main(wx.Frame):
 		except TypeError:
 			wx.MessageBox("Unable to access the clipboard. Another application seems to be locking it.", "Error")
 		
-	@staticmethod
-	def getClipboardContent():
+	def getClipboardContent(self):
 		try:
 			with wx.TheClipboard.Get() as clipboard:
 				clip_data = wx.TextDataObject()
 				success = clipboard.GetData(clip_data)
 				if success:
 					return clip_data
-	
-
+				
+				try:
+					host_clip = HOST_CLIP_CONTENT.get()
+					if host_clip:
+						img_uid = self.decodeClip(host_clip)
+						with open("C:\\Users\\Himel\\Desktop\\test\\%s.bmp"%img_uid, 'rb') as image_file:
+							#print image_file
+							pass
+				except IOError: 
+					clip_data = wx.BitmapDataObject() #http://stackoverflow.com/questions/2629907/reading-an-image-from-the-clipboard-with-wxpython
+					success = clipboard.GetData(clip_data)
+					img_uid = str(uuid.uuid4())
+					if success:
+						class dummy_object():
+							def GetText(self):
+								return img_uid
+						bitmap = clip_data.GetBitmap()
+						bitmap.SaveFile("C:\\Users\\Himel\\Desktop\\test\\%s.bmp"%img_uid, wx.BITMAP_TYPE_BMP)
+						return dummy_object()
 					
 				return None
 				
-		except:# TypeError:
+		except ZeroDivisionError:# TypeError:
 			wx.MessageBox("Unable to access the clipboard. Another application seems to be locking it.", "Error")
 			return None
 		
@@ -365,7 +389,7 @@ class Main(wx.Frame):
 				clip = clip_data.GetText().encode("utf-8", "replace").encode("zlib").encode("base64") #MUST ENCODE in base64 before transmitting obsfucated data #null clip causes serious looping problems, put some text! Prevent setText's TypeError: String or Unicode type required 
 				HOST_CLIP_CONTENT.set( clip )#encode it to a data compatible with murmurhash and wxpython settext, which only expect ascii ie "heart symbol" to u/2339
 				CLIENT_LATEST_SIG.set( hex( mmh3.hash( clip ) ) )  #NOTE SERVER_LATEST_SIG.get() was not set
-			gevent.sleep(0.25) #let the greenlets run #NEVER sleep(), aslways with a few milliseconds or else cpu overwhelemed!
+			gevent.sleep() #SLEEP HERE WILL CAUSE FILEEXPLORER TO SLOW
 			wx.Yield() #http://goo.gl/6Jea2t
 
 if __name__ == "__main__":
