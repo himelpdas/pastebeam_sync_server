@@ -362,14 +362,15 @@ class Main(wx.Frame):
 				except IOError: 
 					clip_data = wx.BitmapDataObject() #http://stackoverflow.com/questions/2629907/reading-an-image-from-the-clipboard-with-wxpython
 					success = clipboard.GetData(clip_data)
-					img_uid = str(uuid.uuid4())
+
 					if success:
 						class dummy_object():
 							def GetText(self):
 								return img_uid
 						bitmap = clip_data.GetBitmap()
+						img_uid = str(mmh3.hash(bitmap.ConvertToImage().GetData())) #GET DATA IS HIDDEN METHOD, IT RETURNS BYTE ARRAY... DO NOT USE GETDATABUFFER AS IT CRASHES. BESIDES GETDATABUFFER IS ONLY GOOD TO CHANGE BYTES IN MEMORY http://wxpython.org/Phoenix/docs/html/MigrationGuide.html
+						print img_uid
 						bitmap.SaveFile("C:\\Users\\Himel\\Desktop\\test\\%s.bmp"%img_uid, wx.BITMAP_TYPE_BMP)
-						print mmh3.hash(bitmap.ConvertToImage().GetData()[:1000000]) #GET DATA IS HIDDEN METHOD, IT RETURNS BYTE ARRAY... DO NOT USE GETDATABUFFER AS IT CRASHES. BESIDES GETDATABUFFER IS ONLY GOOD TO CHANGE BYTES IN MEMORY http://wxpython.org/Phoenix/docs/html/MigrationGuide.html
 						return dummy_object()
 					
 				return None
@@ -390,7 +391,7 @@ class Main(wx.Frame):
 				clip = clip_data.GetText().encode("utf-8", "replace").encode("zlib").encode("base64") #MUST ENCODE in base64 before transmitting obsfucated data #null clip causes serious looping problems, put some text! Prevent setText's TypeError: String or Unicode type required 
 				HOST_CLIP_CONTENT.set( clip )#encode it to a data compatible with murmurhash and wxpython settext, which only expect ascii ie "heart symbol" to u/2339
 				CLIENT_LATEST_SIG.set( hex( mmh3.hash( clip ) ) )  #NOTE SERVER_LATEST_SIG.get() was not set
-			gevent.sleep() #SLEEP HERE WILL CAUSE FILEEXPLORER TO SLOW
+			gevent.sleep(0.01) #SLEEP HERE WILL CAUSE FILEEXPLORER TO SLOW
 			wx.Yield() #http://goo.gl/6Jea2t
 
 if __name__ == "__main__":
