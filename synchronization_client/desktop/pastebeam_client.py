@@ -369,6 +369,7 @@ class Main(wx.Frame):
 								return img_uid
 						bitmap = clip_data.GetBitmap()
 						bitmap.SaveFile("C:\\Users\\Himel\\Desktop\\test\\%s.bmp"%img_uid, wx.BITMAP_TYPE_BMP)
+						print mmh3.hash(bitmap.ConvertToImage().GetData()[:1000000]) #GET DATA IS HIDDEN METHOD, IT RETURNS BYTE ARRAY... DO NOT USE GETDATABUFFER AS IT CRASHES. BESIDES GETDATABUFFER IS ONLY GOOD TO CHANGE BYTES IN MEMORY http://wxpython.org/Phoenix/docs/html/MigrationGuide.html
 						return dummy_object()
 					
 				return None
