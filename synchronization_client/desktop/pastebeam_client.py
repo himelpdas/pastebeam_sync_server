@@ -325,11 +325,11 @@ class Main(wx.Frame):
 		
 	@staticmethod
 	def decodeClip(clip):
-		return clip.decode("base64").decode("zlib").decode("utf-8", "replace")
+		return (clip or '').decode("base64").decode("zlib").decode("utf-8", "replace")
 	
 	@staticmethod
 	def encodeClip(clip):
-		return clip.encode("utf-8", "replace").encode("zlib").encode("base64")
+		return (clip or '').encode("utf-8", "replace").encode("zlib").encode("base64")
 		
 	@staticmethod
 	def setClipboardContent(content): 
@@ -347,48 +347,46 @@ class Main(wx.Frame):
 	def getClipboardContent(self):
 		try:
 			with wx.TheClipboard.Get() as clipboard:
-				clip_data = wx.TextDataObject()
-				success = clipboard.GetData(clip_data)
-				if success:
-					return clip_data
-				
-				try:
-					host_clip = HOST_CLIP_CONTENT.get()
-					if host_clip:
-						img_uid = self.decodeClip(host_clip)
-						with open("C:\\Users\\Himel\\Desktop\\test\\%s.bmp"%img_uid, 'rb') as image_file:
-							#print image_file
-							pass
-				except IOError: 
+			
+				def _return_if_text():
+					clip_data = wx.TextDataObject()
+					success = clipboard.GetData(clip_data)
+					if success:
+						clip_text = clip_data.GetText()
+						return clip_text
+					
+				def _return_if_bitmap():
 					clip_data = wx.BitmapDataObject() #http://stackoverflow.com/questions/2629907/reading-an-image-from-the-clipboard-with-wxpython
 					success = clipboard.GetData(clip_data)
 
 					if success:
-						class dummy_object():
-							def GetText(self):
-								return img_uid
+						
+						img_hash_previous = self.decodeClip(HOST_CLIP_CONTENT.get())
+						
 						bitmap = clip_data.GetBitmap()
-						img_uid = str(mmh3.hash(bitmap.ConvertToImage().GetData())) #GET DATA IS HIDDEN METHOD, IT RETURNS BYTE ARRAY... DO NOT USE GETDATABUFFER AS IT CRASHES. BESIDES GETDATABUFFER IS ONLY GOOD TO CHANGE BYTES IN MEMORY http://wxpython.org/Phoenix/docs/html/MigrationGuide.html
-						print img_uid
-						bitmap.SaveFile("C:\\Users\\Himel\\Desktop\\test\\%s.bmp"%img_uid, wx.BITMAP_TYPE_BMP)
-						return dummy_object()
-					
-				return None
+						img_hash_new = clip_text = str(mmh3.hash(bitmap.ConvertToImage().GetData())) #GET DATA IS HIDDEN METHOD, IT RETURNS BYTE ARRAY... DO NOT USE GETDATABUFFER AS IT CRASHES. BESIDES GETDATABUFFER IS ONLY GOOD TO CHANGE BYTES IN MEMORY http://wxpython.org/Phoenix/docs/html/MigrationGuide.html
+						print img_hash_new
+						if img_hash_new != img_hash_previous:
+							bitmap.SaveFile("C:\\Users\\Himel\\Desktop\\test\\%s.bmp"%img_hash_new, wx.BITMAP_TYPE_BMP) #change to or compliment upload
+							return clip_text #for now clip text same as img hash
+							
+				return (_return_if_text() or _return_if_bitmap() or None)
 				
 		except ZeroDivisionError:# TypeError:
 			wx.MessageBox("Unable to access the clipboard. Another application seems to be locking it.", "Error")
 			return None
 		
 	def runAsyncWorker(self): 
+		##pdb.set_trace()
 		#since reading/writing clipboard takes very little time, 
 		#and since we must access clipboard in main loop, we should 
 		#use async to modify a global variable (with a lock to prevent
 		#race issues). wx.Yield simply switches back and forth
 		#between mainloop and this coroutine.
 		while WorkerThread.KEEP_RUNNING:
-			clip_data = self.getClipboardContent()
-			if clip_data:
-				clip = clip_data.GetText().encode("utf-8", "replace").encode("zlib").encode("base64") #MUST ENCODE in base64 before transmitting obsfucated data #null clip causes serious looping problems, put some text! Prevent setText's TypeError: String or Unicode type required 
+			clip_text = self.getClipboardContent()
+			if clip_text:
+				clip = clip_text.encode("utf-8", "replace").encode("zlib").encode("base64") #MUST ENCODE in base64 before transmitting obsfucated data #null clip causes serious looping problems, put some text! Prevent setText's TypeError: String or Unicode type required 
 				HOST_CLIP_CONTENT.set( clip )#encode it to a data compatible with murmurhash and wxpython settext, which only expect ascii ie "heart symbol" to u/2339
 				CLIENT_LATEST_SIG.set( hex( mmh3.hash( clip ) ) )  #NOTE SERVER_LATEST_SIG.get() was not set
 			gevent.sleep(0.01) #SLEEP HERE WILL CAUSE FILEEXPLORER TO SLOW
