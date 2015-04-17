@@ -56,9 +56,10 @@ class EVT_RESULT(wx.PyEvent):
 #with lock:
 #...
 
-SERVER_LATEST_CLIP, CLIENT_LATEST_CLIP = AsyncResult(), AsyncResult()
+SERVER_LATEST_CLIP, CLIENT_LATEST_CLIP, CLIENT_IMAGE_ARRAY = AsyncResult(), AsyncResult(), AsyncResult()
 SERVER_LATEST_CLIP.set({'clip_hash_client':None}) #the latest clip's hash on server
 CLIENT_LATEST_CLIP.set({'clip_hash_client':None}) #the latest clip's hash on client. Take no action if equal with above.
+CLIENT_IMAGE_ARRAY.set(None)
 #HOST_CLIP_CONTENT.set(None) #the raw clip content from the client
 
 class WorkerThread(Thread):
@@ -158,7 +159,7 @@ class WebSocketThread(WorkerThread):
 					SERVER_LATEST_CLIP.set(server_latest_clip_row)
 					CLIENT_LATEST_CLIP.set(server_latest_clip_row)
 					
-					print "GET %s"% server_latest_clip_row['clip_hash_client']
+					#print "GET %s"% server_latest_clip_row['clip_hash_client']
 					
 					wx.PostEvent(self._notify_window, EVT_RESULT(server_latest_clip_rowS) )
 
@@ -392,15 +393,16 @@ class Main(wx.Frame):
 
 					if success:
 						
-						img_hash_old = CLIENT_LATEST_CLIP.get()['clip_hash_client']
-						#print "img_hash_old %s"%img_hash_old
+						img_array_old = CLIENT_IMAGE_ARRAY.get()
+						#print "img_array_old %s"%img_array_old
 						
 						bitmap = clip_data.GetBitmap()
-						img_hash_new  = hex(mmh3.hash(bitmap.ConvertToImage().GetData())) #GET DATA IS HIDDEN METHOD, IT RETURNS BYTE ARRAY... DO NOT USE GETDATABUFFER AS IT CRASHES. BESIDES GETDATABUFFER IS ONLY GOOD TO CHANGE BYTES IN MEMORY http://wxpython.org/Phoenix/docs/html/MigrationGuide.html
-						#print "img_hash_new %s"%img_hash_new
-						if img_hash_new != img_hash_old:
+						img_array_new  = bitmap.ConvertToImage().GetData() #GET DATA IS HIDDEN METHOD, IT RETURNS BYTE ARRAY... DO NOT USE GETDATABUFFER AS IT CRASHES. BESIDES GETDATABUFFER IS ONLY GOOD TO CHANGE BYTES IN MEMORY http://wxpython.org/Phoenix/docs/html/MigrationGuide.html
+						#print "img_array_new %s"%img_array_new
+						if img_array_new != img_array_old:
 						
-							img_file_name = "%s.bmp"%img_hash_new
+							clip_hash_client = uuid.uuid4()
+							img_file_name = "%s.bmp"%uuid.uuid4()
 							img_file_path = os.path.join(TEMP_DIR,img_file_name)
 							bitmap.SaveFile(img_file_path, wx.BITMAP_TYPE_BMP) #change to or compliment upload
 							clip_text = self.encodeClip("Clipboard image %s"%img_file_name)
@@ -415,9 +417,9 @@ class Main(wx.Frame):
 									"clip_type" : "bitmap",
 									"clip_text" : clip_text,
 									"clip_file_name" : img_file_name,
-									"clip_hash_client" : img_hash_new, #for performance reasons we are not using the bmp for hash, but rather the wx Image GetData array
+									"clip_hash_client" : clip_hash_client, #for performance reasons we are not using the bmp for hash, but rather the wx Image GetData array
 								}
-								print img_hash_new
+								CLIENT_IMAGE_ARRAY.set(img_array_new)
 								return clip_content
 							
 				return (_return_if_text() or _return_if_bitmap() or None)
@@ -438,7 +440,7 @@ class Main(wx.Frame):
 			if clip_content:
 				#HOST_CLIP_CONTENT.set( clip_content['clip_text'] )#encode it to a data compatible with murmurhash and wxpython settext, which only expect ascii ie "heart symbol" to u/2339
 				CLIENT_LATEST_CLIP.set( clip_content )  #NOTE SERVER_LATEST_CLIP.get() was not set
-			gevent.sleep(0.25) #SLEEP HERE WILL CAUSE FILEEXPLORER TO SLOW
+			gevent.sleep(0.01) #SLEEP HERE WILL CAUSE FILEEXPLORER TO SLOW
 			wx.Yield() #http://goo.gl/6Jea2t
 
 if __name__ == "__main__":
