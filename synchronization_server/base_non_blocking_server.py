@@ -7,14 +7,15 @@ from bottle import route, abort, request, response, debug
 from time import sleep
 import pymongo
 import mmh3
+from spooky import hash128
 import bson.json_util as json #can't use regular json module or else type error will occur for unknown types like ObjectID(...), use pymongo's bson module http://api.mongodb.org/python/current/api/bson/json_util.html
-import sys
+import sys, os
 
 debug(True)
 
 client=pymongo.MongoClient()
-collection = client.test_database #collection
-clips = collection.clips #database
+collection = client.test_database9 #collection
+clips = collection.clips5 #database
 
 users = collection.users
 """

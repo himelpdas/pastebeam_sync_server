@@ -9,6 +9,8 @@ import uuid
 from bottle import Bottle
 app = Bottle()
 
+UPLOAD_DIR="C:\\Users\\Himel\\Desktop\\test\\uploads"
+
 @app.route('/test_async_websocket')
 def test_async_websocket():
 	wsock = request.environ.get('wsgi.websocket')
@@ -29,11 +31,14 @@ def handle_websocket():
 	if not wsock:
 		abort(400, 'Expected WebSocket request.')
 		
-	def _prepare_data(content):
-		return dict(
-			content = content, 
-			sig = hex( mmh3.hash( content ) ) ,
-		) 
+	def _get_real_hash(clip):
+		clip_hash_server = None
+		if clip['clip_type'] == 'text':
+			clip_hash_server = hex( hash128( clip['clip_text'] ) )
+		elif clip['clip_type'] == 'file':
+			with open(UPLOAD_DIR +"\\"+ clip["clip_file_name"]) as clip_file:
+				clip_hash_server = hex( hash128( clip_file.read()  ) )
+		return clip_hash_server
 
 	def _initialize_client(client_previous_clip_data):
 		wsock.send(json.dumps(client_previous_clip_data ) ) #Do this once to start outgoing greenlet by populating SERVER_LATEST_SIG variable
@@ -41,7 +46,8 @@ def handle_websocket():
 	class _live():
 		uid = uuid.uuid4() #in a webSocket's lifetime, state is maintained
 		def __init__(self, data):
-			print ("="*30+"\n%s:\n%s\n"+"="*30)%(self.uid,data)
+			pass
+			#print ("="*30+"\n%s:\n%s\n"+"="*30)%(self.uid,data)
 				
 	send_im_still_alive = AsyncResult()
 	send_im_still_alive.set(0)
@@ -49,7 +55,7 @@ def handle_websocket():
 	def _incoming(wsock, timeout): #these seem to run in another namespace, you must pass them global or inner variables
 
 		try:
-			client_previous_clip_data = {'sig':None} #too much bandwidth if receiving row itself, only text and hash are fine (data)
+			client_previous_clip = {'clip_hash_server':None} #too much bandwidth if receiving row itself, only text and hash are fine (data)
 			#_initialize_client(client_previous_clip_data)
 			for second in range(timeout): #Even though greenlets don't use much memory, if the user disconnects, this server greenlet will run forever, and this "little memory" will become a big problem
 
@@ -65,20 +71,21 @@ def handle_websocket():
 					send_im_still_alive.set(1)
 			
 				elif data['message'] == "Upload":
+					
+					client_latest_clip = data['data']
+										
+					client_latest_clip['clip_hash_server'] = _get_real_hash(client_latest_clip) #for security reasons, get rid of client's hash, perhaps block client if different hashes
 				
-					client_latest_clip_data = _prepare_data(data['data'] )
-
-					if client_latest_clip_data['sig'] != client_previous_clip_data['sig']: #else just wait
+					if client_latest_clip['clip_hash_server'] != client_previous_clip['clip_hash_server']: #else just wait
 						
-						new_clip_sig = client_latest_clip_data['sig']
-						new_clip_id = clips.insert(dict(content=client_latest_clip_data['content'] , sig = new_clip_sig ) ) 
+						new_clip_id = clips.insert(client_latest_clip) 
 
-						client_previous_clip_data = client_latest_clip_data #reset prev
+						client_previous_clip = client_latest_clip #reset prev
 				
 				_live("incoming wait...")
 				sleep(0.25)
-		except:
-			print "incoming error...%s"%str(sys.exc_info()[0]) #http://goo.gl/cmtlsL
+		except ZeroDivisionError:
+			#print "incoming error...%s"%str(sys.exc_info()[0]) #http://goo.gl/cmtlsL
 			pass
 		finally:
 			wsock.close() #OR IT WILL LEAVE THE CLIENT HANGING!
@@ -109,7 +116,7 @@ def handle_websocket():
 				#_live("outgoing wait...")
 				sleep(0.25)
 		except:
-			print "outgoing error...%s"%str(sys.exc_info()[0]) #http://goo.gl/cmtlsL
+			#print "outgoing error...%s"%str(sys.exc_info()[0]) #http://goo.gl/cmtlsL
 			pass
 		finally:
 			wsock.close()
@@ -130,6 +137,23 @@ def handle_websocket():
 		abort(500, 'Websocket failure.')
 	finally:
 		wsock.close()
+		
+@app.post('/upload')
+def handle_file():
+	#print "HANDLE HANDLE HANDLE"
+	result = "OK"
+	save_path = UPLOAD_DIR
+
+	upload     = request.files.get('upload')
+	
+	name, ext = os.path.splitext(upload.filename)
+	if ext not in ('.png','.jpg','.jpeg'):
+		result = 'File extension not allowed.'
+
+	upload.save(save_path, overwrite=True) # appends upload.filename automatically
+
+	response.content_type =  "application/json; charset=UTF8"
+	return json.dumps({"upload_result":result})
 
 
 #geventwebsocket implementation

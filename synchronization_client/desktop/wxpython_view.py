@@ -41,7 +41,7 @@ class MyListCtrl(wx.ListCtrl):
 		colwidths = [col0, col1, col2, col3]
 		
 		for number, width in enumerate(colwidths):
-			self.SetColumnWidth(number, width)
+			wx.CallLater(0.1, lambda number=number, width=width: self.SetColumnWidth(number, width)) #wx calllater for smoother operation
 	
 	def PopulateList(self, data):
 		"""Populate the list with the set of data. Data

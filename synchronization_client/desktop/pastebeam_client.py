@@ -25,9 +25,10 @@ import pdb
 
 #db stuff
 import mmh3
+from spooky import hash128
 import bson.json_util as json
 
-HTTP_BASE = lambda query, port=8083, scheme="http": "%s://192.168.0.190:%s%s"%(scheme, port, query)
+HTTP_BASE = lambda arg, port, scheme: "%s://192.168.0.190:%s/%s"%(scheme, port, arg)
 
 # Button definitions
 ID_START = wx.NewId()
@@ -53,10 +54,10 @@ class EVT_RESULT(wx.PyEvent):
 #with lock:
 #...
 
-SERVER_LATEST_SIG, CLIENT_LATEST_SIG, HOST_CLIP_CONTENT = AsyncResult(), AsyncResult(), AsyncResult()
-SERVER_LATEST_SIG.set(None) #the latest clip's hash on server
-CLIENT_LATEST_SIG.set(None) #the latest clip's hash on client. Take no action if equal with above.
-HOST_CLIP_CONTENT.set(None) #the raw clip content from the client
+SERVER_LATEST_CLIP, CLIENT_LATEST_CLIP = AsyncResult(), AsyncResult()
+SERVER_LATEST_CLIP.set({'clip_hash_client':None}) #the latest clip's hash on server
+CLIENT_LATEST_CLIP.set({'clip_hash_client':None}) #the latest clip's hash on client. Take no action if equal with above.
+#HOST_CLIP_CONTENT.set(None) #the raw clip content from the client
 
 class WorkerThread(Thread):
 	"""Worker Thread Class."""
@@ -101,8 +102,8 @@ class WebSocketThread(WorkerThread):
 		An ideal connection will have a 1:1 ratio of send and receive
 		However, bad connections will have poorer ratios such as 10:1
 		If ratio reaches 20:1 then this function will force reconnect
-		This function is triggered when CLIENT_LATEST_SIG is set, but
-		SERVER_LATEST_SIG is not, and the outgoing loop keeps calling
+		This function is triggered when CLIENT_LATEST_CLIP is set, but
+		SERVER_LATEST_CLIP is not, and the outgoing loop keeps calling
 		"""
 		while self.KEEP_RUNNING:
 			try:
@@ -111,17 +112,17 @@ class WebSocketThread(WorkerThread):
 				pass
 			try:
 				self.last_sent = self.last_alive = datetime.datetime.now()
-				self.wsock=WebSocketClient(HTTP_BASE("/ws", port=8084, scheme="ws") ) #keep static to guarantee one socket for all instances
+				self.wsock=WebSocketClient(HTTP_BASE(arg="ws", port=8084, scheme="ws") ) #keep static to guarantee one socket for all instances
 				self.wsock.connect()
 				break
 			except (SocketError, exc.HandshakeError, RuntimeError):
-				print "no connection..."
+				#print "no connection..."
 				gevent.sleep(1)
 				
 	def keepAlive(self, heartbeat = 5, timeout = 15): #increment of 60s times 20 unresponsive = 20 minutes
 		"""
 		Since send is the only way we can test a connection's status,
-		and since send is only triggered when CLIENT_LATEST_SIG has a
+		and since send is only triggered when CLIENT_LATEST_CLIP has a
 		change, we need to test the connection incrementally too, and
 		therefore we can account for when the user is idle.
 		"""
@@ -135,10 +136,10 @@ class WebSocketThread(WorkerThread):
 	
 	def incoming(self):
 		#pdb.set_trace()
-		print "start incoming..."
+		#print "start incoming..."
 		while self.KEEP_RUNNING:
-			#if CLIENT_LATEST_SIG.get() != SERVER_LATEST_SIG.get():
-			print "getting... c:%s, s:%s"%(CLIENT_LATEST_SIG.get(),SERVER_LATEST_SIG.get())
+			#if CLIENT_LATEST_CLIP.get() != SERVER_LATEST_CLIP.get():
+			#print "getting... c:%s, s:%s"%(CLIENT_LATEST_CLIP.get(),SERVER_LATEST_CLIP.get())
 			try:
 				received = self.wsock.receive() #WebSocket run method is implicitly called, "Performs the operation of reading from the underlying connection in order to feed the stream of bytes." According to WS4PY This method is blocking and should likely be run in a thread.
 				
@@ -150,40 +151,40 @@ class WebSocketThread(WorkerThread):
 				if data["message"] == "Download":
 					server_latest_clip_rowS = data['data']
 					server_latest_clip_row = server_latest_clip_rowS[0]
-					print server_latest_clip_row
+					#print server_latest_clip_row
 					
-					SERVER_LATEST_SIG.set(server_latest_clip_row['sig'])
-					CLIENT_LATEST_SIG.set(server_latest_clip_row['sig'])
+					SERVER_LATEST_CLIP.set(server_latest_clip_row)
+					CLIENT_LATEST_CLIP.set(server_latest_clip_row)
 					
 					wx.PostEvent(self._notify_window, EVT_RESULT(server_latest_clip_rowS) )
 
 				elif data["message"] == "Alive!":
-					print "Alive!"
+					#print "Alive!"
 					self.last_alive = datetime.datetime.now()
 	
 			#except (SocketError, RuntimeError, AttributeError, ValueError, TypeError): #gevent traceback didn't mention it was a socket error, just "error", but googling the traceback proved it was. #if received is not None: #test if socket can send
 			except:
-				print "can't get...%s"%str(sys.exc_info()[0])
+				#print "can't get...%s"%str(sys.exc_info()[0])
 				self.webSocketReconnect()
 			
 			gevent.sleep(0.25)
 				
 	def outgoing(self):
 		#pdb.set_trace()
-		print "start outgoing..."
+		#print "start outgoing..."
 		while self.KEEP_RUNNING:
 			sendit = False
-			if CLIENT_LATEST_SIG.get() != SERVER_LATEST_SIG.get(): #start only when there is something to send
-				print "sending...%s"%CLIENT_LATEST_SIG.get()	
+			if CLIENT_LATEST_CLIP.get()['clip_hash_client'] != SERVER_LATEST_CLIP.get()['clip_hash_client']: #start only when there is something to send
+				#print "sending...%s"%CLIENT_LATEST_CLIP.get()	
 				
 				sendit = dict(
-					data=HOST_CLIP_CONTENT.get(),
+					data=CLIENT_LATEST_CLIP.get(),
 					message="Upload"
 				)
 				
 			elif self.keepAlive(): #also send alive messages and reset connection if receive block indefinitely
 				sendit = dict(message="Alive?")
-			
+						
 			if sendit:
 				try:
 					self.wsock.send(json.dumps(sendit))
@@ -192,7 +193,7 @@ class WebSocketThread(WorkerThread):
 
 				#except (SocketError, RuntimeError, AttributeError, ValueError, TypeError): #if self.wsock.stream: #test if socket can get
 				except:
-					print "can't send...%s"%str(sys.exc_info()[0])
+					#print "can't send...%s"%str(sys.exc_info()[0])
 					self.webSocketReconnect()
 					
 			
@@ -310,15 +311,18 @@ class Main(wx.Frame):
 			first_to_latest_data = result_event.data[::-1]
 			self.clearList()
 			for each_clip in first_to_latest_data:
+				#print each_clip
 				try:
-					each_clip['content'] = each_clip['content'].decode("base64").decode("zlib").decode("utf-8", "replace")
+					print "DECODE CLIP %s"%each_clip['clip_text']
+					each_clip['clip_text'] = self.decodeClip(each_clip['clip_text'])
 				except (zlib.error, UnicodeDecodeError):
-					print "DECODE/DECRYPT/UNZIP ERROR"
+					pass
+					#print "DECODE/DECRYPT/UNZIP ERROR"
 					#purge all data on server
-				self.appendText(each_clip['content'])
+				self.appendText(each_clip['clip_text'])
 				
 			# Process results here
-			latest_content = first_to_latest_data[-1]['content']
+			latest_content = first_to_latest_data[-1]['clip_text']
 			self.setClipboardContent(latest_content)
 		# In either event, the worker is done
 		self.websocket_worker = self.long_poller_worker = None
@@ -329,7 +333,7 @@ class Main(wx.Frame):
 	
 	@staticmethod
 	def encodeClip(clip):
-		return (clip or '').encode("utf-8", "replace").encode("zlib").encode("base64")
+		return (clip or '').encode("utf-8", "replace").encode("zlib").encode("base64") #MUST ENCODE in base64 before transmitting obsfucated data #null clip causes serious looping problems, put some text! Prevent setText's TypeError: String or Unicode type required 
 		
 	@staticmethod
 	def setClipboardContent(content): 
@@ -352,8 +356,14 @@ class Main(wx.Frame):
 					clip_data = wx.TextDataObject()
 					success = clipboard.GetData(clip_data)
 					if success:
-						clip_text = clip_data.GetText()
-						return clip_text
+						clip_text = self.encodeClip(clip_data.GetText())
+						clip_hash_client = hex( hash128( clip_text ) )
+						clip_content = {
+							'clip_type' : "text",
+							'clip_text' : clip_text,
+							'clip_hash_client' : clip_hash_client,
+						}						
+						return clip_content
 					
 				def _return_if_bitmap():
 					clip_data = wx.BitmapDataObject() #http://stackoverflow.com/questions/2629907/reading-an-image-from-the-clipboard-with-wxpython
@@ -361,14 +371,32 @@ class Main(wx.Frame):
 
 					if success:
 						
-						img_hash_previous = self.decodeClip(HOST_CLIP_CONTENT.get())
+						img_hash_old = CLIENT_LATEST_CLIP.get()['clip_hash_client']
 						
 						bitmap = clip_data.GetBitmap()
-						img_hash_new = clip_text = str(mmh3.hash(bitmap.ConvertToImage().GetData())) #GET DATA IS HIDDEN METHOD, IT RETURNS BYTE ARRAY... DO NOT USE GETDATABUFFER AS IT CRASHES. BESIDES GETDATABUFFER IS ONLY GOOD TO CHANGE BYTES IN MEMORY http://wxpython.org/Phoenix/docs/html/MigrationGuide.html
-						print img_hash_new
-						if img_hash_new != img_hash_previous:
-							bitmap.SaveFile("C:\\Users\\Himel\\Desktop\\test\\%s.bmp"%img_hash_new, wx.BITMAP_TYPE_BMP) #change to or compliment upload
-							return clip_text #for now clip text same as img hash
+						img_hash_new  = hex(hash128(bitmap.ConvertToImage().GetData())) #GET DATA IS HIDDEN METHOD, IT RETURNS BYTE ARRAY... DO NOT USE GETDATABUFFER AS IT CRASHES. BESIDES GETDATABUFFER IS ONLY GOOD TO CHANGE BYTES IN MEMORY http://wxpython.org/Phoenix/docs/html/MigrationGuide.html
+						#print img_hash_new
+						if img_hash_new != img_hash_old:
+						
+							img_file_name = "%s.bmp"%img_hash_new
+							img_file_path = "C:\\Users\\Himel\\Desktop\\test\\%s"%img_file_name
+							bitmap.SaveFile(img_file_path, wx.BITMAP_TYPE_BMP) #change to or compliment upload
+							clip_text = self.encodeClip("Clipboard image %s"%img_file_name)
+							
+							try:
+								r = requests.post(HTTP_BASE(arg="upload",port=8084,scheme="http"), files={"upload": open(img_file_path, 'rb')})
+								print r
+							except:
+								pass
+							else:
+								clip_content = {
+									"clip_type" : "file",
+									"clip_text" : clip_text,
+									"clip_file_name" : img_file_name,
+									"clip_hash_client" : img_hash_new, #for performance reasons we are not using the bmp for hash, but rather the wx Image GetData array
+								}
+								
+								return clip_content
 							
 				return (_return_if_text() or _return_if_bitmap() or None)
 				
@@ -384,11 +412,10 @@ class Main(wx.Frame):
 		#race issues). wx.Yield simply switches back and forth
 		#between mainloop and this coroutine.
 		while WorkerThread.KEEP_RUNNING:
-			clip_text = self.getClipboardContent()
-			if clip_text:
-				clip = clip_text.encode("utf-8", "replace").encode("zlib").encode("base64") #MUST ENCODE in base64 before transmitting obsfucated data #null clip causes serious looping problems, put some text! Prevent setText's TypeError: String or Unicode type required 
-				HOST_CLIP_CONTENT.set( clip )#encode it to a data compatible with murmurhash and wxpython settext, which only expect ascii ie "heart symbol" to u/2339
-				CLIENT_LATEST_SIG.set( hex( mmh3.hash( clip ) ) )  #NOTE SERVER_LATEST_SIG.get() was not set
+			clip_content = self.getClipboardContent()
+			if clip_content:
+				#HOST_CLIP_CONTENT.set( clip_content['clip_text'] )#encode it to a data compatible with murmurhash and wxpython settext, which only expect ascii ie "heart symbol" to u/2339
+				CLIENT_LATEST_CLIP.set( clip_content )  #NOTE SERVER_LATEST_CLIP.get() was not set
 			gevent.sleep(0.01) #SLEEP HERE WILL CAUSE FILEEXPLORER TO SLOW
 			wx.Yield() #http://goo.gl/6Jea2t
 
