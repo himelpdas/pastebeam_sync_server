@@ -18,17 +18,19 @@ from threading import *
 from wxpython_view import *
 
 #general stuff
-import time, sys, zlib, datetime, uuid
+import time, sys, zlib, datetime, uuid, os, tempfile, urllib
 
 #debug
 import pdb
 
 #db stuff
 import mmh3
-from spooky import hash128
+from spooky import hash64
 import bson.json_util as json
 
 HTTP_BASE = lambda arg, port, scheme: "%s://192.168.0.190:%s/%s"%(scheme, port, arg)
+
+TEMP_DIR = tempfile.mkdtemp(); print TEMP_DIR
 
 # Button definitions
 ID_START = wx.NewId()
@@ -156,6 +158,8 @@ class WebSocketThread(WorkerThread):
 					SERVER_LATEST_CLIP.set(server_latest_clip_row)
 					CLIENT_LATEST_CLIP.set(server_latest_clip_row)
 					
+					print "GET %s"% server_latest_clip_row['clip_hash_client']
+					
 					wx.PostEvent(self._notify_window, EVT_RESULT(server_latest_clip_rowS) )
 
 				elif data["message"] == "Alive!":
@@ -174,14 +178,14 @@ class WebSocketThread(WorkerThread):
 		#print "start outgoing..."
 		while self.KEEP_RUNNING:
 			sendit = False
-			if CLIENT_LATEST_CLIP.get()['clip_hash_client'] != SERVER_LATEST_CLIP.get()['clip_hash_client']: #start only when there is something to send
-				#print "sending...%s"%CLIENT_LATEST_CLIP.get()	
+			if CLIENT_LATEST_CLIP.get().get('clip_hash_client') != SERVER_LATEST_CLIP.get().get('clip_hash_client'): #start only when there is something to send
+				print "sending...%s"	
 				
 				sendit = dict(
 					data=CLIENT_LATEST_CLIP.get(),
 					message="Upload"
 				)
-				
+				print "\n\n\nSEND %s... %s"%(CLIENT_LATEST_CLIP.get().get('clip_hash_client'), SERVER_LATEST_CLIP.get().get('clip_hash_client'))
 			elif self.keepAlive(): #also send alive messages and reset connection if receive block indefinitely
 				sendit = dict(message="Alive?")
 						
@@ -313,7 +317,7 @@ class Main(wx.Frame):
 			for each_clip in first_to_latest_data:
 				#print each_clip
 				try:
-					print "DECODE CLIP %s"%each_clip['clip_text']
+					#print "DECODE CLIP %s"%each_clip['clip_text']
 					each_clip['clip_text'] = self.decodeClip(each_clip['clip_text'])
 				except (zlib.error, UnicodeDecodeError):
 					pass
@@ -322,7 +326,8 @@ class Main(wx.Frame):
 				self.appendText(each_clip['clip_text'])
 				
 			# Process results here
-			latest_content = first_to_latest_data[-1]['clip_text']
+			latest_content = first_to_latest_data[-1]
+			
 			self.setClipboardContent(latest_content)
 		# In either event, the worker is done
 		self.websocket_worker = self.long_poller_worker = None
@@ -340,12 +345,28 @@ class Main(wx.Frame):
 		#NEEDS TO BE IN MAIN LOOP FOR WRITING TO WORK, OR ELSE WE WILL 
 		#GET SOMETHING LIKE: "Failed to put data on the clipboard 
 		#(error 2147221008: coInitialize has not been called.)"
+		success = False
 		try:
 			with wx.TheClipboard.Get() as clipboard:
-				clip_data = wx.TextDataObject()
-				clip_data.SetText(content)
-				success = clipboard.SetData(clip_data)
-		except TypeError:
+				if content['clip_type'] == "text":
+					clip_text = content['clip_text']
+					clip_data = wx.TextDataObject()
+					clip_data.SetText(clip_text)
+					success = clipboard.SetData(clip_data)
+				elif content['clip_type'] == "bitmap":
+					img_file_name = content['clip_file_name']
+					img_file_path = os.path.join(TEMP_DIR,img_file_name)
+					print img_file_path
+					
+					if not os.path.isfile(img_file_path):
+						urllib.urlretrieve(HTTP_BASE(arg="static/%s"%img_file_name,port=8084,scheme="http"), img_file_path)
+
+					bitmap=wx.Bitmap(img_file_path, wx.BITMAP_TYPE_BMP)
+					#bitmap.LoadFile(img_file_path, wx.BITMAP_TYPE_BMP)
+					clip_data = wx.BitmapDataObject(bitmap)
+					success = clipboard.SetData(clip_data)
+					print "SUCCESS = %s"%success
+		except ZeroDivisionError:
 			wx.MessageBox("Unable to access the clipboard. Another application seems to be locking it.", "Error")
 		
 	def getClipboardContent(self):
@@ -357,7 +378,7 @@ class Main(wx.Frame):
 					success = clipboard.GetData(clip_data)
 					if success:
 						clip_text = self.encodeClip(clip_data.GetText())
-						clip_hash_client = hex( hash128( clip_text ) )
+						clip_hash_client = hex( mmh3.hash( clip_text ) )
 						clip_content = {
 							'clip_type' : "text",
 							'clip_text' : clip_text,
@@ -372,14 +393,15 @@ class Main(wx.Frame):
 					if success:
 						
 						img_hash_old = CLIENT_LATEST_CLIP.get()['clip_hash_client']
+						#print "img_hash_old %s"%img_hash_old
 						
 						bitmap = clip_data.GetBitmap()
-						img_hash_new  = hex(hash128(bitmap.ConvertToImage().GetData())) #GET DATA IS HIDDEN METHOD, IT RETURNS BYTE ARRAY... DO NOT USE GETDATABUFFER AS IT CRASHES. BESIDES GETDATABUFFER IS ONLY GOOD TO CHANGE BYTES IN MEMORY http://wxpython.org/Phoenix/docs/html/MigrationGuide.html
-						#print img_hash_new
+						img_hash_new  = hex(mmh3.hash(bitmap.ConvertToImage().GetData())) #GET DATA IS HIDDEN METHOD, IT RETURNS BYTE ARRAY... DO NOT USE GETDATABUFFER AS IT CRASHES. BESIDES GETDATABUFFER IS ONLY GOOD TO CHANGE BYTES IN MEMORY http://wxpython.org/Phoenix/docs/html/MigrationGuide.html
+						#print "img_hash_new %s"%img_hash_new
 						if img_hash_new != img_hash_old:
 						
 							img_file_name = "%s.bmp"%img_hash_new
-							img_file_path = "C:\\Users\\Himel\\Desktop\\test\\%s"%img_file_name
+							img_file_path = os.path.join(TEMP_DIR,img_file_name)
 							bitmap.SaveFile(img_file_path, wx.BITMAP_TYPE_BMP) #change to or compliment upload
 							clip_text = self.encodeClip("Clipboard image %s"%img_file_name)
 							
@@ -390,12 +412,12 @@ class Main(wx.Frame):
 								pass
 							else:
 								clip_content = {
-									"clip_type" : "file",
+									"clip_type" : "bitmap",
 									"clip_text" : clip_text,
 									"clip_file_name" : img_file_name,
 									"clip_hash_client" : img_hash_new, #for performance reasons we are not using the bmp for hash, but rather the wx Image GetData array
 								}
-								
+								print img_hash_new
 								return clip_content
 							
 				return (_return_if_text() or _return_if_bitmap() or None)
@@ -416,7 +438,7 @@ class Main(wx.Frame):
 			if clip_content:
 				#HOST_CLIP_CONTENT.set( clip_content['clip_text'] )#encode it to a data compatible with murmurhash and wxpython settext, which only expect ascii ie "heart symbol" to u/2339
 				CLIENT_LATEST_CLIP.set( clip_content )  #NOTE SERVER_LATEST_CLIP.get() was not set
-			gevent.sleep(0.01) #SLEEP HERE WILL CAUSE FILEEXPLORER TO SLOW
+			gevent.sleep(0.25) #SLEEP HERE WILL CAUSE FILEEXPLORER TO SLOW
 			wx.Yield() #http://goo.gl/6Jea2t
 
 if __name__ == "__main__":

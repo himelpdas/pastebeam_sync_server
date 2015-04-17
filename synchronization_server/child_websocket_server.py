@@ -6,7 +6,7 @@ from gevent.event import AsyncResult
 
 import uuid
 
-from bottle import Bottle
+from bottle import Bottle, static_file
 app = Bottle()
 
 UPLOAD_DIR="C:\\Users\\Himel\\Desktop\\test\\uploads"
@@ -34,10 +34,11 @@ def handle_websocket():
 	def _get_real_hash(clip):
 		clip_hash_server = None
 		if clip['clip_type'] == 'text':
-			clip_hash_server = hex( hash128( clip['clip_text'] ) )
-		elif clip['clip_type'] == 'file':
+			clip_hash_server = hex( mmh3.hash( clip['clip_text'] ) )
+		elif clip['clip_type'] == 'bitmap':
 			with open(UPLOAD_DIR +"\\"+ clip["clip_file_name"]) as clip_file:
-				clip_hash_server = hex( hash128( clip_file.read()  ) )
+				clip_hash_server = hex( mmh3.hash( clip_file.read()  ) )
+				print clip_hash_server
 		return clip_hash_server
 
 	def _initialize_client(client_previous_clip_data):
@@ -139,7 +140,7 @@ def handle_websocket():
 		wsock.close()
 		
 @app.post('/upload')
-def handle_file():
+def handle_upload():
 	#print "HANDLE HANDLE HANDLE"
 	result = "OK"
 	save_path = UPLOAD_DIR
@@ -155,6 +156,9 @@ def handle_file():
 	response.content_type =  "application/json; charset=UTF8"
 	return json.dumps({"upload_result":result})
 
+@app.get('/static/<filename>')
+def handle_download(filename):
+	return static_file(filename, root=UPLOAD_DIR)
 
 #geventwebsocket implementation
 from gevent.pywsgi import WSGIServer
