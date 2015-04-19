@@ -263,6 +263,8 @@ class Main(wx.Frame):
 		# And indicate we don't have a worker thread yet
 		self.websocket_worker = self.long_poller_worker = self.async_worker = None
 		# Temporary... no button event, so pass None
+		
+		self.setThrottle()
 		wx.CallLater(1, lambda: self.onStart(None))
 
 	def appendText(self, content):
@@ -379,6 +381,8 @@ class Main(wx.Frame):
 					clip_data = wx.TextDataObject()
 					success = clipboard.GetData(clip_data)
 					if success:
+						self.setThrottle("fast")
+					
 						clip_text = self.encodeClip(clip_data.GetText())
 						clip_hash_client = hex( hash128( clip_text ) )
 						clip_content = {
@@ -394,6 +398,7 @@ class Main(wx.Frame):
 					success = clipboard.GetData(clip_data)
 
 					if success:
+						self.setThrottle("slow")
 						
 						img_array_old = CLIENT_IMAGE_ARRAY.get()
 						#print "img_array_old %s"%img_array_old
@@ -431,6 +436,15 @@ class Main(wx.Frame):
 		except ZeroDivisionError:# TypeError:
 			wx.MessageBox("Unable to access the clipboard. Another application seems to be locking it.", "Error")
 			return None
+			
+	def setThrottle(self, speed="fast"):
+		#the seconds before self.getClipboardContent() runs again
+		#set to slow when dealing with files and bitmaps to prevent memory leaks
+		if speed == "fast":
+			milliseconds = 1111
+		elif speed == "slow":
+			milliseconds = 5555		
+		self.throttle = milliseconds
 		
 	def runAsyncWorker(self): 
 		##pdb.set_trace()
@@ -441,7 +455,7 @@ class Main(wx.Frame):
 		#between mainloop and this coroutine.
 		counter = 0
 		while WorkerThread.KEEP_RUNNING:
-			if counter % 3333 == 0:# only run every second, letting it run without this restriction will call memory failure and high cpu
+			if counter % self.throttle == 0:# only run every second, letting it run without this restriction will call memory failure and high cpu
 				clip_content = self.getClipboardContent()
 				if clip_content:
 					#HOST_CLIP_CONTENT.set( clip_content['clip_text'] )#encode it to a data compatible with murmurhash and wxpython settext, which only expect ascii ie "heart symbol" to u/2339
