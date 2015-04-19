@@ -182,7 +182,7 @@ class WebSocketThread(WorkerThread):
 			if self.keepAlive(): #also send alive messages and reset connection if receive block indefinitely
 				sendit = dict(message="Alive?")
 			elif CLIENT_LATEST_CLIP.get().get('clip_hash_client') != SERVER_LATEST_CLIP.get().get('clip_hash_client'): #start only when there is something to send
-				print "sending...%s"	
+				print "sending...%s"%CLIENT_LATEST_CLIP.get()	
 				
 				sendit = dict(
 					data=CLIENT_LATEST_CLIP.get(),
@@ -359,6 +359,7 @@ class Main(wx.Frame):
 					img_file_path = os.path.join(TEMP_DIR,img_file_name)
 					print img_file_path
 					
+					#show downloading file dialogue
 					if not os.path.isfile(img_file_path):
 						urllib.urlretrieve(HTTP_BASE(arg="static/%s"%img_file_name,port=8084,scheme="http"), img_file_path)
 
@@ -383,6 +384,7 @@ class Main(wx.Frame):
 						clip_content = {
 							'clip_type' : "text",
 							'clip_text' : clip_text,
+							'clip_file_name':None,
 							'clip_hash_client' : clip_hash_client,
 						}						
 						return clip_content

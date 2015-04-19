@@ -41,7 +41,8 @@ class MyListCtrl(wx.ListCtrl):
 		colwidths = [col0, col1, col2, col3]
 		
 		for number, width in enumerate(colwidths):
-			wx.CallLater(0.1, lambda number=number, width=width: self.SetColumnWidth(number, width)) #wx calllater for smoother operation
+			if not wx.GetMouseState().LeftIsDown(): #left key is still up at the very last few resize events, so anything before left key down will be ignored, and resize of columns will be much faster
+				wx.CallLater(0.01, lambda number=number, width=width: self.SetColumnWidth(number, width)) #wx calllater for smoother operation #https://groups.google.com/forum/#!topic/wxpython-users/tWiSDnbpWcM
 	
 	def PopulateList(self, data):
 		"""Populate the list with the set of data. Data

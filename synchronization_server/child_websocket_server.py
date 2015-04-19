@@ -41,7 +41,7 @@ def handle_websocket():
 				#print clip_hash_server
 
 		if clip_data_server:
-			hex(hash128(clip_data_server))
+			clip_hash_server = hex(hash128(clip_data_server))
 
 		return clip_hash_server
 
@@ -91,7 +91,7 @@ def handle_websocket():
 					
 					else:
 						print "hashes match, request rejected"
-						print "OLD: \n%s - %s\nNEW:%s - %s"%(client_previous_clip['clip_hash_server'], client_previous_clip["clip_file_name"], client_latest_clip['clip_hash_server'], client_latest_clip['clip_file_name'])
+						print "OLD: \n%s - %s\nNEW:%s - %s"%(client_previous_clip.get('clip_hash_server'), client_previous_clip.get("clip_file_name"), client_latest_clip.get('clip_hash_server'), client_latest_clip.get('clip_file_name') )
 				
 				_live("incoming wait...")
 				sleep(0.25)
