@@ -25,7 +25,7 @@ import pdb
 
 #db stuff
 import mmh3
-from spooky import hash64
+from spooky import hash128
 import bson.json_util as json
 
 HTTP_BASE = lambda arg, port, scheme: "%s://192.168.0.190:%s/%s"%(scheme, port, arg)
@@ -164,7 +164,7 @@ class WebSocketThread(WorkerThread):
 					wx.PostEvent(self._notify_window, EVT_RESULT(server_latest_clip_rowS) )
 
 				elif data["message"] == "Alive!":
-					#print "Alive!"
+					print "Alive!"
 					self.last_alive = datetime.datetime.now()
 	
 			#except (SocketError, RuntimeError, AttributeError, ValueError, TypeError): #gevent traceback didn't mention it was a socket error, just "error", but googling the traceback proved it was. #if received is not None: #test if socket can send
@@ -172,14 +172,16 @@ class WebSocketThread(WorkerThread):
 				#print "can't get...%s"%str(sys.exc_info()[0])
 				self.webSocketReconnect()
 			
-			gevent.sleep(0.25)
+			gevent.sleep(1)
 				
 	def outgoing(self):
 		#pdb.set_trace()
 		#print "start outgoing..."
 		while self.KEEP_RUNNING:
 			sendit = False
-			if CLIENT_LATEST_CLIP.get().get('clip_hash_client') != SERVER_LATEST_CLIP.get().get('clip_hash_client'): #start only when there is something to send
+			if self.keepAlive(): #also send alive messages and reset connection if receive block indefinitely
+				sendit = dict(message="Alive?")
+			elif CLIENT_LATEST_CLIP.get().get('clip_hash_client') != SERVER_LATEST_CLIP.get().get('clip_hash_client'): #start only when there is something to send
 				print "sending...%s"	
 				
 				sendit = dict(
@@ -187,8 +189,6 @@ class WebSocketThread(WorkerThread):
 					message="Upload"
 				)
 				print "\n\n\nSEND %s... %s"%(CLIENT_LATEST_CLIP.get().get('clip_hash_client'), SERVER_LATEST_CLIP.get().get('clip_hash_client'))
-			elif self.keepAlive(): #also send alive messages and reset connection if receive block indefinitely
-				sendit = dict(message="Alive?")
 						
 			if sendit:
 				try:
@@ -202,7 +202,7 @@ class WebSocketThread(WorkerThread):
 					self.webSocketReconnect()
 					
 			
-			gevent.sleep(0.25) #yield to next coroutine.
+			gevent.sleep(1) #yield to next coroutine.
 		
 	
 	def run(self):
@@ -362,7 +362,7 @@ class Main(wx.Frame):
 					if not os.path.isfile(img_file_path):
 						urllib.urlretrieve(HTTP_BASE(arg="static/%s"%img_file_name,port=8084,scheme="http"), img_file_path)
 
-					bitmap=wx.Bitmap(img_file_path, wx.BITMAP_TYPE_BMP)
+					bitmap=wx.Bitmap(img_file_path, wx.BITMAP_TYPE_PNG)
 					#bitmap.LoadFile(img_file_path, wx.BITMAP_TYPE_BMP)
 					clip_data = wx.BitmapDataObject(bitmap)
 					success = clipboard.SetData(clip_data)
@@ -379,7 +379,7 @@ class Main(wx.Frame):
 					success = clipboard.GetData(clip_data)
 					if success:
 						clip_text = self.encodeClip(clip_data.GetText())
-						clip_hash_client = hex( mmh3.hash( clip_text ) )
+						clip_hash_client = hex( hash128( clip_text ) )
 						clip_content = {
 							'clip_type' : "text",
 							'clip_text' : clip_text,
@@ -400,11 +400,13 @@ class Main(wx.Frame):
 						img_array_new  = bitmap.ConvertToImage().GetData() #GET DATA IS HIDDEN METHOD, IT RETURNS BYTE ARRAY... DO NOT USE GETDATABUFFER AS IT CRASHES. BESIDES GETDATABUFFER IS ONLY GOOD TO CHANGE BYTES IN MEMORY http://wxpython.org/Phoenix/docs/html/MigrationGuide.html
 						#print "img_array_new %s"%img_array_new
 						if img_array_new != img_array_old:
-						
-							clip_hash_client = uuid.uuid4()
-							img_file_name = "%s.bmp"%uuid.uuid4()
+							
+							print len(img_array_new)
+							
+							clip_hash_client = hex(hash128(img_array_new))
+							img_file_name = "%s.png"%clip_hash_client
 							img_file_path = os.path.join(TEMP_DIR,img_file_name)
-							bitmap.SaveFile(img_file_path, wx.BITMAP_TYPE_BMP) #change to or compliment upload
+							bitmap.SaveFile(img_file_path, wx.BITMAP_TYPE_PNG) #change to or compliment upload
 							clip_text = self.encodeClip("Clipboard image %s"%img_file_name)
 							
 							try:
@@ -435,13 +437,17 @@ class Main(wx.Frame):
 		#use async to modify a global variable (with a lock to prevent
 		#race issues). wx.Yield simply switches back and forth
 		#between mainloop and this coroutine.
+		counter = 0
 		while WorkerThread.KEEP_RUNNING:
-			clip_content = self.getClipboardContent()
-			if clip_content:
-				#HOST_CLIP_CONTENT.set( clip_content['clip_text'] )#encode it to a data compatible with murmurhash and wxpython settext, which only expect ascii ie "heart symbol" to u/2339
-				CLIENT_LATEST_CLIP.set( clip_content )  #NOTE SERVER_LATEST_CLIP.get() was not set
-			gevent.sleep(0.01) #SLEEP HERE WILL CAUSE FILEEXPLORER TO SLOW
+			if counter % 3333 == 0:# only run every second, letting it run without this restriction will call memory failure and high cpu
+				clip_content = self.getClipboardContent()
+				if clip_content:
+					#HOST_CLIP_CONTENT.set( clip_content['clip_text'] )#encode it to a data compatible with murmurhash and wxpython settext, which only expect ascii ie "heart symbol" to u/2339
+					CLIENT_LATEST_CLIP.set( clip_content )  #NOTE SERVER_LATEST_CLIP.get() was not set
+			counter += 1
+			gevent.sleep(0.001) #SLEEP HERE WILL CAUSE FILEEXPLORER AND UI TO SLOW
 			wx.Yield() #http://goo.gl/6Jea2t
+				
 
 if __name__ == "__main__":
 	app = wx.App(False)

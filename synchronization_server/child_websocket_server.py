@@ -32,13 +32,17 @@ def handle_websocket():
 		abort(400, 'Expected WebSocket request.')
 		
 	def _get_real_hash(clip):
-		clip_hash_server = None
+		clip_hash_server  = clip_data_server = None
 		if clip['clip_type'] == 'text':
-			clip_hash_server = hex( mmh3.hash( clip['clip_text'] ) )
+			clip_data_server = clip['clip_text']
 		elif clip['clip_type'] == 'bitmap':
-			with open(UPLOAD_DIR +"\\"+ clip["clip_file_name"]) as clip_file:
-				clip_hash_server = hex( mmh3.hash( clip_file.read()  ) )
-				print clip_hash_server
+			with open(UPLOAD_DIR +"\\"+ clip["clip_file_name"], 'rb') as clip_file:
+				clip_data_server = clip_file.read() #WARNING!!! NEED TO USE 'rb' MODE OR WILL RESULT IN SAME HASH, PROBABLY BECAUSE CHARACTERS ARE IGNORED AS BLANK
+				#print clip_hash_server
+
+		if clip_data_server:
+			hex(hash128(clip_data_server))
+
 		return clip_hash_server
 
 	def _initialize_client(client_previous_clip_data):
@@ -80,8 +84,14 @@ def handle_websocket():
 					if client_latest_clip['clip_hash_server'] != client_previous_clip['clip_hash_server']: #else just wait
 						
 						new_clip_id = clips.insert(client_latest_clip) 
+						
+						print "INSERTED:%s "% new_clip_id
 
 						client_previous_clip = client_latest_clip #reset prev
+					
+					else:
+						print "hashes match, request rejected"
+						print "OLD: \n%s - %s\nNEW:%s - %s"%(client_previous_clip['clip_hash_server'], client_previous_clip["clip_file_name"], client_latest_clip['clip_hash_server'], client_latest_clip['clip_file_name'])
 				
 				_live("incoming wait...")
 				sleep(0.25)
@@ -104,6 +114,7 @@ def handle_websocket():
 					server_latest_clip_rowS = get_latest_clip_rows()
 					if server_latest_clip_rowS.count():
 						server_latest_clip_row  = server_latest_clip_rowS[0]
+						#print server_latest_clip_row
 						if server_latest_clip_row['_id'] != server_previous_clip_row['_id']:
 							#_live("if server_latest_clip_row['_id'] != server_previous_clip_row['_id']")
 							wsock.send(json.dumps(dict(
@@ -116,7 +127,7 @@ def handle_websocket():
 				
 				#_live("outgoing wait...")
 				sleep(0.25)
-		except:
+		except ZeroDivisionError:
 			#print "outgoing error...%s"%str(sys.exc_info()[0]) #http://goo.gl/cmtlsL
 			pass
 		finally:
@@ -151,7 +162,7 @@ def handle_upload():
 	if ext not in ('.png','.jpg','.jpeg'):
 		result = 'File extension not allowed.'
 
-	upload.save(save_path, overwrite=True) # appends upload.filename automatically
+	upload.save(save_path, overwrite=False) # appends upload.filename automatically
 
 	response.content_type =  "application/json; charset=UTF8"
 	return json.dumps({"upload_result":result})

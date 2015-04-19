@@ -6,8 +6,10 @@ from bottle import route, abort, request, response, debug
 
 from time import sleep
 import pymongo
-import mmh3
-from spooky import hash64
+#import mmh3
+from spooky import hash128
+#import hashlib
+
 import bson.json_util as json #can't use regular json module or else type error will occur for unknown types like ObjectID(...), use pymongo's bson module http://api.mongodb.org/python/current/api/bson/json_util.html
 import sys, os
 
