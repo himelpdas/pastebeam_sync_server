@@ -172,7 +172,7 @@ class WebSocketThread(WorkerThread):
 				#print "can't get...%s"%str(sys.exc_info()[0])
 				self.webSocketReconnect()
 			
-			gevent.sleep(0.1)
+			gevent.sleep(0.25)
 				
 	def outgoing(self):
 		#pdb.set_trace()
@@ -202,7 +202,7 @@ class WebSocketThread(WorkerThread):
 					self.webSocketReconnect()
 					
 			
-			gevent.sleep(0.1) #yield to next coroutine.
+			gevent.sleep(0.25) #yield to next coroutine.
 		
 	
 	def run(self):
@@ -420,7 +420,7 @@ class Main(wx.Frame):
 						if not file_exists['result']:
 							r = requests.post(HTTP_BASE(arg="upload",port=8084,scheme="http"), files={"upload": open(file_path, 'rb')})
 							print r
-					except ZeroDivisionError:
+					except request.exceptions.ConnectionError:
 						return None
 					else:
 						clip_content = {

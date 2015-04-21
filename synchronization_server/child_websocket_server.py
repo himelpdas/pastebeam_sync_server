@@ -81,7 +81,7 @@ def handle_websocket():
 					if client_latest_clip['clip_hash_server'] != client_previous_clip['clip_hash_server']: #else just wait
 						
 						client_latest_clip['timestamp_server'] = time.time()
-						new_clip_id = clips.insert(client_latest_clip) 
+						new_clip_id = clips.insert_one(client_latest_clip) 
 						
 						print "INSERTED:%s "% new_clip_id
 
@@ -92,7 +92,7 @@ def handle_websocket():
 						print "OLD: \n%s - %s\nNEW:%s - %s"%(client_previous_clip.get('clip_hash_server'), client_previous_clip.get("clip_file_name"), client_latest_clip.get('clip_hash_server'), client_latest_clip.get('clip_file_name') )
 				
 				_live("incoming wait...")
-				sleep(0.25)
+				sleep(0.1)
 		except ZeroDivisionError:
 			#print "incoming error...%s"%str(sys.exc_info()[0]) #http://goo.gl/cmtlsL
 			pass
@@ -124,7 +124,7 @@ def handle_websocket():
 							server_previous_clip_row = server_latest_clip_row #reset prev
 				
 				#_live("outgoing wait...")
-				sleep(0.25)
+				sleep(0.1)
 		except ZeroDivisionError:
 			#print "outgoing error...%s"%str(sys.exc_info()[0]) #http://goo.gl/cmtlsL
 			pass
