@@ -72,12 +72,25 @@ class MyListCtrl(wx.ListCtrl):
 		)
 		
 	def onItemDoubleClick(self, event):
-		val = self.getEventItem(event)
+	
+		clicked_item = self.getEventItem(event)
 		frame = self.GetTopLevelParent()
-		temp_dir = frame.TEMP_DIR
-		file_name = val[0]
-		clip_type = val[2]
-		frame.setClipboardContent(file_name=file_name, clip_type=clip_type)
+		
+		top_item_file_name = self.GetItemText(0, col=0)
+		
+		clicked_file_name = clicked_item[0]
+		clicked_clip_type = clicked_item[2]
+		
+		#print "DCLICK %s - %s"%(clicked_file_name, top_item_file_name)
+		
+		if clicked_file_name != top_item_file_name:
+		
+			frame.showBusyDialog()
+
+			frame.setClipboardContent(file_name=clicked_file_name, clip_type=clicked_clip_type)
+			
+		else:
+			wx.MessageBox("This item is already in your clipboard!", "Info")
 		
 	def getEventItem(self, event):
 		selected_row = event.GetIndex()

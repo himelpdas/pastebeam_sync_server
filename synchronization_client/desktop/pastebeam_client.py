@@ -350,8 +350,9 @@ class Main(wx.Frame):
 			latest_content = first_to_latest_data[-1]
 			
 			self.setClipboardContent(file_name= latest_content['clip_file_name'], clip_type =latest_content['clip_type'])
-		# In either event, the worker is done
-		self.websocket_worker = self.long_poller_worker = None
+			
+			self.destroyBusyDialog()
+
 		
 	@staticmethod
 	def decodeClip(clip):
@@ -376,6 +377,18 @@ class Main(wx.Frame):
 				pass
 			else:
 				return file_path
+				
+	def destroyBusyDialog(self):
+		#this will be invoked if another client has a new clip
+		#so always check if busy_dialog in attributes
+		if 'busy_dialog' in self.__dict__ and self.busy_dialog:
+			self.busy_dialog.Destroy()
+			self.busy_dialog = None
+		self.SetTransparent( 255 )
+		
+	def showBusyDialog(self):
+		self.busy_dialog = wx.BusyInfo("Please wait a moment...", self)
+		self.SetTransparent( 222 )
 		
 	def setClipboardContent(self, file_name, clip_type): 
 		#NEEDS TO BE IN MAIN LOOP FOR WRITING TO WORK, OR ELSE WE WILL 
@@ -414,15 +427,12 @@ class Main(wx.Frame):
 			with wx.TheClipboard.Get() as clipboard:
 			
 				def __upload(file_path, clip_type, clip_display_encoded, clip_file_name, clip_hash_client, raw_comparison_data):
-					try:
 						response = requests.get(HTTP_BASE(arg="file_exists/%s"%clip_file_name,port=8084,scheme="http"))
 						file_exists = json.loads(response.content)
 						if not file_exists['result']:
 							r = requests.post(HTTP_BASE(arg="upload",port=8084,scheme="http"), files={"upload": open(file_path, 'rb')})
 							print r
-					except request.exceptions.ConnectionError:
-						return None
-					else:
+
 						clip_content = {
 							"clip_type" : clip_type,
 							"clip_display" : clip_display_encoded,
@@ -448,7 +458,7 @@ class Main(wx.Frame):
 						
 						clip_text_new = clip_data.GetText()
 						
-						if clip_text_new != clip_text_old:
+						if clip_text_new != clip_text_old: #UnicodeWarning: Unicode equal comparison failed to convert both arguments to Unicode - interpreting them as being unequal
 							clip_text_encoded = self.encodeClip(clip_text_new)
 							clip_display_encoded = self.encodeClip(clip_text_new[:250] )
 							clip_hash_client = hex( hash128( clip_text_encoded ) )
@@ -502,7 +512,8 @@ class Main(wx.Frame):
 							
 				return (_return_if_text() or _return_if_bitmap() or None)
 				
-		except ZeroDivisionError:# TypeError:
+		except:# TypeError:
+			self.destroyBusyDialog()
 			wx.MessageBox("Unable to access the clipboard. Another application seems to be locking it.", "Error")
 			return None
 			
