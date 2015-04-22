@@ -80,6 +80,7 @@ def handle_websocket():
 				
 					if client_latest_clip['clip_hash_server'] != client_previous_clip['clip_hash_server']: #else just wait
 						
+						client_latest_clip['timestamp_server'] = time.time()
 						new_clip_id = clips.insert(client_latest_clip) 
 						
 						print "INSERTED:%s "% new_clip_id
@@ -146,6 +147,16 @@ def handle_websocket():
 		abort(500, 'Websocket failure.')
 	finally:
 		wsock.close()
+		
+@app.get('/file_exists/<filename>')
+def file_exists(filename):
+	response.content_type =  "application/json; charset=UTF8"
+
+	file_path = os.path.join(UPLOAD_DIR,filename)
+	file_exists = os.path.isfile(file_path)
+	print file_exists
+	
+	return json.dumps({"result":file_exists})
 		
 @app.post('/upload')
 def handle_upload():

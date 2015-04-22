@@ -18,7 +18,7 @@ from threading import *
 from wxpython_view import *
 
 #general stuff
-import time, sys, zlib, datetime, uuid, os, tempfile, urllib
+import time, sys, zlib, datetime, uuid, os, tempfile, urllib, platform
 
 #debug
 import pdb
@@ -122,7 +122,7 @@ class WebSocketThread(WorkerThread):
 				#print "no connection..."
 				gevent.sleep(1)
 				
-	def keepAlive(self, heartbeat = 5, timeout = 15): #increment of 60s times 20 unresponsive = 20 minutes
+	def keepAlive(self, heartbeat = 100, timeout = 1000): #increment of 60s times 20 unresponsive = 20 minutes
 		"""
 		Since send is the only way we can test a connection's status,
 		and since send is only triggered when CLIENT_LATEST_CLIP has a
@@ -172,7 +172,7 @@ class WebSocketThread(WorkerThread):
 				#print "can't get...%s"%str(sys.exc_info()[0])
 				self.webSocketReconnect()
 			
-			gevent.sleep(1)
+			gevent.sleep(0.1)
 				
 	def outgoing(self):
 		#pdb.set_trace()
@@ -202,7 +202,7 @@ class WebSocketThread(WorkerThread):
 					self.webSocketReconnect()
 					
 			
-			gevent.sleep(1) #yield to next coroutine.
+			gevent.sleep(0.1) #yield to next coroutine.
 		
 	
 	def run(self):
@@ -215,10 +215,11 @@ class WebSocketThread(WorkerThread):
 		#since gevent monkey patches threads to gevent-like
 				
 class Main(wx.Frame):
-	ID_NEW = 1
-	ID_RENAME = 2
-	ID_CLEAR = 3
-	ID_DELETE = 4
+	#ID_NEW = 1
+	#ID_RENAME = 2
+	#ID_CLEAR = 3
+	#ID_DELETE = 4
+	TEMP_DIR = TEMP_DIR
 	
 	def __init__(self):
 		wx.Frame.__init__(self, None, -1, "PasteBeam")
@@ -267,24 +268,26 @@ class Main(wx.Frame):
 		self.setThrottle()
 		wx.CallLater(1, lambda: self.onStart(None))
 
-	def appendText(self, content):
+	def appendClipToListCtrl(self, clip):
 
 		def _alternate_new_row_color():
 			new_item_index = self.panel.lst.GetItemCount() - 1
 			if (new_item_index % 2) == 0:
-				color_hex = '#E6FCFF' #second lightest at http://www.hitmill.com/html/pastels.html
-			else:
-				color_hex = '#FFFFE3'
+				#color_hex = '#E6FCFF' #second lightest at http://www.hitmill.com/html/pastels.html
+				color_hex = '#f1f1f1'
+			#else:
+				#color_hex = '#FFFFE3'
 				
-			self.panel.lst.SetItemBackgroundColour(new_item_index, color_hex)
+				self.panel.lst.SetItemBackgroundColour(new_item_index, color_hex)
+			#self.panel.lst.SetItemBackgroundColour(new_item_index, color_hex)
 			
 		def _descending_order():
 			self.panel.lst.SetItemData( new_index, new_index) #SetItemData(self, item, data) Associates data with this item. The data part is used by SortItems to compare two values via the ListCompareFunction
 			self.panel.lst.SortItems(self.panel.lst.ListCompareFunction)
 		
 			
-		new_item_number_to_be = self.panel.lst.GetItemCount() + 1
-		new_index = self.panel.lst.Append( (new_item_number_to_be, "None", content, "None") )		#self.editor.AppendText(content)
+		#new_item_number_to_be = self.panel.lst.GetItemCount() + 1;  self.panel.lst.Append( (new_item_number_to_be...))
+		new_index = self.panel.lst.Append( (clip['clip_file_name'], clip['host_name_client'], clip['clip_type'], clip['clip_display'], datetime.datetime.fromtimestamp(clip['timestamp_server']).strftime('%Y-%m-%d at %H:%M:%S') ) )		#self.editor.appendClipToListCtrl(content)
 		
 		_alternate_new_row_color()
 		
@@ -310,10 +313,10 @@ class Main(wx.Frame):
 
 	def onResult(self, result_event):
 		"""Show Result status."""
-		if result_event.data is None:
-			# Thread aborted (using our convention of None return)
-			self.appendText('Computation aborted\n')
-		else:
+		#if result_event.data is None:
+		#	# Thread aborted (using our convention of None return)
+		#	self.appendClipToListCtrl('Computation aborted\n')
+		if result_event.data:
 			
 			first_to_latest_data = result_event.data[::-1]
 			self.clearList()
@@ -326,12 +329,13 @@ class Main(wx.Frame):
 					pass
 					#print "DECODE/DECRYPT/UNZIP ERROR"
 					#purge all data on server
-				self.appendText(each_clip['clip_display'])
+				else:
+					self.appendClipToListCtrl(each_clip)
 				
 			# Process results here
 			latest_content = first_to_latest_data[-1]
 			
-			self.setClipboardContent(latest_content)
+			self.setClipboardContent(file_name= latest_content['clip_file_name'], clip_type =latest_content['clip_type'])
 		# In either event, the worker is done
 		self.websocket_worker = self.long_poller_worker = None
 		
@@ -343,19 +347,23 @@ class Main(wx.Frame):
 	def encodeClip(clip):
 		return (clip or '').encode("utf-8", "replace").encode("zlib").encode("base64") #MUST ENCODE in base64 before transmitting obsfucated data #null clip causes serious looping problems, put some text! Prevent setText's TypeError: String or Unicode type required 
 		
-	def downloadClipFileIfNotExist(self, content):
-		file_name = content['clip_file_name']
+	def downloadClipFileIfNotExist(self, file_name):
 		file_path = os.path.join(TEMP_DIR,file_name)
 		print file_path
 		
-		#TODO- show downloading file dialogue
-		if not os.path.isfile(file_path):
-			#TODO- add try except show dialog if fail
-			urllib.urlretrieve(HTTP_BASE(arg="static/%s"%file_name,port=8084,scheme="http"), file_path)		
+		if os.path.isfile(file_path):
+			return file_path
+		else:
+			#TODO- show downloading file dialogue
+			try:
+				#urllib.urlretrieve(HTTP_BASE(arg="static/%s"%file_name,port=8084,scheme="http"), file_path)
+				urllib.URLopener().retrieve(HTTP_BASE(arg="static/%s"%file_name,port=8084,scheme="http"), file_path) #http://stackoverflow.com/questions/1308542/how-to-catch-404-error-in-urllib-urlretrieve
+			except IOError:
+				pass
+			else:
+				return file_path
 		
-		return file_path
-		
-	def setClipboardContent(self, content): 
+	def setClipboardContent(self, file_name, clip_type): 
 		#NEEDS TO BE IN MAIN LOOP FOR WRITING TO WORK, OR ELSE WE WILL 
 		#GET SOMETHING LIKE: "Failed to put data on the clipboard 
 		#(error 2147221008: coInitialize has not been called.)"
@@ -363,20 +371,24 @@ class Main(wx.Frame):
 		try:
 			with wx.TheClipboard.Get() as clipboard:
 	
-				file_path = self.downloadClipFileIfNotExist(content)
+				file_path = self.downloadClipFileIfNotExist(file_name)
+				
+				if file_path:
+					
+					if clip_type == "text":
+						with open(file_path, 'r') as clip_file:
+							clip_text = self.decodeClip(clip_file.read())
+							clip_data = wx.TextDataObject()
+							clip_data.SetText(clip_text)
+							success = clipboard.SetData(clip_data)
 
-				if content['clip_type'] == "text":
-					with open(file_path, 'r') as clip_file:
-						clip_text = self.decodeClip(clip_file.read())
-						clip_data = wx.TextDataObject()
-						clip_data.SetText(clip_text)
+					elif clip_type == "bitmap":
+						bitmap=wx.Bitmap(file_path, wx.BITMAP_TYPE_PNG)
+						#bitmap.LoadFile(img_file_path, wx.BITMAP_TYPE_BMP)
+						clip_data = wx.BitmapDataObject(bitmap)
 						success = clipboard.SetData(clip_data)
-
-				elif content['clip_type'] == "bitmap":
-					bitmap=wx.Bitmap(file_path, wx.BITMAP_TYPE_PNG)
-					#bitmap.LoadFile(img_file_path, wx.BITMAP_TYPE_BMP)
-					clip_data = wx.BitmapDataObject(bitmap)
-					success = clipboard.SetData(clip_data)
+				else:
+					wx.MessageBox("Unable to download this clip from the server", "Error")
 
 		except ZeroDivisionError:
 			wx.MessageBox("Unable to access the clipboard. Another application seems to be locking it.", "Error")
@@ -389,9 +401,12 @@ class Main(wx.Frame):
 			
 				def __upload(file_path, clip_type, clip_display_encoded, clip_file_name, clip_hash_client, raw_comparison_data):
 					try:
-						r = requests.post(HTTP_BASE(arg="upload",port=8084,scheme="http"), files={"upload": open(file_path, 'rb')})
-						print r
-					except:
+						response = requests.get(HTTP_BASE(arg="file_exists/%s"%clip_file_name,port=8084,scheme="http"))
+						file_exists = json.loads(response.content)
+						if not file_exists['result']:
+							r = requests.post(HTTP_BASE(arg="upload",port=8084,scheme="http"), files={"upload": open(file_path, 'rb')})
+							print r
+					except ZeroDivisionError:
 						return None
 					else:
 						clip_content = {
@@ -399,6 +414,8 @@ class Main(wx.Frame):
 							"clip_display" : clip_display_encoded,
 							"clip_file_name" : clip_file_name,
 							"clip_hash_client" : clip_hash_client, #for performance reasons we are not using the bmp for hash, but rather the wx Image GetData array
+							"host_name_client" : "%s (%s %s)"%(wx.GetHostName(), platform.system(), platform.release()),
+							"timestamp_client" : time.time(),
 						}
 						
 						CLIENT_RECENT_DATA.set(raw_comparison_data)
@@ -419,7 +436,7 @@ class Main(wx.Frame):
 						
 						if clip_text_new != clip_text_old:
 							clip_text_encoded = self.encodeClip(clip_text_new)
-							clip_display_encoded = self.encodeClip(clip_text_new[:100] )
+							clip_display_encoded = self.encodeClip(clip_text_new[:200] )
 							clip_hash_client = hex( hash128( clip_text_encoded ) )
 							
 							txt_file_name = "%s.txt"%clip_hash_client
@@ -458,7 +475,7 @@ class Main(wx.Frame):
 							img_file_name = "%s.png"%clip_hash_client
 							img_file_path = os.path.join(TEMP_DIR,img_file_name)
 							bitmap.SaveFile(img_file_path, wx.BITMAP_TYPE_PNG) #change to or compliment upload
-							clip_display_encoded = self.encodeClip("Clipboard image %s"%img_file_name)
+							clip_display_encoded = self.encodeClip("Clipboard image on %s"%datetime.datetime.now())
 							
 							return __upload(
 								file_path = img_file_path, 

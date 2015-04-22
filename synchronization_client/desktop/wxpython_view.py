@@ -5,12 +5,13 @@ import wx
 class MyListCtrl(wx.ListCtrl):
 	def __init__(self, parent):
 		super(MyListCtrl, self).__init__(parent,
-		style=wx.LC_REPORT)
+		style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
 		# Add three columns to the list
-		self.InsertColumn(0, "#", width=33  )
-		self.InsertColumn(1, "From",  width=111 )
-		self.InsertColumn(2, "Clipping (Double-click to copy)", width=333 )
-		self.InsertColumn(3, "Date",  width=111 )
+		self.InsertColumn(0, "ID", width=33  )
+		self.InsertColumn(1, "From",  width=89 )
+		self.InsertColumn(2, "Type", wx.LIST_FORMAT_RIGHT, width=33, )
+		self.InsertColumn(3, "Clipping (Double-click to copy)", width=333 )
+		self.InsertColumn(4, "Date", wx.LIST_FORMAT_RIGHT, width=100 )
 		
 		self.resizeColumns(self) #ListCtrl instance also has method GetSize()
 		
@@ -34,11 +35,12 @@ class MyListCtrl(wx.ListCtrl):
 		width = width - bleed
 
 		col0 = width*0.05
-		col1 = width*0.20
-		col2 = width*0.55
-		col3 = width*0.20
+		col1 = width*0.15
+		col2 = width*0.10
+		col3 = width*0.55
+		col4 = width*0.15
 
-		colwidths = [col0, col1, col2, col3]
+		colwidths = [col0, col1, col2, col3, col4]
 		
 		for number, width in enumerate(colwidths):
 			if not wx.GetMouseState().LeftIsDown(): #left key is still up at the very last few resize events, so anything before left key down will be ignored, and resize of columns will be much faster
@@ -58,13 +60,16 @@ class MyListCtrl(wx.ListCtrl):
 		# Show what was selected in the frames status bar
 		frame = self.GetTopLevelParent()
 		frame.PushStatusText(
-			' '.join(val[2].split()) #beautiful, get's rid of /n " " and "	" #http://stackoverflow.com/questions/4241757/python-django-how-to-remove-extra-white-spaces-tabs-from-a-string
+			' '.join(val[3].split()) #beautiful, get's rid of /n " " and "	" #http://stackoverflow.com/questions/4241757/python-django-how-to-remove-extra-white-spaces-tabs-from-a-string
 		)
 		
 	def onItemDoubleClick(self, event):
 		val = self.getEventItem(event)
 		frame = self.GetTopLevelParent()
-		frame.setClipboardContent(val[2])
+		temp_dir = frame.TEMP_DIR
+		file_name = val[0]
+		clip_type = val[2]
+		frame.setClipboardContent(file_name=file_name, clip_type=clip_type)
 		
 	def getEventItem(self, event):
 		selected_row = event.GetIndex()

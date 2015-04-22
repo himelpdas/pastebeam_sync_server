@@ -11,20 +11,19 @@ from spooky import hash128
 #import hashlib
 
 import bson.json_util as json #can't use regular json module or else type error will occur for unknown types like ObjectID(...), use pymongo's bson module http://api.mongodb.org/python/current/api/bson/json_util.html
-import sys, os
+import sys, os, time
 
 debug(True)
 
 client=pymongo.MongoClient()
 collection = client.test_database #collection
-clips = collection.clips111 #database
+clips = collection.clips11111 #database
 
 users = collection.users
 """
 >>> users = collection.users
 >>> users.insert(name=Himel, client_minimum_id = None)
 """
-
 
 #import pymongo; client=pymongo.MongoClient();collection = client.test_database;clips = collection.clips
 
