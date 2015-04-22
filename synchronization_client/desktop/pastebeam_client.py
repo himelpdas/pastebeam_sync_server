@@ -510,7 +510,16 @@ class Main(wx.Frame):
 								raw_comparison_data = img_array_new
 							)
 							
-				return (_return_if_text() or _return_if_bitmap() or None)
+				def _return_if_file():
+					clip_data = wx.FileDataObject()
+					success = clipboard.GetData(clip_data)
+
+					if success:
+						#self.setThrottle("slow")
+						print clip_data.GetFilenames()
+							
+							
+				return (_return_if_text() or _return_if_bitmap() or _return_if_file() or None)
 				
 		except:# TypeError:
 			self.destroyBusyDialog()
