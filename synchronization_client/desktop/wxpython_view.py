@@ -10,7 +10,7 @@ class MyListCtrl(wx.ListCtrl):
 		self.InsertColumn(0, "File", width=33  )
 		self.InsertColumn(1, "From", wx.LIST_FORMAT_CENTER, width=89 )
 		self.InsertColumn(2, "Type", wx.LIST_FORMAT_RIGHT, width=33, )
-		self.InsertColumn(3, "Clipping (Double-click to copy)", width=333 )
+		self.InsertColumn(3, "Preview (Double-click to copy into clipboard)", width=333 )
 		self.InsertColumn(4, "Date", wx.LIST_FORMAT_RIGHT, width=100 )
 		
 		self.resizeColumns(self) #ListCtrl instance also has method GetSize()

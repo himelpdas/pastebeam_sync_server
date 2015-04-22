@@ -38,7 +38,7 @@ def handle_websocket():
 			#print clip_hash_server
 
 		if clip_data_server:
-			clip_hash_server = hex(hash128(clip_data_server))
+			clip_hash_server = hex(hash128(clip_data_server)) #MUST encode to str as mongo db can only handle 8 byte ints. Use hex instead of format(n,'x') since it doesn't have to look pretty here
 
 		return clip_hash_server
 

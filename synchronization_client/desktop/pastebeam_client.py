@@ -18,7 +18,8 @@ from threading import Thread # import * BREAKS enumerate!!!
 from wxpython_view import *
 
 #general stuff
-import time, sys, zlib, datetime, uuid, os, tempfile, urllib, platform, urlparse
+import time, sys, zlib, datetime, uuid, os, tempfile, urllib, platform
+from functions import *
 
 #debug
 import pdb
@@ -156,7 +157,7 @@ class WebSocketThread(WorkerThread):
 					server_latest_clip_row = server_latest_clip_rowS[0]
 					#print server_latest_clip_row
 					
-					SERVER_LATEST_CLIP.set(server_latest_clip_row)
+					SERVER_LATEST_CLIP.set(server_latest_clip_row) #should move this to after postevent or race condition may occur, but since this is gevent, it might not be necessary
 					CLIENT_LATEST_CLIP.set(server_latest_clip_row)
 					
 					#print "GET %s"% server_latest_clip_row['clip_hash_client']
@@ -289,7 +290,7 @@ class Main(wx.Frame):
 					file_image_number = self.panel.lst.icon_extensions.index("._blank")
 			elif clip['clip_type'] == "bitmap":
 				file_image_number = self.panel.lst.icon_extensions.index("._bitmap")			
-			elif clip['clip_type'] == "text" and bool(urlparse.urlparse(clip['clip_display']).scheme in ['http', 'ftp', 'magnet'] ): #http://stackoverflow.com/questions/25259134/how-can-i-check-whether-a-url-is-valid-using-urlparse
+			elif clip['clip_type'] == "link":
 				file_image_number = self.panel.lst.icon_extensions.index("._page")
 			self.panel.lst.SetItemImage(new_item_index, file_image_number)
 			#self.panel.lst.SetItemBackgroundColour(new_item_index, color_hex)
@@ -402,7 +403,7 @@ class Main(wx.Frame):
 				
 				if file_path:
 					
-					if clip_type == "text":
+					if clip_type in ["text","link"]:
 						with open(file_path, 'r') as clip_file:
 							clip_text = self.decodeClip(clip_file.read())
 							clip_data = wx.TextDataObject()
@@ -421,6 +422,7 @@ class Main(wx.Frame):
 			wx.MessageBox("Unable to access the clipboard. Another application seems to be locking it.", "Error")
 					
 		print "SUCCESS = %s"%success
+		#PUT MESSAGEBOX HERE? ALSO destroyBusyDialog
 		
 	def getClipboardContent(self):
 		try:
@@ -437,7 +439,7 @@ class Main(wx.Frame):
 							"clip_type" : clip_type,
 							"clip_display" : clip_display_encoded,
 							"clip_file_name" : clip_file_name,
-							"clip_hash_client" : clip_hash_client, #for performance reasons we are not using the bmp for hash, but rather the wx Image GetData array
+							"clip_hash_client" : clip_hash_client, #http://stackoverflow.com/questions/16414559/trying-to-use-hex-without-0x
 							"host_name_client" : "%s (%s %s)"%(wx.GetHostName(), platform.system(), platform.release()),
 							"timestamp_client" : time.time(),
 						}
@@ -445,9 +447,8 @@ class Main(wx.Frame):
 						CLIENT_RECENT_DATA.set(raw_comparison_data)
 						
 						return clip_content
-					
 			
-				def _return_if_text():
+				def _return_if_text_or_url():
 					clip_data = wx.TextDataObject()
 					success = clipboard.GetData(clip_data)
 					
@@ -459,9 +460,16 @@ class Main(wx.Frame):
 						clip_text_new = clip_data.GetText()
 						
 						if clip_text_new != clip_text_old: #UnicodeWarning: Unicode equal comparison failed to convert both arguments to Unicode - interpreting them as being unequal
+							clip_text_is_url = string_is_url(clip_text_new)
+							
 							clip_text_encoded = self.encodeClip(clip_text_new)
-							clip_display_encoded = self.encodeClip(clip_text_new[:250] )
-							clip_hash_client = hex( hash128( clip_text_encoded ) )
+							
+							if clip_text_is_url:
+								clip_display_encoded = self.encodeClip(clip_text_new[:250] )
+							else:
+								clip_display_encoded = self.encodeClip(clip_text_new)
+
+							clip_hash_client = format( hash128( clip_text_encoded ), "x") #hex( hash128( clip_text_encoded ) ) #use instead to get rid of 0x for better looking filenames
 							
 							txt_file_name = "%s.txt"%clip_hash_client
 							txt_file_path = os.path.join(TEMP_DIR,txt_file_name)
@@ -471,7 +479,7 @@ class Main(wx.Frame):
 								
 							return __upload(
 								file_path = txt_file_path, 
-								clip_type = "text", 
+								clip_type = "text" if not clip_text_is_url else "link", 
 								clip_display_encoded = clip_display_encoded, 
 								clip_file_name = txt_file_name, 
 								clip_hash_client = clip_hash_client, 
@@ -491,11 +499,11 @@ class Main(wx.Frame):
 						bitmap = clip_data.GetBitmap()
 						img_array_new  = bitmap.ConvertToImage().GetData() #GET DATA IS HIDDEN METHOD, IT RETURNS BYTE ARRAY... DO NOT USE GETDATABUFFER AS IT CRASHES. BESIDES GETDATABUFFER IS ONLY GOOD TO CHANGE BYTES IN MEMORY http://wxpython.org/Phoenix/docs/html/MigrationGuide.html
 						#print "img_array_new %s"%img_array_new
-						if img_array_new != img_array_old:
+						if img_array_new != img_array_old: #for performance reasons we are not using the bmp for hash, but rather the wx Image GetData array
 							
 							print len(img_array_new)
 							
-							clip_hash_client = hex(hash128(img_array_new))
+							clip_hash_client = format(hash128(img_array_new), "x") #hex(hash128(img_array_new))
 							img_file_name = "%s.png"%clip_hash_client
 							img_file_path = os.path.join(TEMP_DIR,img_file_name)
 							bitmap.SaveFile(img_file_path, wx.BITMAP_TYPE_PNG) #change to or compliment upload
@@ -519,7 +527,7 @@ class Main(wx.Frame):
 						print clip_data.GetFilenames()
 							
 							
-				return (_return_if_text() or _return_if_bitmap() or _return_if_file() or None)
+				return (_return_if_text_or_url() or _return_if_bitmap() or _return_if_file() or None)
 				
 		except:# TypeError:
 			self.destroyBusyDialog()
