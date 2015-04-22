@@ -1,4 +1,4 @@
-import wx
+import wx, os
 
 #see http://zetcode.com/wxpython/skeletons/ for tips
 
@@ -7,8 +7,8 @@ class MyListCtrl(wx.ListCtrl):
 		super(MyListCtrl, self).__init__(parent,
 		style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
 		# Add three columns to the list
-		self.InsertColumn(0, "ID", width=33  )
-		self.InsertColumn(1, "From",  width=89 )
+		self.InsertColumn(0, "File", width=33  )
+		self.InsertColumn(1, "From", wx.LIST_FORMAT_CENTER, width=89 )
 		self.InsertColumn(2, "Type", wx.LIST_FORMAT_RIGHT, width=33, )
 		self.InsertColumn(3, "Clipping (Double-click to copy)", width=333 )
 		self.InsertColumn(4, "Date", wx.LIST_FORMAT_RIGHT, width=100 )
@@ -23,6 +23,14 @@ class MyListCtrl(wx.ListCtrl):
 		
 		self.Bind(wx.EVT_SIZE,
 			self.resizeColumns)
+		
+		icon_file_names = os.listdir(os.path.normpath('images/16px/')) #https://github.com/teambox/Free-file-icons #https://www.iconfinder.com/icons/62659/cam_camera_image_lens_photo_icon#size=16
+		self.icon_extensions = map(lambda each: ".%s"%os.path.splitext(each)[0], icon_file_names)
+		images = [ os.path.normpath('images/16px/%s'%each) for each in icon_file_names ]
+		self.il = wx.ImageList(16, 16)
+		for i in images:
+			self.il.Add(wx.Bitmap(i))
+		self.SetImageList(self.il, wx.IMAGE_LIST_SMALL)
 		
 		# Setup
 		#data = [ ("row %d" % x,"value %d" % x,"data %d" % x) for x in range(10) ]

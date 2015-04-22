@@ -14,11 +14,11 @@ from requests import ConnectionError
 
 #ui stuff
 import wx
-from threading import *
+from threading import Thread # import * BREAKS enumerate!!!
 from wxpython_view import *
 
 #general stuff
-import time, sys, zlib, datetime, uuid, os, tempfile, urllib, platform
+import time, sys, zlib, datetime, uuid, os, tempfile, urllib, platform, urlparse
 
 #debug
 import pdb
@@ -270,7 +270,7 @@ class Main(wx.Frame):
 
 	def appendClipToListCtrl(self, clip):
 
-		def _alternate_new_row_color():
+		def _stylize_new_row():
 			new_item_index = self.panel.lst.GetItemCount() - 1
 			if (new_item_index % 2) == 0:
 				#color_hex = '#E6FCFF' #second lightest at http://www.hitmill.com/html/pastels.html
@@ -279,6 +279,19 @@ class Main(wx.Frame):
 				#color_hex = '#FFFFE3'
 				
 				self.panel.lst.SetItemBackgroundColour(new_item_index, color_hex)
+				
+			clip_file_ext = os.path.splitext(clip['clip_file_name'])[1]
+			file_image_number = self.panel.lst.icon_extensions.index("._clip")
+			if clip['clip_type'] == "file":
+				try:
+					file_image_number = self.panel.lst.icon_extensions.index(clip_file_ext) #http://stackoverflow.com/questions/176918/finding-the-index-of-an-item-given-a-list-containing-it-in-python
+				except ValueError:
+					file_image_number = self.panel.lst.icon_extensions.index("._blank")
+			elif clip['clip_type'] == "bitmap":
+				file_image_number = self.panel.lst.icon_extensions.index("._bitmap")			
+			elif clip['clip_type'] == "text" and bool(urlparse.urlparse(clip['clip_display']).scheme in ['http', 'ftp', 'magnet'] ): #http://stackoverflow.com/questions/25259134/how-can-i-check-whether-a-url-is-valid-using-urlparse
+				file_image_number = self.panel.lst.icon_extensions.index("._page")
+			self.panel.lst.SetItemImage(new_item_index, file_image_number)
 			#self.panel.lst.SetItemBackgroundColour(new_item_index, color_hex)
 			
 		def _descending_order():
@@ -287,9 +300,9 @@ class Main(wx.Frame):
 		
 			
 		#new_item_number_to_be = self.panel.lst.GetItemCount() + 1;  self.panel.lst.Append( (new_item_number_to_be...))
-		new_index = self.panel.lst.Append( (clip['clip_file_name'], clip['host_name_client'], clip['clip_type'], clip['clip_display'], datetime.datetime.fromtimestamp(clip['timestamp_server']).strftime('%Y-%m-%d at %H:%M:%S') ) )		#self.editor.appendClipToListCtrl(content)
+		new_index = self.panel.lst.Append( (clip['clip_file_name'], clip['host_name_client'], clip['clip_type'], clip['clip_display'], datetime.datetime.fromtimestamp(clip['timestamp_server']).strftime('%H:%M:%S  |  %Y-%m-%d') ) )		#self.editor.appendClipToListCtrl(content)
 		
-		_alternate_new_row_color()
+		_stylize_new_row()
 		
 		_descending_order()
 		
@@ -436,7 +449,7 @@ class Main(wx.Frame):
 						
 						if clip_text_new != clip_text_old:
 							clip_text_encoded = self.encodeClip(clip_text_new)
-							clip_display_encoded = self.encodeClip(clip_text_new[:200] )
+							clip_display_encoded = self.encodeClip(clip_text_new[:250] )
 							clip_hash_client = hex( hash128( clip_text_encoded ) )
 							
 							txt_file_name = "%s.txt"%clip_hash_client
