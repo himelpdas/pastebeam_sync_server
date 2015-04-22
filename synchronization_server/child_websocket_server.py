@@ -33,12 +33,9 @@ def handle_websocket():
 		
 	def _get_real_hash(clip):
 		clip_hash_server  = clip_data_server = None
-		if clip['clip_type'] == 'text':
-			clip_data_server = clip['clip_text']
-		elif clip['clip_type'] == 'bitmap':
-			with open(UPLOAD_DIR +"\\"+ clip["clip_file_name"], 'rb') as clip_file:
-				clip_data_server = clip_file.read() #WARNING!!! NEED TO USE 'rb' MODE OR WILL RESULT IN SAME HASH, PROBABLY BECAUSE CHARACTERS ARE IGNORED AS BLANK
-				#print clip_hash_server
+		with open(UPLOAD_DIR +"\\"+ clip["clip_file_name"], 'rb') as clip_file:
+			clip_data_server = clip_file.read() #WARNING!!! NEED TO USE 'rb' MODE OR WILL RESULT IN SAME HASH, PROBABLY BECAUSE CHARACTERS ARE IGNORED AS BLANK
+			#print clip_hash_server
 
 		if clip_data_server:
 			clip_hash_server = hex(hash128(clip_data_server))

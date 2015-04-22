@@ -16,8 +16,8 @@ import sys, os
 debug(True)
 
 client=pymongo.MongoClient()
-collection = client.test_database9 #collection
-clips = collection.clips5 #database
+collection = client.test_database #collection
+clips = collection.clips111 #database
 
 users = collection.users
 """

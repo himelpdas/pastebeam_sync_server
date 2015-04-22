@@ -56,10 +56,10 @@ class EVT_RESULT(wx.PyEvent):
 #with lock:
 #...
 
-SERVER_LATEST_CLIP, CLIENT_LATEST_CLIP, CLIENT_IMAGE_ARRAY = AsyncResult(), AsyncResult(), AsyncResult()
-SERVER_LATEST_CLIP.set({'clip_hash_client':None}) #the latest clip's hash on server
-CLIENT_LATEST_CLIP.set({'clip_hash_client':None}) #the latest clip's hash on client. Take no action if equal with above.
-CLIENT_IMAGE_ARRAY.set(None)
+SERVER_LATEST_CLIP, CLIENT_LATEST_CLIP, CLIENT_RECENT_DATA = AsyncResult(), AsyncResult(), AsyncResult()
+SERVER_LATEST_CLIP.set({}) #the latest clip's hash on server
+CLIENT_LATEST_CLIP.set({}) #the latest clip's hash on client. Take no action if equal with above.
+CLIENT_RECENT_DATA.set(None)
 #HOST_CLIP_CONTENT.set(None) #the raw clip content from the client
 
 class WorkerThread(Thread):
@@ -320,13 +320,13 @@ class Main(wx.Frame):
 			for each_clip in first_to_latest_data:
 				#print each_clip
 				try:
-					#print "DECODE CLIP %s"%each_clip['clip_text']
-					each_clip['clip_text'] = self.decodeClip(each_clip['clip_text'])
+					#print "DECODE CLIP %s"%each_clip['clip_display']
+					each_clip['clip_display'] = self.decodeClip(each_clip['clip_display'])
 				except (zlib.error, UnicodeDecodeError):
 					pass
 					#print "DECODE/DECRYPT/UNZIP ERROR"
 					#purge all data on server
-				self.appendText(each_clip['clip_text'])
+				self.appendText(each_clip['clip_display'])
 				
 			# Process results here
 			latest_content = first_to_latest_data[-1]
@@ -343,56 +343,100 @@ class Main(wx.Frame):
 	def encodeClip(clip):
 		return (clip or '').encode("utf-8", "replace").encode("zlib").encode("base64") #MUST ENCODE in base64 before transmitting obsfucated data #null clip causes serious looping problems, put some text! Prevent setText's TypeError: String or Unicode type required 
 		
-	@staticmethod
-	def setClipboardContent(content): 
+	def downloadClipFileIfNotExist(self, content):
+		file_name = content['clip_file_name']
+		file_path = os.path.join(TEMP_DIR,file_name)
+		print file_path
+		
+		#TODO- show downloading file dialogue
+		if not os.path.isfile(file_path):
+			#TODO- add try except show dialog if fail
+			urllib.urlretrieve(HTTP_BASE(arg="static/%s"%file_name,port=8084,scheme="http"), file_path)		
+		
+		return file_path
+		
+	def setClipboardContent(self, content): 
 		#NEEDS TO BE IN MAIN LOOP FOR WRITING TO WORK, OR ELSE WE WILL 
 		#GET SOMETHING LIKE: "Failed to put data on the clipboard 
 		#(error 2147221008: coInitialize has not been called.)"
 		success = False
 		try:
 			with wx.TheClipboard.Get() as clipboard:
-				if content['clip_type'] == "text":
-					clip_text = content['clip_text']
-					clip_data = wx.TextDataObject()
-					clip_data.SetText(clip_text)
-					success = clipboard.SetData(clip_data)
-				elif content['clip_type'] == "bitmap":
-					img_file_name = content['clip_file_name']
-					img_file_path = os.path.join(TEMP_DIR,img_file_name)
-					print img_file_path
-					
-					#show downloading file dialogue
-					if not os.path.isfile(img_file_path):
-						urllib.urlretrieve(HTTP_BASE(arg="static/%s"%img_file_name,port=8084,scheme="http"), img_file_path)
+	
+				file_path = self.downloadClipFileIfNotExist(content)
 
-					bitmap=wx.Bitmap(img_file_path, wx.BITMAP_TYPE_PNG)
+				if content['clip_type'] == "text":
+					with open(file_path, 'r') as clip_file:
+						clip_text = self.decodeClip(clip_file.read())
+						clip_data = wx.TextDataObject()
+						clip_data.SetText(clip_text)
+						success = clipboard.SetData(clip_data)
+
+				elif content['clip_type'] == "bitmap":
+					bitmap=wx.Bitmap(file_path, wx.BITMAP_TYPE_PNG)
 					#bitmap.LoadFile(img_file_path, wx.BITMAP_TYPE_BMP)
 					clip_data = wx.BitmapDataObject(bitmap)
 					success = clipboard.SetData(clip_data)
-					print "SUCCESS = %s"%success
+
 		except ZeroDivisionError:
 			wx.MessageBox("Unable to access the clipboard. Another application seems to be locking it.", "Error")
+					
+		print "SUCCESS = %s"%success
 		
 	def getClipboardContent(self):
 		try:
 			with wx.TheClipboard.Get() as clipboard:
 			
+				def __upload(file_path, clip_type, clip_display_encoded, clip_file_name, clip_hash_client, raw_comparison_data):
+					try:
+						r = requests.post(HTTP_BASE(arg="upload",port=8084,scheme="http"), files={"upload": open(file_path, 'rb')})
+						print r
+					except:
+						return None
+					else:
+						clip_content = {
+							"clip_type" : clip_type,
+							"clip_display" : clip_display_encoded,
+							"clip_file_name" : clip_file_name,
+							"clip_hash_client" : clip_hash_client, #for performance reasons we are not using the bmp for hash, but rather the wx Image GetData array
+						}
+						
+						CLIENT_RECENT_DATA.set(raw_comparison_data)
+						
+						return clip_content
+					
+			
 				def _return_if_text():
 					clip_data = wx.TextDataObject()
 					success = clipboard.GetData(clip_data)
+					
 					if success:
 						self.setThrottle("fast")
 					
-						clip_text = self.encodeClip(clip_data.GetText())
-						clip_hash_client = hex( hash128( clip_text ) )
-						clip_content = {
-							'clip_type' : "text",
-							'clip_text' : clip_text,
-							'clip_file_name':None,
-							'clip_hash_client' : clip_hash_client,
-						}						
-						return clip_content
-					
+						clip_text_old = CLIENT_RECENT_DATA.get()
+						
+						clip_text_new = clip_data.GetText()
+						
+						if clip_text_new != clip_text_old:
+							clip_text_encoded = self.encodeClip(clip_text_new)
+							clip_display_encoded = self.encodeClip(clip_text_new[:100] )
+							clip_hash_client = hex( hash128( clip_text_encoded ) )
+							
+							txt_file_name = "%s.txt"%clip_hash_client
+							txt_file_path = os.path.join(TEMP_DIR,txt_file_name)
+							
+							with open(txt_file_path, 'w') as txt_file:
+								txt_file.write(clip_text_encoded)
+								
+							return __upload(
+								file_path = txt_file_path, 
+								clip_type = "text", 
+								clip_display_encoded = clip_display_encoded, 
+								clip_file_name = txt_file_name, 
+								clip_hash_client = clip_hash_client, 
+								raw_comparison_data = clip_text_new
+							)
+						
 				def _return_if_bitmap():
 					clip_data = wx.BitmapDataObject() #http://stackoverflow.com/questions/2629907/reading-an-image-from-the-clipboard-with-wxpython
 					success = clipboard.GetData(clip_data)
@@ -400,7 +444,7 @@ class Main(wx.Frame):
 					if success:
 						self.setThrottle("slow")
 						
-						img_array_old = CLIENT_IMAGE_ARRAY.get()
+						img_array_old = CLIENT_RECENT_DATA.get()
 						#print "img_array_old %s"%img_array_old
 						
 						bitmap = clip_data.GetBitmap()
@@ -414,22 +458,16 @@ class Main(wx.Frame):
 							img_file_name = "%s.png"%clip_hash_client
 							img_file_path = os.path.join(TEMP_DIR,img_file_name)
 							bitmap.SaveFile(img_file_path, wx.BITMAP_TYPE_PNG) #change to or compliment upload
-							clip_text = self.encodeClip("Clipboard image %s"%img_file_name)
+							clip_display_encoded = self.encodeClip("Clipboard image %s"%img_file_name)
 							
-							try:
-								r = requests.post(HTTP_BASE(arg="upload",port=8084,scheme="http"), files={"upload": open(img_file_path, 'rb')})
-								print r
-							except:
-								pass
-							else:
-								clip_content = {
-									"clip_type" : "bitmap",
-									"clip_text" : clip_text,
-									"clip_file_name" : img_file_name,
-									"clip_hash_client" : clip_hash_client, #for performance reasons we are not using the bmp for hash, but rather the wx Image GetData array
-								}
-								CLIENT_IMAGE_ARRAY.set(img_array_new)
-								return clip_content
+							return __upload(
+								file_path = img_file_path, 
+								clip_type = "bitmap", 
+								clip_display_encoded = clip_display_encoded, 
+								clip_file_name = img_file_name, 
+								clip_hash_client = clip_hash_client, 
+								raw_comparison_data = img_array_new
+							)
 							
 				return (_return_if_text() or _return_if_bitmap() or None)
 				
