@@ -297,11 +297,11 @@ class Main(wx.Frame):
 			
 			if is_newest: #make bold if newest
 				item = self.panel.lst.GetItem(new_index)
-				item.SetBackgroundColour("#B8B8B8")
-				item.SetTextColour("WHITE")
-				#font = item.GetFont()
-				#font.SetWeight(wx.FONTWEIGHT_BOLD)
-				#item.SetFont(font)
+				#item.SetBackgroundColour("#B8B8B8")
+				#item.SetTextColour("WHITE")
+				font = item.GetFont()
+				font.SetWeight(wx.FONTWEIGHT_BOLD)
+				item.SetFont(font)
 				self.panel.lst.SetItem(item)
 			
 		def _descending_order():
