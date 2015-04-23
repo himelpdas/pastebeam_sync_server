@@ -18,7 +18,7 @@ from threading import Thread # import * BREAKS enumerate!!!
 from wxpython_view import *
 
 #general stuff
-import time, sys, zlib, datetime, uuid, os, tempfile, urllib, platform
+import time, sys, zlib, datetime, uuid, os, tempfile, urllib, platform, gc
 from functions import *
 
 #debug
@@ -509,6 +509,7 @@ class Main(wx.Frame):
 						bitmap = clip_data.GetBitmap()
 						img_array_new  = bitmap.ConvertToImage().GetData() #GET DATA IS HIDDEN METHOD, IT RETURNS BYTE ARRAY... DO NOT USE GETDATABUFFER AS IT CRASHES. BESIDES GETDATABUFFER IS ONLY GOOD TO CHANGE BYTES IN MEMORY http://wxpython.org/Phoenix/docs/html/MigrationGuide.html
 						#print "img_array_new %s"%img_array_new
+												
 						if img_array_new != img_array_old: #for performance reasons we are not using the bmp for hash, but rather the wx Image GetData array
 							
 							print len(img_array_new)
@@ -527,6 +528,8 @@ class Main(wx.Frame):
 								clip_hash_client = clip_hash_client, 
 								raw_comparison_data = img_array_new
 							)
+							
+							gc.collect() #free up previous references to img_array_new and img_array_old arrays, since they are so large #http://stackoverflow.com/questions/1316767/how-can-i-explicitly-free-memory-in-python
 							
 				def _return_if_file():
 					clip_data = wx.FileDataObject()
