@@ -269,17 +269,17 @@ class Main(wx.Frame):
 		self.setThrottle()
 		wx.CallLater(1, lambda: self.onStart(None))
 
-	def appendClipToListCtrl(self, clip):
+	def appendClipToListCtrl(self, clip, is_newest):
 
 		def _stylize_new_row():
 			new_item_index = self.panel.lst.GetItemCount() - 1
-			if (new_item_index % 2) == 0:
+			if (new_item_index % 2) != 0:
 				#color_hex = '#E6FCFF' #second lightest at http://www.hitmill.com/html/pastels.html
-				color_hex = '#f1f1f1'
+				#color_hex = '#f1f1f1'
 			#else:
 				#color_hex = '#FFFFE3'
 				
-				self.panel.lst.SetItemBackgroundColour(new_item_index, color_hex)
+				self.panel.lst.SetItemBackgroundColour(new_item_index, "#f1f1f1") #many ways to set colors, see http://www.wxpython.org/docs/api/wx.Colour-class.html and http://wxpython.org/Phoenix/docs/html/ColourDatabase.html #win.SetBackgroundColour(wxColour(0,0,255)), win.SetBackgroundColour('BLUE'), win.SetBackgroundColour('#0000FF'), win.SetBackgroundColour((0,0,255))
 				
 			clip_file_ext = os.path.splitext(clip['clip_file_name'])[1]
 			file_image_number = self.panel.lst.icon_extensions.index("._clip")
@@ -294,6 +294,15 @@ class Main(wx.Frame):
 				file_image_number = self.panel.lst.icon_extensions.index("._page")
 			self.panel.lst.SetItemImage(new_item_index, file_image_number)
 			#self.panel.lst.SetItemBackgroundColour(new_item_index, color_hex)
+			
+			if is_newest: #make bold if newest
+				item = self.panel.lst.GetItem(new_index)
+				item.SetBackgroundColour("LIGHT GREY")
+				item.SetTextColour("WHITE")
+				#font = item.GetFont()
+				#font.SetWeight(wx.FONTWEIGHT_BOLD)
+				#item.SetFont(font)
+				self.panel.lst.SetItem(item)
 			
 		def _descending_order():
 			self.panel.lst.SetItemData( new_index, new_index) #SetItemData(self, item, data) Associates data with this item. The data part is used by SortItems to compare two values via the ListCompareFunction
@@ -333,22 +342,22 @@ class Main(wx.Frame):
 		#	self.appendClipToListCtrl('Computation aborted\n')
 		if result_event.data:
 			
-			first_to_latest_data = result_event.data[::-1]
+			oldest_to_newest_clips = result_event.data[::-1] #reversed copy
+			newest_index = len(oldest_to_newest_clips)-1
 			self.clearList()
-			for each_clip in first_to_latest_data:
+			for item_index, each_clip in enumerate(oldest_to_newest_clips):
 				#print each_clip
 				try:
 					#print "DECODE CLIP %s"%each_clip['clip_display']
 					each_clip['clip_display'] = self.decodeClip(each_clip['clip_display'])
 				except (zlib.error, UnicodeDecodeError):
-					pass
+					newest_index-=1 #the list will be smaller if some items are duds, so make the newest_index smaller too
 					#print "DECODE/DECRYPT/UNZIP ERROR"
-					#purge all data on server
 				else:
-					self.appendClipToListCtrl(each_clip)
+					self.appendClipToListCtrl(each_clip, is_newest = (True if item_index==newest_index else False) )
 				
 			# Process results here
-			latest_content = first_to_latest_data[-1]
+			latest_content = oldest_to_newest_clips[-1]
 			
 			self.setClipboardContent(file_name= latest_content['clip_file_name'], clip_type =latest_content['clip_type'])
 			
