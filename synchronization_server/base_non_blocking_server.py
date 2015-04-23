@@ -27,7 +27,7 @@ users = collection.users
 
 #import pymongo; client=pymongo.MongoClient();collection = client.test_database;clips = collection.clips
 
-def get_latest_clip_rows(): 
+def get_latest_row_and_clips(): 
 	"""
 	if minimum_id:
 		query = { '_id': { '$gt': minimum_id } }
@@ -35,7 +35,15 @@ def get_latest_clip_rows():
 		query = None
 	"""
 	latest_clips = clips.find().sort('_id',pymongo.DESCENDING).limit( 50 ) #latest one on mongo #note find() returns a cursor object so nothing is really in memory yet, and sort is a not the in-memory built in sort that python uses
-	return latest_clips
+	
+	latest_row = None
+	if latest_clips.count():
+		latest_row  = latest_clips[0]
+		
+	latest_row_and_clips = dict(latest_row=latest_row, latest_clips=latest_clips)
+		
+	return latest_row_and_clips
+
 
 response.content_type = 'application/json'
 

@@ -57,7 +57,7 @@ def handle_websocket():
 	def _incoming(wsock, timeout): #these seem to run in another namespace, you must pass them global or inner variables
 
 		try:
-			client_previous_clip = {'clip_hash_server':None} #too much bandwidth if receiving row itself, only text and hash are fine (data)
+			client_previous_clip = get_latest_row_and_clips()['latest_row'] #SHOULD CHECK SERVER TO AVOID RACE CONDITIONS? #too much bandwidth if receiving row itself, only text and hash are fine (data)
 			#_initialize_client(client_previous_clip_data)
 			for second in range(timeout): #Even though greenlets don't use much memory, if the user disconnects, this server greenlet will run forever, and this "little memory" will become a big problem
 
@@ -101,7 +101,7 @@ def handle_websocket():
 
 	def _outgoing(wsock, timeout):
 		try:
-			server_previous_clip_row = {'_id':None}
+			server_previous_row = {'_id':None}
 			for second in range(timeout):
 				if send_im_still_alive.get():
 					wsock.send(json.dumps(dict(
@@ -109,19 +109,20 @@ def handle_websocket():
 					))) #send blank list of clips to tell client's incoming server is still alive.
 					send_im_still_alive.set(0)
 				else:
-					server_latest_clip_rowS = get_latest_clip_rows()
-					if server_latest_clip_rowS.count():
-						server_latest_clip_row  = server_latest_clip_rowS[0]
-						#print server_latest_clip_row
-						if server_latest_clip_row['_id'] != server_previous_clip_row['_id']:
-							#_live("if server_latest_clip_row['_id'] != server_previous_clip_row['_id']")
+					server_latest_row_and_clips = get_latest_row_and_clips()
+					server_latest_row = server_latest_row_and_clips['latest_row']
+					server_latest_clips = server_latest_row_and_clips['latest_clips']
+					if server_latest_row:
+						#print server_latest_row
+						if server_latest_row['_id'] != server_previous_row['_id']:
+							#_live("if server_latest_row['_id'] != server_previous_row['_id']")
 							wsock.send(json.dumps(dict(
 								message = "Download",
-								data = server_latest_clip_rowS,
+								data = server_latest_clips,
 							)))
-							#_live(server_latest_clip_row)
+							#_live(server_latest_row)
 							
-							server_previous_clip_row = server_latest_clip_row #reset prev
+							server_previous_row = server_latest_row #reset prev
 				
 				#_live("outgoing wait...")
 				sleep(0.1)
