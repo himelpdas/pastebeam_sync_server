@@ -515,7 +515,7 @@ class Main(wx.Frame):
 							print len(img_array_new)
 							
 							clip_hash_client = format(hash128(img_array_new), "x") #hex(hash128(img_array_new))
-							img_file_name = "%s.png"%clip_hash_client
+							img_file_name = "%s.bmp"%clip_hash_client
 							img_file_path = os.path.join(TEMP_DIR,img_file_name)
 							bitmap.SaveFile(img_file_path, wx.BITMAP_TYPE_BMP) #change to or compliment upload
 							clip_display_encoded = self.encodeClip("Clipboard image on %s"%datetime.datetime.now())
