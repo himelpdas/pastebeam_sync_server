@@ -421,7 +421,7 @@ class Main(wx.Frame):
 							success = clipboard.SetData(clip_data)
 
 					elif clip_type == "bitmap":
-						bitmap=wx.Bitmap(file_path, wx.BITMAP_TYPE_PNG)
+						bitmap=wx.Bitmap(file_path, wx.BITMAP_TYPE_BMP)
 						#bitmap.LoadFile(img_file_path, wx.BITMAP_TYPE_BMP)
 						clip_data = wx.BitmapDataObject(bitmap)
 						success = clipboard.SetData(clip_data)
@@ -517,7 +517,7 @@ class Main(wx.Frame):
 							clip_hash_client = format(hash128(img_array_new), "x") #hex(hash128(img_array_new))
 							img_file_name = "%s.png"%clip_hash_client
 							img_file_path = os.path.join(TEMP_DIR,img_file_name)
-							bitmap.SaveFile(img_file_path, wx.BITMAP_TYPE_PNG) #change to or compliment upload
+							bitmap.SaveFile(img_file_path, wx.BITMAP_TYPE_BMP) #change to or compliment upload
 							clip_display_encoded = self.encodeClip("Clipboard image on %s"%datetime.datetime.now())
 							
 							return __upload(
