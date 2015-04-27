@@ -20,6 +20,7 @@ from wxpython_view import *
 #general stuff
 import time, sys, zlib, datetime, uuid, os, tempfile, urllib, platform, gc
 from functions import *
+import compress_encrypt
 
 #debug
 import pdb
@@ -520,6 +521,8 @@ class Main(wx.Frame):
 							bitmap.SaveFile(img_file_path, wx.BITMAP_TYPE_BMP) #change to or compliment upload
 							clip_display_encoded = self.encodeClip("Clipboard image on %s"%datetime.datetime.now())
 							
+							compress_encrypt.compress(img_file_path+".7z")
+							
 							return __upload(
 								file_path = img_file_path, 
 								clip_type = "bitmap", 
@@ -542,7 +545,11 @@ class Main(wx.Frame):
 							
 				return (_return_if_text_or_url() or _return_if_bitmap() or _return_if_file() or None)
 				
-		except:# TypeError:
+		except requests.exceptions.ConnectionError:
+			self.destroyBusyDialog()
+			wx.MessageBox("Unable to connect to the internet.", "Error")
+			return None
+		except ZeroDivisionError:# TypeError:
 			self.destroyBusyDialog()
 			wx.MessageBox("Unable to access the clipboard. Another application seems to be locking it.", "Error")
 			return None
