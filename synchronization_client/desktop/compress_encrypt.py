@@ -61,28 +61,30 @@ def get_key_salt_and_iv(password, file_or_stream=None):
 def compress_encrypt(file_path, password="incredible1"):
 	#https://github.com/fancycode/pylzma/blob/master/doc/USAGE.md
 	#file_path = os.path.join(path, filename)
-	with open(file_path, 'w') as compressed_file:
+	with open(file_path,'rb') as raw_file:
 	
-		compressor = pylzma.compressfile(file_path, eos=1)
-		
-		read_bytes = BLOCK_SIZE #make sure it is divisible by block_size
+		with open(file_path+".pastebeam", 'w') as container_file:
+	
+			compressor = pylzma.compressfile(raw_file, eos=1)
 			
-		key, salt, iv = get_key_salt_and_iv(password)
+			read_bytes = BLOCK_SIZE*1024 #make sure it is divisible by block_size
 				
-		cipher = AES.new(key, AES.MODE_CBC, iv)
-		
-		compressed_file.write(iv)
-		
-		compressed_file.write(salt)
-				
-		while True:
-			chunk = compressor.read(read_bytes)
-			if not chunk:
-				break
-			if len(chunk) == 0 or len(chunk) % BLOCK_SIZE != 0: #end of file usually doesn't match block size so we must add padding
-				padding_length = (BLOCK_SIZE - len(chunk) % BLOCK_SIZE) or BLOCK_SIZE #this is a trick to calculate EXACTLY how much extra padding is needed to make chunk divisible by AES.block_size (which is usually 16). For example the remainder is 30, so 30 % 16 = 14. We need 2 more pads to make the remainder divisible by 16, this can be calculated by 16-14 = 2.
-				chunk += padding_length * chr(padding_length)
-			compressed_file.write(cipher.encrypt(chunk)) #ALWAYS compress before encrypt, otherwise it is useless
+			key, salt, iv = get_key_salt_and_iv(password)
+					
+			cipher = AES.new(key, AES.MODE_CBC, iv)
+			
+			container_file.write(iv)
+			
+			container_file.write(salt)
+					
+			while True:
+				chunk = compressor.read(read_bytes)
+				if not chunk:
+					break
+				if len(chunk) == 0 or len(chunk) % BLOCK_SIZE != 0: #end of file usually doesn't match block size so we must add padding
+					padding_length = (BLOCK_SIZE - len(chunk) % BLOCK_SIZE) or BLOCK_SIZE #this is a trick to calculate EXACTLY how much extra padding is needed to make chunk divisible by AES.block_size (which is usually 16). For example the remainder is 30, so 30 % 16 = 14. We need 2 more pads to make the remainder divisible by 16, this can be calculated by 16-14 = 2.
+					chunk += padding_length * chr(padding_length)
+				container_file.write(cipher.encrypt(chunk)) #ALWAYS compress before encrypt, otherwise it is useless
 			
 def clean_up():
 	pass
