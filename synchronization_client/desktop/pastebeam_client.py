@@ -521,7 +521,8 @@ class Main(wx.Frame):
 							bitmap.SaveFile(img_file_path, wx.BITMAP_TYPE_BMP) #change to or compliment upload
 							clip_display_encoded = self.encodeClip("Clipboard image on %s"%datetime.datetime.now())
 							
-							compress_encrypt.compress_encrypt(img_file_path)
+							with compress_encrypt.Encompress(password = "nigger", user_rand = "666", directory = TEMP_DIR, file_names = [img_file_name]) as result:
+								print result
 							
 							return __upload(
 								file_path = img_file_path, 
