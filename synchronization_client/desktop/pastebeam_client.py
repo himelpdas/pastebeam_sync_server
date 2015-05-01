@@ -18,7 +18,7 @@ from threading import Thread # import * BREAKS enumerate!!!
 from wxpython_view import *
 
 #general stuff
-import time, sys, zlib, datetime, uuid, os, tempfile, urllib, platform, gc
+import time, sys, zlib, datetime, uuid, os, tempfile, urllib, platform, gc, hashlib
 from functions import *
 import compress_encrypt
 
@@ -161,7 +161,7 @@ class WebSocketThread(WorkerThread):
 					SERVER_LATEST_CLIP.set(server_latest_clip_row) #should move this to after postevent or race condition may occur, but since this is gevent, it might not be necessary
 					CLIENT_LATEST_CLIP.set(server_latest_clip_row)
 					
-					#print "GET %s"% server_latest_clip_row['clip_hash_client']
+					#print "GET %s"% server_latest_clip_row['clip_hash_fast']
 					
 					wx.PostEvent(self._notify_window, EVT_RESULT(server_latest_clip_rowS) )
 
@@ -183,14 +183,14 @@ class WebSocketThread(WorkerThread):
 			sendit = False
 			if self.keepAlive(): #also send alive messages and reset connection if receive block indefinitely
 				sendit = dict(message="Alive?")
-			elif CLIENT_LATEST_CLIP.get().get('clip_hash_client') != SERVER_LATEST_CLIP.get().get('clip_hash_client'): #start only when there is something to send
+			elif CLIENT_LATEST_CLIP.get().get('clip_hash_secure') != SERVER_LATEST_CLIP.get().get('clip_hash_secure'): #start only when there is something to send
 				print "sending...%s"%CLIENT_LATEST_CLIP.get()	
 				
 				sendit = dict(
 					data=CLIENT_LATEST_CLIP.get(),
 					message="Upload"
 				)
-				print "\n\n\nSEND %s... %s"%(CLIENT_LATEST_CLIP.get().get('clip_hash_client'), SERVER_LATEST_CLIP.get().get('clip_hash_client'))
+				print "\n\n\nSEND %s... %s"%(CLIENT_LATEST_CLIP.get().get('clip_hash_secure'), SERVER_LATEST_CLIP.get().get('clip_hash_secure'))
 						
 			if sendit:
 				try:
@@ -363,6 +363,8 @@ class Main(wx.Frame):
 			
 			self.setClipboardContent(file_name= latest_content['clip_file_name'], clip_type =latest_content['clip_type'])
 			
+			print "\nclip file name %s\n"%latest_content['clip_file_name']
+			
 			self.destroyBusyDialog()
 
 		
@@ -439,7 +441,7 @@ class Main(wx.Frame):
 		try:
 			with wx.TheClipboard.Get() as clipboard:
 			
-				def __upload(file_path, clip_type, clip_display_encoded, clip_file_name, clip_hash_client, raw_comparison_data):
+				def __upload(file_path, clip_type, clip_display_encoded, clip_file_name, clip_hash_secure, raw_comparison_data):
 						response = requests.get(HTTP_BASE(arg="file_exists/%s"%clip_file_name,port=8084,scheme="http"))
 						file_exists = json.loads(response.content)
 						if not file_exists['result']:
@@ -450,7 +452,7 @@ class Main(wx.Frame):
 							"clip_type" : clip_type,
 							"clip_display" : clip_display_encoded,
 							"clip_file_name" : clip_file_name,
-							"clip_hash_client" : clip_hash_client, #http://stackoverflow.com/questions/16414559/trying-to-use-hex-without-0x
+							"clip_hash_secure" : clip_hash_secure, #http://stackoverflow.com/questions/16414559/trying-to-use-hex-without-0x
 							"host_name_client" : "%s (%s %s)"%(wx.GetHostName(), platform.system(), platform.release()),
 							"timestamp_client" : time.time(),
 						}
@@ -476,13 +478,14 @@ class Main(wx.Frame):
 							clip_text_encoded = self.encodeClip(clip_text_new)
 							
 							if clip_text_is_url:
-								clip_display_encoded = self.encodeClip(clip_text_new[:250] )
-							else:
 								clip_display_encoded = self.encodeClip(clip_text_new)
+							else:
+								clip_display_encoded = self.encodeClip(clip_text_new [:2000])
 
-							clip_hash_client = format( hash128( clip_text_encoded ), "x") #hex( hash128( clip_text_encoded ) ) #use instead to get rid of 0x for better looking filenames
-							
-							txt_file_name = "%s.txt"%clip_hash_client
+							clip_hash_fast = format( hash128( clip_text_encoded ), "x") #hex( hash128( clip_text_encoded ) ) #use instead to get rid of 0x for better looking filenames
+							clip_hash_secure = hashlib.new("ripemd160", clip_hash_fast + "user_salt").hexdigest()
+														
+							txt_file_name = "%s.txt"%clip_hash_secure
 							txt_file_path = os.path.join(TEMP_DIR,txt_file_name)
 							
 							with open(txt_file_path, 'w') as txt_file:
@@ -493,7 +496,7 @@ class Main(wx.Frame):
 								clip_type = "text" if not clip_text_is_url else "link", 
 								clip_display_encoded = clip_display_encoded, 
 								clip_file_name = txt_file_name, 
-								clip_hash_client = clip_hash_client, 
+								clip_hash_secure = clip_hash_secure, 
 								raw_comparison_data = clip_text_new
 							)
 						
@@ -515,21 +518,27 @@ class Main(wx.Frame):
 							
 							print len(img_array_new)
 							
-							clip_hash_client = format(hash128(img_array_new), "x") #hex(hash128(img_array_new))
-							img_file_name = "%s.bmp"%clip_hash_client
+							clip_hash_fast = format(hash128(img_array_new), "x") #hex(hash128(img_array_new)) #KEEP PRIVATE and use to get hash of large data quickly
+							clip_hash_secure = hashlib.new("ripemd160", clip_hash_fast + "user_salt").hexdigest() #to prevent rainbow table attacks of known files and hashes, will also cause decryption to fail if file name is changed
+							
+							img_file_name = "%s.bmp"%clip_hash_secure
 							img_file_path = os.path.join(TEMP_DIR,img_file_name)
+							
+							print "img_file_path: \n%s\n"%img_file_path
+							
 							bitmap.SaveFile(img_file_path, wx.BITMAP_TYPE_BMP) #change to or compliment upload
+							
 							clip_display_encoded = self.encodeClip("Clipboard image on %s"%datetime.datetime.now())
 							
-							with compress_encrypt.Encompress(password = "nigger", user_rand = "666", directory = TEMP_DIR, file_names = [img_file_name]) as result:
-								print result
+							with compress_encrypt.Encompress(password = "nigger", directory = TEMP_DIR, file_names = [img_file_name]) as result:
+								print result #salting the file_name will cause decryption to fail if
 							
 							return __upload(
 								file_path = img_file_path, 
 								clip_type = "bitmap", 
 								clip_display_encoded = clip_display_encoded, 
 								clip_file_name = img_file_name, 
-								clip_hash_client = clip_hash_client, 
+								clip_hash_secure = clip_hash_secure, 
 								raw_comparison_data = img_array_new
 							)
 							

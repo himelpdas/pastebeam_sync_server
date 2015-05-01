@@ -30,17 +30,6 @@ def handle_websocket():
 	wsock = request.environ.get('wsgi.websocket')
 	if not wsock:
 		abort(400, 'Expected WebSocket request.')
-		
-	def _get_real_hash(clip):
-		clip_hash_server  = clip_data_server = None
-		with open(UPLOAD_DIR +"\\"+ clip["clip_file_name"], 'rb') as clip_file:
-			clip_data_server = clip_file.read() #WARNING!!! NEED TO USE 'rb' MODE OR WILL RESULT IN SAME HASH, PROBABLY BECAUSE CHARACTERS ARE IGNORED AS BLANK
-			#print clip_hash_server
-
-		if clip_data_server:
-			clip_hash_server = hex(hash128(clip_data_server)) #MUST encode to str as mongo db can only handle 8 byte ints. Use hex instead of format(n,'x') since it doesn't have to look pretty here
-
-		return clip_hash_server
 
 	def _initialize_client(client_previous_clip_data):
 		wsock.send(json.dumps(client_previous_clip_data ) ) #Do this once to start outgoing greenlet by populating SERVER_LATEST_SIG variable
@@ -57,7 +46,7 @@ def handle_websocket():
 	def _incoming(wsock, timeout): #these seem to run in another namespace, you must pass them global or inner variables
 
 		try:
-			client_previous_clip = get_latest_row_and_clips()['latest_row'] #SHOULD CHECK SERVER TO AVOID RACE CONDITIONS? #too much bandwidth if receiving row itself, only text and hash are fine (data)
+			client_previous_clip = get_latest_row_and_clips()['latest_row'] or {} #SHOULD CHECK SERVER TO AVOID RACE CONDITIONS? #too much bandwidth if receiving row itself, only text and hash are fine (data)
 			#_initialize_client(client_previous_clip_data)
 			for second in range(timeout): #Even though greenlets don't use much memory, if the user disconnects, this server greenlet will run forever, and this "little memory" will become a big problem
 
@@ -75,10 +64,8 @@ def handle_websocket():
 				elif data['message'] == "Upload":
 					
 					client_latest_clip = data['data']
-										
-					client_latest_clip['clip_hash_server'] = _get_real_hash(client_latest_clip) #for security reasons, get rid of client's hash, perhaps block client if different hashes
-				
-					if client_latest_clip['clip_hash_server'] != client_previous_clip['clip_hash_server']: #else just wait
+														
+					if client_latest_clip.get('clip_hash_secure') != client_previous_clip.get('clip_hash_secure'): #else just wait
 						
 						client_latest_clip['timestamp_server'] = time.time()
 						new_clip_id = clips.insert_one(client_latest_clip) 
@@ -89,7 +76,7 @@ def handle_websocket():
 					
 					else:
 						print "hashes match, request rejected"
-						print "OLD: \n%s - %s\nNEW:%s - %s"%(client_previous_clip.get('clip_hash_server'), client_previous_clip.get("clip_file_name"), client_latest_clip.get('clip_hash_server'), client_latest_clip.get('clip_file_name') )
+						print "OLD: \n%s - %s\nNEW:%s - %s"%(client_previous_clip.get('clip_hash_secure'), client_previous_clip.get("clip_file_name"), client_latest_clip.get('clip_hash_secure'), client_latest_clip.get('clip_file_name') )
 				
 				_live("incoming wait...")
 				sleep(0.1)
@@ -155,7 +142,7 @@ def file_exists(filename):
 
 	file_path = os.path.join(UPLOAD_DIR,filename)
 	file_exists = os.path.isfile(file_path)
-	print file_exists
+	print "\nFILE EXISTS:%s\n"%file_exists
 	
 	return json.dumps({"result":file_exists})
 		
@@ -168,10 +155,10 @@ def handle_upload():
 	upload     = request.files.get('upload')
 	
 	name, ext = os.path.splitext(upload.filename)
-	if ext not in ('.png','.jpg','.jpeg'):
+	if ext not in (".txt",'.bmp','.png','.jpg','.jpeg'):
 		result = 'File extension not allowed.'
-
-	upload.save(save_path, overwrite=False) # appends upload.filename automatically
+	else:
+		upload.save(save_path, overwrite=False) # appends upload.filename automatically
 
 	response.content_type =  "application/json; charset=UTF8"
 	return json.dumps({"upload_result":result})
