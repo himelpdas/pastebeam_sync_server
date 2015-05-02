@@ -48,6 +48,7 @@ class Encompress():
 	#Based heavily on #http://stackoverflow.com/questions/16761458/how-to-aes-encrypt-decrypt-files-using-python-pycrypto-in-an-openssl-compatible
 	
 	BLOCK_SIZE = AES.block_size
+	READ_BYTES = BLOCK_SIZE*1024 #make sure it is divisible by self.BLOCK_SIZE
 	
 	def __init__(self,  password = "", directory = "", file_names = [], decrypt_file = None):
 		self.file_names = file_names
@@ -90,6 +91,7 @@ class Encompress():
 		
 	def grabIV(self):
 		self.iv = self.decrypt_file.read(self.BLOCK_SIZE)
+		print "\nIV:%s\n"%self.iv
 		
 	def setKey(self):
 		self.key = PBKDF2(self.password, salt = self.salt, dkLen = self.BLOCK_SIZE) #dkLen: The length of the desired key. Default is 16 bytes, suitable for instance for Crypto.Cipher.AES
@@ -109,34 +111,44 @@ class Encompress():
 		
 			self.container_path = self.archive_path+".pastebeam"
 			
-			with open(self.container_path, 'w') as container_file:
-					
-				read_bytes = self.BLOCK_SIZE*1024 #make sure it is divisible by self.BLOCK_SIZE
-									
-				print "\nIV:%s\n"%len(self.iv)
-									
+			with open(self.container_path, 'wb') as container_file:
+																							
 				cipher = AES.new(self.key, AES.MODE_CBC, self.iv)
 				
 				container_file.write(self.iv)
-				
-				container_file.write(self.salt)
-						
-				while True:
-					chunk = archive.read(read_bytes)
-					if not chunk:
-						break
-					elif len(chunk) % self.BLOCK_SIZE != 0: #end of file usually doesn't match block size so we must add padding
+										
+				finished = False
+				while not finished:
+					chunk = archive.read(self.READ_BYTES)
+					if len(chunk) == 0 or len(chunk) % self.BLOCK_SIZE != 0: #end of file usually doesn't match block size so we must add padding
 						padding_length = (self.BLOCK_SIZE - len(chunk) % self.BLOCK_SIZE) or self.BLOCK_SIZE #this is a trick to calculate EXACTLY how much extra padding is needed to make chunk divisible by AES.self.BLOCK_SIZE (which is usually 16). For example the remainder is 30, so 30 % 16 = 14. We need 2 more pads to make the remainder divisible by 16, this can be calculated by 16-14 = 2.
-						chunk += padding_length * chr(padding_length)
+						chunk += padding_length  * chr(padding_length)
+						finished = True
 					container_file.write(cipher.encrypt(chunk)) #ALWAYS compress before encrypt, otherwise it is useless
 					
 		self.result = self.container_path
-					
+		
 	def decrypt(self):
-		pass
+		
+			self.archive_path = os.path.abspath(self.decrypt_file.name).split(".pastebeam")[0] #http://stackoverflow.com/questions/1881202/getting-the-absolute-path-of-a-file-object
+		
+			print "\nDECRYPT ARCHIVR PATH %s\n"%self.archive_path
+		
+			with open(self.archive_path, 'wb') as archive:
+		
+				cipher = AES.new(self.key, AES.MODE_CBC, self.iv)
+				next_chunk = ''
+				finished = False
+				while not finished:
+					chunk, next_chunk = next_chunk, cipher.decrypt(self.decrypt_file.read(self.READ_BYTES))
+					if len(next_chunk) == 0:
+						padding_length = ord(chunk[-1])
+						chunk = chunk[:-padding_length]
+						finished = True
+					archive.write(chunk)
 		
 	def extract(self):
-		pass
-				
-	def clean_up(self):
-		pass
+		self.extract_path = os.path.join(self.directory,"extracted")
+		tar = tarfile.open(self.archive_path)
+		tar.extractall(path=self.extract_path)
+		self.result = self.extract_path

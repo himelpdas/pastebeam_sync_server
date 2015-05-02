@@ -530,8 +530,14 @@ class Main(wx.Frame):
 							
 							clip_display_encoded = self.encodeClip("Clipboard image on %s"%datetime.datetime.now())
 							
-							with compress_encrypt.Encompress(password = "nigger", directory = TEMP_DIR, file_names = [img_file_name]) as result:
+							print "ENCRYPT"
+							with compress_encrypt.Encompress(password = "nigger", directory = TEMP_DIR, file_names = [img_file_name], decrypt_file=False) as result:
 								print result #salting the file_name will cause decryption to fail if
+								
+							print "DECRYPT"
+							with open(result, "rb") as decrypt_file:
+								with compress_encrypt.Encompress(password = "nigger", directory = TEMP_DIR, file_names = [img_file_name], decrypt_file=decrypt_file) as result:
+									print result
 							
 							return __upload(
 								file_path = img_file_path, 
