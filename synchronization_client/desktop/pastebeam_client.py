@@ -429,10 +429,12 @@ class Main(wx.Frame):
 						clip_data = wx.BitmapDataObject(bitmap)
 						success = clipboard.SetData(clip_data)		
 						
-					elif clip_type == "bitmap":
+					elif clip_type == "files":
 						file_paths = [file_path]
 						#bitmap.LoadFile(img_file_path, wx.BITMAP_TYPE_BMP)
-						clip_data = wx.FileDataObject(file_paths)
+						clip_data = wx.FileDataObject()
+						for each_file_path in file_paths:
+							clip_data.AddFile(each_file_path)
 						success = clipboard.SetData(clip_data)
 				else:
 					wx.MessageBox("Unable to download this clip from the server", "Error")
@@ -464,6 +466,7 @@ class Main(wx.Frame):
 						}
 						
 						CLIENT_RECENT_DATA.set(raw_comparison_data)
+						#print "SETTED %s"%raw_comparison_data
 						
 						return clip_content
 			
@@ -569,9 +572,10 @@ class Main(wx.Frame):
 					if success:
 						#self.setThrottle("slow")
 						old_file = CLIENT_RECENT_DATA.get()
+						#print "OLD%s"%old_file
 						
 						os_file_paths_new = sorted(clip_data.GetFilenames())
-						os_file_lists_new =map(lambda each: [each], os_file_paths_new)
+						os_file_lists_new =map(lambda each: [ os.path.split(each)[1] ], os_file_paths_new)
 						number_of_files = len(os_file_paths_new)
 						for i,each_os_path in enumerate(os_file_paths_new):
 							each_file_size = os.path.getsize(each_os_path)
@@ -583,17 +587,22 @@ class Main(wx.Frame):
 						if sum(map(lambda each: each[1], os_file_lists_new)) < (1024*1024*5):
 							new_file = os_file_lists_new[0]
 							if old_file != new_file:
-								new_file_path = new_file[0]
-								shutil.copy2(new_file_path, TEMP_DIR)
-								clip_hash_secure = hashlib.new("ripemd160", format(hash128(str(new_file[1]) + (new_file[2])), "x") + "user_salt").hexdigest()
-								clip_file_name = os.path.split(new_file_path)[1]
+								print old_file, new_file
+								new_file_name = new_file[0]
+								new_file_path = os.path.join(TEMP_DIR, new_file_name)
+								print "NP %s %s"%(new_file_path, os.path.isfile(new_file_path))
+								try:
+									shutil.copy2(new_file_path, TEMP_DIR)
+								except shutil.Error:
+									pass
+								clip_hash_secure = hashlib.new("ripemd160", format(hash128( new_file_name + str(new_file[1]) + str(new_file[2]) ), "x") + "user_salt").hexdigest()
 								return __upload(
-									file_path = os.path.join(TEMP_DIR, clip_file_name), 
+									file_path = new_file_path, 
 									clip_type = "files",
 									clip_display_encoded =  self.encodeClip("%s file, (%s)"%(new_file_path.split(".")[-1].upper(), new_file[2])), 
-									clip_file_name = clip_file_name, 
+									clip_file_name = new_file_name, 
 									clip_hash_secure = clip_hash_secure, 
-									raw_comparison_data = old_file
+									raw_comparison_data = new_file
 								)
 							
 				return (_return_if_text_or_url() or _return_if_bitmap() or _return_if_file() or None)

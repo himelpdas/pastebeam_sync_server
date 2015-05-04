@@ -50,13 +50,13 @@ class Encompress():
 	BLOCK_SIZE = AES.block_size
 	READ_BYTES = BLOCK_SIZE*1024 #make sure it is divisible by self.BLOCK_SIZE
 	
-	def __init__(self,  password = "", directory = "", file_names = [], decrypt_file = None):
+	def __init__(self,  password = "", salt= "user_salt", directory = "", file_names = [], decrypt_file = None):
 		self.file_names = file_names
 		self.directory = directory
 		self.password = password
 		self.decrypt_file = decrypt_file
 		
-		self.salt = "".join(self.file_names)
+		self.salt = salt
 		
 		self.result = self.archive_path = self.container_path = self.iv = self.key = None
 		
@@ -86,7 +86,7 @@ class Encompress():
 		
 	def makeIV(self):
 		pre_iv = 'iv:'
-		rand = Random.new()
+		rand = Random.new() #iv should be different for every file, so that patterns can't be seen in 2 identical files. This is apposed to salt, where the salt can be set once for one password (to prevent rainbow tables)
 		self.iv = pre_iv + rand.read(self.BLOCK_SIZE - len(pre_iv)) #not needed since tarfile already is very random due to timestamp, but do for extra security #CBC requires a non-deterministic approach, in other words you can't recalculate the IV... deterministic is when you make a random-appearing IV, but it's not random indeed ie. using the file hash
 		
 	def grabIV(self):
