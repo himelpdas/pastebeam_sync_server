@@ -18,7 +18,7 @@ from threading import Thread # import * BREAKS enumerate!!!
 from wxpython_view import *
 
 #general stuff
-import time, sys, zlib, datetime, uuid, os, tempfile, urllib, platform, gc, hashlib
+import time, sys, zlib, datetime, uuid, os, tempfile, urllib, platform, gc, hashlib, shutil
 from functions import *
 import compress_encrypt
 
@@ -284,7 +284,7 @@ class Main(wx.Frame):
 				
 			clip_file_ext = os.path.splitext(clip['clip_file_name'])[1]
 			file_image_number = self.panel.lst.icon_extensions.index("._clip")
-			if clip['clip_type'] == "file":
+			if clip['clip_type'] == "files":
 				try:
 					file_image_number = self.panel.lst.icon_extensions.index(clip_file_ext) #http://stackoverflow.com/questions/176918/finding-the-index-of-an-item-given-a-list-containing-it-in-python
 				except ValueError:
@@ -427,6 +427,12 @@ class Main(wx.Frame):
 						bitmap=wx.Bitmap(file_path, wx.BITMAP_TYPE_BMP)
 						#bitmap.LoadFile(img_file_path, wx.BITMAP_TYPE_BMP)
 						clip_data = wx.BitmapDataObject(bitmap)
+						success = clipboard.SetData(clip_data)		
+						
+					elif clip_type == "bitmap":
+						file_paths = [file_path]
+						#bitmap.LoadFile(img_file_path, wx.BITMAP_TYPE_BMP)
+						clip_data = wx.FileDataObject(file_paths)
 						success = clipboard.SetData(clip_data)
 				else:
 					wx.MessageBox("Unable to download this clip from the server", "Error")
@@ -562,20 +568,33 @@ class Main(wx.Frame):
 
 					if success:
 						#self.setThrottle("slow")
-						file_paths = clip_data.GetFilenames()
-						number_of_files = len(file_paths)
-						if not number_of_files > 5:
-							file_sizes = []
-							for each_path in file_paths:
-								each_file_size = os.path.getsize(each_path)
-								if each_file_size < 1048576:
-									file_sizes.append( each_file_size )
-								else:
-									file_sizes = None
-									break
-							if file_sizes:
-								print "\nFS: %s\n"%file_sizes
+						old_file = CLIENT_RECENT_DATA.get()
+						
+						os_file_paths_new = sorted(clip_data.GetFilenames())
+						os_file_lists_new =map(lambda each: [each], os_file_paths_new)
+						number_of_files = len(os_file_paths_new)
+						for i,each_os_path in enumerate(os_file_paths_new):
+							each_file_size = os.path.getsize(each_os_path)
+							each_file_modified = "last modified: %s" % time.ctime(os.path.getmtime(each_os_path))
 							
+							os_file_lists_new[i].append(each_file_size)
+							os_file_lists_new[i].append(each_file_modified)
+							
+						if sum(map(lambda each: each[1], os_file_lists_new)) < (1024*1024*5):
+							new_file = os_file_lists_new[0]
+							if old_file != new_file:
+								new_file_path = new_file[0]
+								shutil.copy2(new_file_path, TEMP_DIR)
+								clip_hash_secure = hashlib.new("ripemd160", format(hash128(str(new_file[1]) + (new_file[2])), "x") + "user_salt").hexdigest()
+								clip_file_name = os.path.split(new_file_path)[1]
+								return __upload(
+									file_path = os.path.join(TEMP_DIR, clip_file_name), 
+									clip_type = "files",
+									clip_display_encoded =  self.encodeClip("%s file, (%s)"%(new_file_path.split(".")[-1].upper(), new_file[2])), 
+									clip_file_name = clip_file_name, 
+									clip_hash_secure = clip_hash_secure, 
+									raw_comparison_data = old_file
+								)
 							
 				return (_return_if_text_or_url() or _return_if_bitmap() or _return_if_file() or None)
 				

@@ -17,7 +17,7 @@ debug(True)
 
 client=pymongo.MongoClient()
 collection = client.test_database #collection
-clips = collection.clips111111 #database
+clips = collection.clips #database
 
 users = collection.users
 """
@@ -25,7 +25,7 @@ users = collection.users
 >>> users.insert(name=Himel, client_minimum_id = None)
 """
 
-#import pymongo; client=pymongo.MongoClient();collection = client.test_database;clips = collection.clips
+#import pymongo; client=pymongo.MongoClient();collection = client.test_database;clips = collection.clips; clips.remove()
 
 def get_latest_row_and_clips(): 
 	"""
