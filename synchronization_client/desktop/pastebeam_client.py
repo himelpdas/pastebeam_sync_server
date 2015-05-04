@@ -507,18 +507,23 @@ class Main(wx.Frame):
 					if success:
 						self.setThrottle("slow")
 						
-						img_array_old = CLIENT_RECENT_DATA.get()
-						#print "img_array_old %s"%img_array_old
+						image_old = CLIENT_RECENT_DATA.get()
+						#print "image_old %s"%image_old
+						
+						try: 
+							image_old_buffer_array = image_old.GetDataBuffer() #SOLVED GetDataBuffer crashing! You need to ensure that you do not use this buffer object after the image has been destroyed. http://wxpython.org/Phoenix/docs/html/MigrationGuide.html bitmap.ConvertToImage().GetDataBuffer() WILL FAIL because the image is destroyed after GetDataBuffer() is called so doing a buffer1 != buffer2 comparison will crash
+						except AttributeError:
+							image_old_buffer_array = None #if prevuous is not an image
 						
 						bitmap = clip_data.GetBitmap()
-						img_array_new  = bitmap.ConvertToImage().GetData() #GET DATA IS HIDDEN METHOD, IT RETURNS BYTE ARRAY... DO NOT USE GETDATABUFFER AS IT CRASHES. BESIDES GETDATABUFFER IS ONLY GOOD TO CHANGE BYTES IN MEMORY http://wxpython.org/Phoenix/docs/html/MigrationGuide.html
-						#print "img_array_new %s"%img_array_new
-												
-						if img_array_new != img_array_old: #for performance reasons we are not using the bmp for hash, but rather the wx Image GetData array
+						image_new  = bitmap.ConvertToImage() #OLD #GET DATA IS HIDDEN METHOD, IT RETURNS BYTE ARRAY... DO NOT USE GETDATABUFFER AS IT CRASHES. BESIDES GETDATABUFFER IS ONLY GOOD TO CHANGE BYTES IN MEMORY http://wxpython.org/Phoenix/docs/html/MigrationGuide.html
+						image_new_buffer_array = image_new.GetDataBuffer()
+																		
+						if image_new_buffer_array != image_old_buffer_array: #for performance reasons we are not using the bmp for hash, but rather the wx Image GetData array
 							
-							print len(img_array_new)
+							print len(image_new_buffer_array)
 							
-							clip_hash_fast = format(hash128(img_array_new), "x") #hex(hash128(img_array_new)) #KEEP PRIVATE and use to get hash of large data quickly
+							clip_hash_fast = format(hash128(image_new_buffer_array), "x") #hex(hash128(image_new)) #KEEP PRIVATE and use to get hash of large data quickly
 							clip_hash_secure = hashlib.new("ripemd160", clip_hash_fast + "user_salt").hexdigest() #to prevent rainbow table attacks of known files and hashes, will also cause decryption to fail if file name is changed
 							
 							img_file_name = "%s.bmp"%clip_hash_secure
@@ -530,6 +535,7 @@ class Main(wx.Frame):
 							
 							clip_display_encoded = self.encodeClip("Clipboard image on %s"%datetime.datetime.now())
 							
+							"""
 							print "ENCRYPT"
 							with compress_encrypt.Encompress(password = "nigger", directory = TEMP_DIR, file_names = [img_file_name], decrypt_file=False) as result:
 								print result #salting the file_name will cause decryption to fail if
@@ -538,17 +544,17 @@ class Main(wx.Frame):
 							with open(result, "rb") as decrypt_file:
 								with compress_encrypt.Encompress(password = "nigger", directory = TEMP_DIR, file_names = [img_file_name], decrypt_file=decrypt_file) as result:
 									print result
-							
+							"""
 							return __upload(
 								file_path = img_file_path, 
 								clip_type = "bitmap", 
 								clip_display_encoded = clip_display_encoded, 
 								clip_file_name = img_file_name, 
 								clip_hash_secure = clip_hash_secure, 
-								raw_comparison_data = img_array_new
+								raw_comparison_data = image_new
 							)
 							
-							gc.collect() #free up previous references to img_array_new and img_array_old arrays, since they are so large #http://stackoverflow.com/questions/1316767/how-can-i-explicitly-free-memory-in-python
+							gc.collect() #free up previous references to image_new and image_old arrays, since they are so large #http://stackoverflow.com/questions/1316767/how-can-i-explicitly-free-memory-in-python
 							
 				def _return_if_file():
 					clip_data = wx.FileDataObject()
@@ -556,7 +562,19 @@ class Main(wx.Frame):
 
 					if success:
 						#self.setThrottle("slow")
-						print clip_data.GetFilenames()
+						file_paths = clip_data.GetFilenames()
+						number_of_files = len(file_paths)
+						if not number_of_files > 5:
+							file_sizes = []
+							for each_path in file_paths:
+								each_file_size = os.path.getsize(each_path)
+								if each_file_size < 1048576:
+									file_sizes.append( each_file_size )
+								else:
+									file_sizes = None
+									break
+							if file_sizes:
+								print "\nFS: %s\n"%file_sizes
 							
 							
 				return (_return_if_text_or_url() or _return_if_bitmap() or _return_if_file() or None)
@@ -576,7 +594,7 @@ class Main(wx.Frame):
 		if speed == "fast":
 			milliseconds = 1111
 		elif speed == "slow":
-			milliseconds = 5555		
+			milliseconds = 3333		
 		self.throttle = milliseconds
 		
 	def runAsyncWorker(self): 

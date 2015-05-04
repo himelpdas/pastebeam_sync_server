@@ -142,7 +142,7 @@ class Encompress():
 				while not finished:
 					chunk, next_chunk = next_chunk, cipher.decrypt(self.decrypt_file.read(self.READ_BYTES))
 					if len(next_chunk) == 0:
-						padding_length = ord(chunk[-1])
+						padding_length = ord(chunk[-1]) #BRILLIANT! DURING ENCRYPTION IT FILLS THE PADDING WITH A CHARACTER THAT ALSO REPRESENTS THE REMAINDER LENGTH. SO EX. padded with aaaaaa, ord(a) = 6, chr(6) = a 
 						chunk = chunk[:-padding_length]
 						finished = True
 					archive.write(chunk)
