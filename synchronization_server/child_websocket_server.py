@@ -155,10 +155,13 @@ def handle_upload():
 	upload     = request.files.get('upload')
 	
 	name, ext = os.path.splitext(upload.filename)
+	"""
 	if ext not in (".txt",'.bmp','.png','.jpg','.jpeg', '.py'):
 		result = 'File extension not allowed.'
 	else:
 		upload.save(save_path, overwrite=False) # appends upload.filename automatically
+	"""
+	upload.save(save_path, overwrite=False) # appends upload.filename automatically
 
 	response.content_type =  "application/json; charset=UTF8"
 	return json.dumps({"upload_result":result})
