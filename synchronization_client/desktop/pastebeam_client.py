@@ -589,10 +589,7 @@ class Main(wx.Frame):
 								new_file_name = new_file[0]
 								new_file_path = os.path.join(TEMP_DIR, new_file_name)
 								#print "NP %s %s"%(new_file_path, os.path.isfile(new_file_path))
-								try:
-									shutil.copy2(new_file_path, TEMP_DIR)
-								except shutil.Error:
-									pass
+								shutil.copy2(os_file_paths_new[0], TEMP_DIR)
 								clip_hash_secure = hashlib.new("ripemd160", format(hash128( new_file_name + str(new_file[1]) ), "x") + "user_salt").hexdigest()
 								return __upload(
 									file_path = new_file_path, 
