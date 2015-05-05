@@ -58,7 +58,7 @@ class EVT_RESULT(wx.PyEvent):
 #with lock:
 #...
 
-SERVER_LATEST_CLIP, CLIENT_LATEST_CLIP, CLIENT_RECENT_DATA = AsyncResult(), AsyncResult(), AsyncResult()
+SERVER_LATEST_CLIP, CLIENT_LATEST_CLIP, CLIENT_RECENT_DATA, SEND_ID = AsyncResult(), AsyncResult(), AsyncResult(), AsyncResult()
 SERVER_LATEST_CLIP.set({}) #the latest clip's hash on server
 CLIENT_LATEST_CLIP.set({}) #the latest clip's hash on client. Take no action if equal with above.
 CLIENT_RECENT_DATA.set(None)
@@ -313,7 +313,7 @@ class Main(wx.Frame):
 		#new_item_number_to_be = self.panel.lst.GetItemCount() + 1;  self.panel.lst.Append( (new_item_number_to_be...))
 		#timestamp_human = datetime.datetime.fromtimestamp(clip['timestamp_server']).strftime(u'%H:%M:%S \u2219 %Y-%m-%d'.encode("utf-8") ).decode("utf-8") #broken pipe \u00A6
 		timestamp_human = u'{dt.hour}:{dt:%M}:{dt:%S} {dt:%p} \u2219 {dt.month}-{dt.day}-{dt.year}'.format(dt=datetime.datetime.fromtimestamp(clip['timestamp_server'] ) ) #http://stackoverflow.com/questions/904928/python-strftime-date-without-leading-0
-		new_index = self.panel.lst.Append( (clip['clip_file_name'], clip['host_name_client'], clip['clip_type'], clip['clip_display'], timestamp_human ) ) #unicodedecode error fix	#http://stackoverflow.com/questions/2571515/using-a-unicode-format-for-pythons-time-strftime
+		new_index = self.panel.lst.Append( (clip['clip_file_name'], clip['host_name'], clip['clip_type'], clip['clip_display'], timestamp_human ) ) #unicodedecode error fix	#http://stackoverflow.com/questions/2571515/using-a-unicode-format-for-pythons-time-strftime
 		
 		_stylize_new_row()
 		
@@ -361,7 +361,8 @@ class Main(wx.Frame):
 			# Process results here
 			latest_content = oldest_to_newest_clips[-1]
 			
-			self.setClipboardContent(file_name= latest_content['clip_file_name'], clip_type =latest_content['clip_type'])
+			if latest_content['send_id'] != SEND_ID: #no point of setting new clipboard to the same machine that just uploaded it
+				self.setClipboardContent(file_name= latest_content['clip_file_name'], clip_type =latest_content['clip_type'])
 			
 			print "\nclip file name %s\n"%latest_content['clip_file_name']
 			
@@ -456,13 +457,17 @@ class Main(wx.Frame):
 							r = requests.post(HTTP_BASE(arg="upload",port=8084,scheme="http"), files={"upload": open(file_path, 'rb')})
 							print r
 
+						global SEND_ID
+						SEND_ID = uuid.uuid4()
+							
 						clip_content = {
 							"clip_type" : clip_type,
 							"clip_display" : clip_display_encoded,
 							"clip_file_name" : clip_file_name,
 							"clip_hash_secure" : clip_hash_secure, #http://stackoverflow.com/questions/16414559/trying-to-use-hex-without-0x
-							"host_name_client" : "%s (%s %s)"%(wx.GetHostName(), platform.system(), platform.release()),
+							"host_name" : "%s (%s %s)"%(wx.GetHostName(), platform.system(), platform.release()),
 							"timestamp_client" : time.time(),
+							"send_id" : SEND_ID,
 						}
 						
 						CLIENT_RECENT_DATA.set(raw_comparison_data)
@@ -575,31 +580,24 @@ class Main(wx.Frame):
 						#print "OLD%s"%old_file
 						
 						os_file_paths_new = sorted(clip_data.GetFilenames())
-						os_file_lists_new =map(lambda each: [ os.path.split(each)[1] ], os_file_paths_new)
-						number_of_files = len(os_file_paths_new)
-						for i,each_os_path in enumerate(os_file_paths_new):
-							each_file_size = os.path.getsize(each_os_path)
-							each_file_modified = "last modified: %s" % time.ctime(os.path.getmtime(each_os_path))
-							
-							os_file_lists_new[i].append(each_file_size)
-							os_file_lists_new[i].append(each_file_modified)
-							
+						os_file_lists_new =map(lambda each_os_path: [ os.path.split(each_os_path)[1], os.path.getsize(each_os_path) ], os_file_paths_new)
+
 						if sum(map(lambda each: each[1], os_file_lists_new)) < (1024*1024*5):
 							new_file = os_file_lists_new[0]
 							if old_file != new_file:
-								print old_file, new_file
+								print "\nOLD NEW %s \n %s\n" % (old_file, new_file)
 								new_file_name = new_file[0]
 								new_file_path = os.path.join(TEMP_DIR, new_file_name)
-								print "NP %s %s"%(new_file_path, os.path.isfile(new_file_path))
+								#print "NP %s %s"%(new_file_path, os.path.isfile(new_file_path))
 								try:
 									shutil.copy2(new_file_path, TEMP_DIR)
 								except shutil.Error:
 									pass
-								clip_hash_secure = hashlib.new("ripemd160", format(hash128( new_file_name + str(new_file[1]) + str(new_file[2]) ), "x") + "user_salt").hexdigest()
+								clip_hash_secure = hashlib.new("ripemd160", format(hash128( new_file_name + str(new_file[1]) ), "x") + "user_salt").hexdigest()
 								return __upload(
 									file_path = new_file_path, 
 									clip_type = "files",
-									clip_display_encoded =  self.encodeClip("%s file, (%s)"%(new_file_path.split(".")[-1].upper(), new_file[2])), 
+									clip_display_encoded =  self.encodeClip("%s file, (%s bytes)"%(os.path.splitext(new_file_path)[1], new_file[1])), 
 									clip_file_name = new_file_name, 
 									clip_hash_secure = clip_hash_secure, 
 									raw_comparison_data = new_file
