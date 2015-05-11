@@ -20,7 +20,7 @@ from wxpython_view import *
 #general stuff
 import time, sys, zlib, datetime, uuid, os, tempfile, urllib, platform, gc, hashlib, shutil
 from functions import *
-import compress_encrypt
+import encompress
 
 #debug
 import pdb
@@ -457,7 +457,7 @@ class Main(wx.Frame):
 							r = requests.post(HTTP_BASE(arg="upload",port=8084,scheme="http"), files={"upload": open(file_path, 'rb')})
 							print r
 
-						global SEND_ID
+						global SEND_ID #change to sender id
 						SEND_ID = uuid.uuid4()
 							
 						clip_content = {
@@ -551,12 +551,12 @@ class Main(wx.Frame):
 							
 							"""
 							print "ENCRYPT"
-							with compress_encrypt.Encompress(password = "nigger", directory = TEMP_DIR, file_names = [img_file_name], decrypt_file=False) as result:
+							with encompress.Encompress(password = "nigger", directory = TEMP_DIR, file_names = [img_file_name], decrypt_file=False) as result:
 								print result #salting the file_name will cause decryption to fail if
 								
 							print "DECRYPT"
 							with open(result, "rb") as decrypt_file:
-								with compress_encrypt.Encompress(password = "nigger", directory = TEMP_DIR, file_names = [img_file_name], decrypt_file=decrypt_file) as result:
+								with encompress.Encompress(password = "nigger", directory = TEMP_DIR, file_names = [img_file_name], decrypt_file=decrypt_file) as result:
 									print result
 							"""
 							return __upload(
@@ -633,10 +633,15 @@ class Main(wx.Frame):
 		counter = 0
 		while WorkerThread.KEEP_RUNNING:
 			if counter % self.throttle == 0:# only run every second, letting it run without this restriction will call memory failure and high cpu
+				#set clip global
 				clip_content = self.getClipboardContent()
 				if clip_content:
 					#HOST_CLIP_CONTENT.set( clip_content['clip_text'] )#encode it to a data compatible with murmurhash and wxpython settext, which only expect ascii ie "heart symbol" to u/2339
 					CLIENT_LATEST_CLIP.set( clip_content )  #NOTE SERVER_LATEST_CLIP.get() was not set
+				
+				#resize panel
+				self.panel.lst.checkColumns()
+
 			counter += 1
 			gevent.sleep(0.001) #SLEEP HERE WILL CAUSE FILEEXPLORER AND UI TO SLOW
 			wx.Yield() #http://goo.gl/6Jea2t

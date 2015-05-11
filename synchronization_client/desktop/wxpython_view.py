@@ -15,6 +15,8 @@ class MyListCtrl(wx.ListCtrl):
 		
 		self.resizeColumns(self) #ListCtrl instance also has method GetSize()
 		
+		self.previous_size = self.GetSize()
+		
 		self.Bind(wx.EVT_LIST_ITEM_SELECTED,
 		self.onItemSelected)
 		
@@ -35,7 +37,12 @@ class MyListCtrl(wx.ListCtrl):
 		# Setup
 		#data = [ ("row %d" % x,"value %d" % x,"data %d" % x) for x in range(10) ]
 		#self.PopulateList(data)
-
+		
+	def checkColumns(self):
+		if self.previous_size != self.GetSize():
+			print "\nRESIZE: p:%s n:%s\n"%(self.previous_size, self.GetSize())
+			self.resizeColumns(self)
+			self.previous_size = self.GetSize()
 	
 	def resizeColumns(self, resize_event):
 		width = resize_event.GetSize()[0]

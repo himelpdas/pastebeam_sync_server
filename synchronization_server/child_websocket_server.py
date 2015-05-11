@@ -11,7 +11,7 @@ app = Bottle()
 
 UPLOAD_DIR="C:\\Users\\Himel\\Desktop\\test\\uploads"
 
-@app.route('/test_async_websocket')
+@app.route('/echo')
 def test_async_websocket():
 	wsock = request.environ.get('wsgi.websocket')
 	if not wsock:
@@ -20,7 +20,7 @@ def test_async_websocket():
 	while True:
 		try:	
 			message = wsock.receive()
-			sleep(8)
+			#sleep(8)
 			wsock.send(message)
 		except WebSocketError:
 			break
