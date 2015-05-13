@@ -459,30 +459,36 @@ class Main(wx.Frame):
 		try:
 			with wx.TheClipboard.Get() as clipboard:
 			
-				def __upload(upload_file_path, clip_type, clip_display_encoded, container_name, clip_hash_secure, raw_comparison_data):
-						response = requests.get(HTTP_BASE(arg="file_exists/%s"%container_name,port=8084,scheme="http"))
-						file_exists = json.loads(response.content)
-						if not file_exists['result']:
-							r = requests.post(HTTP_BASE(arg="upload",port=8084,scheme="http"), files={"upload": open(upload_file_path, 'rb')})
-							print r
+				def __upload(file_names_encrypt, clip_type, clip_display_encoded, clip_hash_secure, raw_comparison_data):
+						
+					with encompress.Encompress(password = "nigger", directory = TEMP_DIR, file_names_encrypt = file_names_encrypt, file_name_decrypt=False) as container:
+						container_name = container[0]
+						container_path = container[1]
+						print container_name #salting the file_name will cause decryption to fail if
+					
+					response = requests.get(HTTP_BASE(arg="file_exists/%s"%container_name,port=8084,scheme="http"))
+					file_exists = json.loads(response.content)
+					if not file_exists['result']:
+						r = requests.post(HTTP_BASE(arg="upload",port=8084,scheme="http"), files={"upload": open(container_path, 'rb')})
+						print r
 
-						global SEND_ID #change to sender id
-						SEND_ID = uuid.uuid4()
-							
-						clip_content = {
-							"clip_type" : clip_type,
-							"clip_display" : clip_display_encoded,
-							"container_name" : container_name,
-							"clip_hash_secure" : clip_hash_secure, #http://stackoverflow.com/questions/16414559/trying-to-use-hex-without-0x
-							"host_name" : "%s (%s %s)"%(wx.GetHostName(), platform.system(), platform.release()),
-							"timestamp_client" : time.time(),
-							"send_id" : SEND_ID,
-						}
+					global SEND_ID #change to sender id
+					SEND_ID = uuid.uuid4()
 						
-						CLIENT_RECENT_DATA.set(raw_comparison_data)
-						#print "SETTED %s"%raw_comparison_data
-						
-						return clip_content
+					clip_content = {
+						"clip_type" : clip_type,
+						"clip_display" : clip_display_encoded,
+						"container_name" : container_name,
+						"clip_hash_secure" : clip_hash_secure, #http://stackoverflow.com/questions/16414559/trying-to-use-hex-without-0x
+						"host_name" : "%s (%s %s)"%(wx.GetHostName(), platform.system(), platform.release()),
+						"timestamp_client" : time.time(),
+						"send_id" : SEND_ID,
+					}
+					
+					CLIENT_RECENT_DATA.set(raw_comparison_data)
+					#print "SETTED %s"%raw_comparison_data
+					
+					return clip_content
 			
 				def _return_if_text_or_url():
 					clip_data = wx.TextDataObject()
@@ -514,19 +520,13 @@ class Main(wx.Frame):
 							with open(txt_file_path, 'w') as txt_file:
 								txt_file.write(clip_text_encoded)
 								
-							with encompress.Encompress(password = "nigger", directory = TEMP_DIR, file_names_encrypt = [txt_file_name], file_name_decrypt=False) as container:
-								container_name = container[0]
-								container_path = container[1]
-								print container_name #salting the file_name will cause decryption to fail if
-								
-								return __upload(
-									upload_file_path = container_path, 
-									container_name = container_name, 
-									clip_type = "text" if not clip_text_is_url else "link", 
-									clip_display_encoded = clip_display_encoded, 
-									clip_hash_secure = clip_hash_secure, 
-									raw_comparison_data = clip_text_new
-								)
+							return __upload(
+								file_names_encrypt = [txt_file_name],
+								clip_type = "text" if not clip_text_is_url else "link", 
+								clip_display_encoded = clip_display_encoded, 
+								clip_hash_secure = clip_hash_secure, 
+								raw_comparison_data = clip_text_new
+							)
 						
 				def _return_if_bitmap():
 					clip_data = wx.BitmapDataObject() #http://stackoverflow.com/questions/2629907/reading-an-image-from-the-clipboard-with-wxpython
@@ -548,9 +548,7 @@ class Main(wx.Frame):
 						image_new_buffer_array = image_new.GetDataBuffer()
 																		
 						if image_new_buffer_array != image_old_buffer_array: #for performance reasons we are not using the bmp for hash, but rather the wx Image GetData array
-							
-							print len(image_new_buffer_array)
-							
+														
 							clip_hash_fast = format(hash128(image_new_buffer_array), "x") #hex(hash128(image_new)) #KEEP PRIVATE and use to get hash of large data quickly
 							clip_hash_secure = hashlib.new("ripemd160", clip_hash_fast + "user_salt").hexdigest() #to prevent rainbow table attacks of known files and hashes, will also cause decryption to fail if file name is changed
 							
@@ -561,7 +559,9 @@ class Main(wx.Frame):
 							
 							bitmap.SaveFile(img_file_path, wx.BITMAP_TYPE_BMP) #change to or compliment upload
 							
-							clip_display_encoded = self.encodeClip("Clipboard image on %s"%datetime.datetime.now())
+							megapixels = len(image_new_buffer_array) / 3
+							
+							clip_display_encoded = self.encodeClip("Clipboard image (%s megapixels)" % megapixels)
 							
 							"""
 							print "ENCRYPT"
@@ -574,10 +574,9 @@ class Main(wx.Frame):
 									print result
 							"""
 							return __upload(
-								upload_file_path = img_file_path, 
+								file_names_encrypt = [img_file_name],
 								clip_type = "bitmap", 
 								clip_display_encoded = clip_display_encoded, 
-								container_name = img_file_name, 
 								clip_hash_secure = clip_hash_secure, 
 								raw_comparison_data = image_new
 							)

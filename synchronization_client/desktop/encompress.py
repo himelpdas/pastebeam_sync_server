@@ -79,11 +79,11 @@ class Encompress():
 
 	def __exit__(self, type, value, traceback):
 		
-		for each_path in map(lambda each_name: os.path.join(self.directory, each_name), self.file_names_encrypt):
-			pass#os.remove(each_path)
+		#for each_path in map(lambda each_name: os.path.join(self.directory, each_name), self.file_names_encrypt):
+		#	pass#os.remove(each_path)
 			
 		if self.archive_path:
-			pass#os.remove(self.archive_path)
+			os.remove(self.archive_path)
 		
 	def makeIV(self):
 		pre_iv = 'iv:'
