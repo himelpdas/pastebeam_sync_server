@@ -282,7 +282,7 @@ class Main(wx.Frame):
 				
 				self.panel.lst.SetItemBackgroundColour(new_item_index, "#f1f1f1") #many ways to set colors, see http://www.wxpython.org/docs/api/wx.Colour-class.html and http://wxpython.org/Phoenix/docs/html/ColourDatabase.html #win.SetBackgroundColour(wxColour(0,0,255)), win.SetBackgroundColour('BLUE'), win.SetBackgroundColour('#0000FF'), win.SetBackgroundColour((0,0,255))
 				
-			clip_file_ext = os.path.splitext(clip['clip_file_name'])[1]
+			clip_file_ext = os.path.splitext(clip['container_name'])[1]
 			file_image_number = self.panel.lst.icon_extensions.index("._clip")
 			if clip['clip_type'] == "files":
 				try:
@@ -313,7 +313,7 @@ class Main(wx.Frame):
 		#new_item_number_to_be = self.panel.lst.GetItemCount() + 1;  self.panel.lst.Append( (new_item_number_to_be...))
 		#timestamp_human = datetime.datetime.fromtimestamp(clip['timestamp_server']).strftime(u'%H:%M:%S \u2219 %Y-%m-%d'.encode("utf-8") ).decode("utf-8") #broken pipe \u00A6
 		timestamp_human = u'{dt.hour}:{dt:%M}:{dt:%S} {dt:%p} \u2219 {dt.month}-{dt.day}-{dt.year}'.format(dt=datetime.datetime.fromtimestamp(clip['timestamp_server'] ) ) #http://stackoverflow.com/questions/904928/python-strftime-date-without-leading-0
-		new_index = self.panel.lst.Append( (clip['clip_file_name'], clip['host_name'], clip['clip_type'], clip['clip_display'], timestamp_human ) ) #unicodedecode error fix	#http://stackoverflow.com/questions/2571515/using-a-unicode-format-for-pythons-time-strftime
+		new_index = self.panel.lst.Append( (clip['container_name'], clip['host_name'], clip['clip_type'], clip['clip_display'], timestamp_human ) ) #unicodedecode error fix	#http://stackoverflow.com/questions/2571515/using-a-unicode-format-for-pythons-time-strftime
 		
 		_stylize_new_row()
 		
@@ -362,9 +362,9 @@ class Main(wx.Frame):
 			latest_content = oldest_to_newest_clips[-1]
 			
 			if latest_content['send_id'] != SEND_ID: #no point of setting new clipboard to the same machine that just uploaded it
-				self.setClipboardContent(file_name= latest_content['clip_file_name'], clip_type =latest_content['clip_type'])
+				self.setClipboardContent(container_name= latest_content['container_name'], clip_type =latest_content['clip_type'])
 			
-			print "\nclip file name %s\n"%latest_content['clip_file_name']
+			print "\nclip file name %s\n"%latest_content['container_name']
 			
 			self.destroyBusyDialog()
 
@@ -377,21 +377,21 @@ class Main(wx.Frame):
 	def encodeClip(clip):
 		return (clip or '').encode("utf-8", "replace").encode("zlib").encode("base64") #MUST ENCODE in base64 before transmitting obsfucated data #null clip causes serious looping problems, put some text! Prevent setText's TypeError: String or Unicode type required 
 		
-	def downloadClipFileIfNotExist(self, file_name):
-		file_path = os.path.join(TEMP_DIR,file_name)
-		print file_path
+	def downloadClipFileIfNotExist(self, container_name):
+		container_path = os.path.join(TEMP_DIR,container_name)
+		print container_path
 		
-		if os.path.isfile(file_path):
-			return file_path
+		if os.path.isfile(container_path):
+			return container_path
 		else:
 			#TODO- show downloading file dialogue
 			try:
-				#urllib.urlretrieve(HTTP_BASE(arg="static/%s"%file_name,port=8084,scheme="http"), file_path)
-				urllib.URLopener().retrieve(HTTP_BASE(arg="static/%s"%file_name,port=8084,scheme="http"), file_path) #http://stackoverflow.com/questions/1308542/how-to-catch-404-error-in-urllib-urlretrieve
+				#urllib.urlretrieve(HTTP_BASE(arg="static/%s"%container_name,port=8084,scheme="http"), container_path)
+				urllib.URLopener().retrieve(HTTP_BASE(arg="static/%s"%container_name,port=8084,scheme="http"), container_path) #http://stackoverflow.com/questions/1308542/how-to-catch-404-error-in-urllib-urlretrieve
 			except IOError:
 				pass
 			else:
-				return file_path
+				return container_path
 				
 	def destroyBusyDialog(self):
 		#this will be invoked if another client has a new clip
@@ -405,7 +405,7 @@ class Main(wx.Frame):
 		self.busy_dialog = wx.BusyInfo("Please wait a moment...", self)
 		self.SetTransparent( 222 )
 		
-	def setClipboardContent(self, file_name, clip_type): 
+	def setClipboardContent(self, container_name, clip_type): 
 		#NEEDS TO BE IN MAIN LOOP FOR WRITING TO WORK, OR ELSE WE WILL 
 		#GET SOMETHING LIKE: "Failed to put data on the clipboard 
 		#(error 2147221008: coInitialize has not been called.)"
@@ -413,30 +413,39 @@ class Main(wx.Frame):
 		try:
 			with wx.TheClipboard.Get() as clipboard:
 	
-				file_path = self.downloadClipFileIfNotExist(file_name)
+				container_path = self.downloadClipFileIfNotExist(container_name)
 				
-				if file_path:
+				if container_path:
 					
-					if clip_type in ["text","link"]:
-						with open(file_path, 'r') as clip_file:
-							clip_text = self.decodeClip(clip_file.read())
-							clip_data = wx.TextDataObject()
-							clip_data.SetText(clip_text)
-							success = clipboard.SetData(clip_data)
-
-					elif clip_type == "bitmap":
-						bitmap=wx.Bitmap(file_path, wx.BITMAP_TYPE_BMP)
-						#bitmap.LoadFile(img_file_path, wx.BITMAP_TYPE_BMP)
-						clip_data = wx.BitmapDataObject(bitmap)
-						success = clipboard.SetData(clip_data)		
+					with encompress.Encompress(password = "nigger", directory = TEMP_DIR, file_name_decrypt=container_name) as file_names_decrypt:
+						print file_names_decrypt
 						
-					elif clip_type == "files":
-						file_paths = [file_path]
-						#bitmap.LoadFile(img_file_path, wx.BITMAP_TYPE_BMP)
-						clip_data = wx.FileDataObject()
-						for each_file_path in file_paths:
-							clip_data.AddFile(each_file_path)
-						success = clipboard.SetData(clip_data)
+						if clip_type in ["text","link"]:
+						
+							clip_file_path = file_names_decrypt[0]
+						
+							with open(clip_file_path, 'r') as clip_file:
+								clip_text = self.decodeClip(clip_file.read())
+								clip_data = wx.TextDataObject()
+								clip_data.SetText(clip_text)
+								success = clipboard.SetData(clip_data)
+
+						elif clip_type == "bitmap":
+						
+							clip_file_path = file_names_decrypt[0]
+						
+							bitmap=wx.Bitmap(clip_file_path, wx.BITMAP_TYPE_BMP)
+							#bitmap.LoadFile(img_file_path, wx.BITMAP_TYPE_BMP)
+							clip_data = wx.BitmapDataObject(bitmap)
+							success = clipboard.SetData(clip_data)		
+							
+						elif clip_type == "files":
+							file_paths = [container_path]
+							#bitmap.LoadFile(img_file_path, wx.BITMAP_TYPE_BMP)
+							clip_data = wx.FileDataObject()
+							for each_file_path in file_paths:
+								clip_data.AddFile(each_file_path)
+							success = clipboard.SetData(clip_data)
 				else:
 					wx.MessageBox("Unable to download this clip from the server", "Error")
 
@@ -450,11 +459,11 @@ class Main(wx.Frame):
 		try:
 			with wx.TheClipboard.Get() as clipboard:
 			
-				def __upload(file_path, clip_type, clip_display_encoded, clip_file_name, clip_hash_secure, raw_comparison_data):
-						response = requests.get(HTTP_BASE(arg="file_exists/%s"%clip_file_name,port=8084,scheme="http"))
+				def __upload(upload_file_path, clip_type, clip_display_encoded, container_name, clip_hash_secure, raw_comparison_data):
+						response = requests.get(HTTP_BASE(arg="file_exists/%s"%container_name,port=8084,scheme="http"))
 						file_exists = json.loads(response.content)
 						if not file_exists['result']:
-							r = requests.post(HTTP_BASE(arg="upload",port=8084,scheme="http"), files={"upload": open(file_path, 'rb')})
+							r = requests.post(HTTP_BASE(arg="upload",port=8084,scheme="http"), files={"upload": open(upload_file_path, 'rb')})
 							print r
 
 						global SEND_ID #change to sender id
@@ -463,7 +472,7 @@ class Main(wx.Frame):
 						clip_content = {
 							"clip_type" : clip_type,
 							"clip_display" : clip_display_encoded,
-							"clip_file_name" : clip_file_name,
+							"container_name" : container_name,
 							"clip_hash_secure" : clip_hash_secure, #http://stackoverflow.com/questions/16414559/trying-to-use-hex-without-0x
 							"host_name" : "%s (%s %s)"%(wx.GetHostName(), platform.system(), platform.release()),
 							"timestamp_client" : time.time(),
@@ -505,14 +514,19 @@ class Main(wx.Frame):
 							with open(txt_file_path, 'w') as txt_file:
 								txt_file.write(clip_text_encoded)
 								
-							return __upload(
-								file_path = txt_file_path, 
-								clip_type = "text" if not clip_text_is_url else "link", 
-								clip_display_encoded = clip_display_encoded, 
-								clip_file_name = txt_file_name, 
-								clip_hash_secure = clip_hash_secure, 
-								raw_comparison_data = clip_text_new
-							)
+							with encompress.Encompress(password = "nigger", directory = TEMP_DIR, file_names_encrypt = [txt_file_name], file_name_decrypt=False) as container:
+								container_name = container[0]
+								container_path = container[1]
+								print container_name #salting the file_name will cause decryption to fail if
+								
+								return __upload(
+									upload_file_path = container_path, 
+									container_name = container_name, 
+									clip_type = "text" if not clip_text_is_url else "link", 
+									clip_display_encoded = clip_display_encoded, 
+									clip_hash_secure = clip_hash_secure, 
+									raw_comparison_data = clip_text_new
+								)
 						
 				def _return_if_bitmap():
 					clip_data = wx.BitmapDataObject() #http://stackoverflow.com/questions/2629907/reading-an-image-from-the-clipboard-with-wxpython
@@ -551,19 +565,19 @@ class Main(wx.Frame):
 							
 							"""
 							print "ENCRYPT"
-							with encompress.Encompress(password = "nigger", directory = TEMP_DIR, file_names = [img_file_name], decrypt_file=False) as result:
+							with encompress.Encompress(password = "nigger", directory = TEMP_DIR, file_names_encrypt = [img_file_name], file_name_decrypt=False) as result:
 								print result #salting the file_name will cause decryption to fail if
 								
 							print "DECRYPT"
-							with open(result, "rb") as decrypt_file:
-								with encompress.Encompress(password = "nigger", directory = TEMP_DIR, file_names = [img_file_name], decrypt_file=decrypt_file) as result:
+							with open(result, "rb") as file_name_decrypt:
+								with encompress.Encompress(password = "nigger", directory = TEMP_DIR, file_names_encrypt = [img_file_name], file_name_decrypt=file_name_decrypt) as result:
 									print result
 							"""
 							return __upload(
-								file_path = img_file_path, 
+								upload_file_path = img_file_path, 
 								clip_type = "bitmap", 
 								clip_display_encoded = clip_display_encoded, 
-								clip_file_name = img_file_name, 
+								container_name = img_file_name, 
 								clip_hash_secure = clip_hash_secure, 
 								raw_comparison_data = image_new
 							)
@@ -595,10 +609,10 @@ class Main(wx.Frame):
 									pass
 								clip_hash_secure = hashlib.new("ripemd160", format(hash128( new_file_name + str(new_file[1]) ), "x") + "user_salt").hexdigest()
 								return __upload(
-									file_path = new_file_path, 
+									upload_file_path = new_file_path, 
 									clip_type = "files",
 									clip_display_encoded =  self.encodeClip("%s file, (%s bytes)"%(os.path.splitext(new_file_path)[1], new_file[1])), 
-									clip_file_name = new_file_name, 
+									container_name = new_file_name, 
 									clip_hash_secure = clip_hash_secure, 
 									raw_comparison_data = new_file
 								)

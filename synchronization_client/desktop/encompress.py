@@ -5,6 +5,7 @@ from Crypto.Protocol.KDF import PBKDF2
 import tarfile
 import gevent
 import os
+import hashlib
 
 def derive_key_and_iv(password, salt, key_length, iv_length): #http://stackoverflow.com/questions/16761458/how-to-aes-encrypt-decrypt-files-using-python-pycrypto-in-an-openssl-compatible
 	d = d_i = ''
@@ -50,11 +51,11 @@ class Encompress():
 	BLOCK_SIZE = AES.block_size
 	READ_BYTES = BLOCK_SIZE*1024 #make sure it is divisible by self.BLOCK_SIZE
 	
-	def __init__(self,  password = "", salt= "user_salt", directory = "", file_names = [], decrypt_file = None):
-		self.file_names = file_names
+	def __init__(self,  password = "", salt= "user_salt", directory = "", file_names_encrypt = [], file_name_decrypt = None):
+		self.file_names_encrypt = file_names_encrypt
 		self.directory = directory
 		self.password = password
-		self.decrypt_file = decrypt_file
+		self.file_name_decrypt = file_name_decrypt
 		
 		self.salt = salt
 		
@@ -63,12 +64,12 @@ class Encompress():
 		
 	def __enter__(self):
 	
-		if self.decrypt_file:
+		if self.file_name_decrypt:
 			self.grabIV()
 			self.setKey()
 			self.decrypt()
 			self.extract()
-		else:
+		elif self.file_names_encrypt:
 			self.makeIV()
 			self.setKey()
 			self.compress()
@@ -78,7 +79,7 @@ class Encompress():
 
 	def __exit__(self, type, value, traceback):
 		
-		for each_path in map(lambda each_name: os.path.join(self.directory, each_name), self.file_names):
+		for each_path in map(lambda each_name: os.path.join(self.directory, each_name), self.file_names_encrypt):
 			pass#os.remove(each_path)
 			
 		if self.archive_path:
@@ -90,16 +91,22 @@ class Encompress():
 		self.iv = pre_iv + rand.read(self.BLOCK_SIZE - len(pre_iv)) #not needed since tarfile already is very random due to timestamp, but do for extra security #CBC requires a non-deterministic approach, in other words you can't recalculate the IV... deterministic is when you make a random-appearing IV, but it's not random indeed ie. using the file hash
 		
 	def grabIV(self):
-		self.iv = self.decrypt_file.read(self.BLOCK_SIZE)
-		print "\nIV:%s\n"%self.iv
+		self.file_path_decrypt = os.path.join(self.directory, self.file_name_decrypt)
 		
+		self.file_decrypt  = open(self.file_path_decrypt, "rb")
+		self.iv = self.file_decrypt.read(self.BLOCK_SIZE)
+		print "\nIV:%s\n"%self.iv
+	
 	def setKey(self):
 		self.key = PBKDF2(self.password, salt = self.salt, dkLen = self.BLOCK_SIZE) #dkLen: The length of the desired key. Default is 16 bytes, suitable for instance for Crypto.Cipher.AES
 			
 	def compress(self):
-		self.archive_path = os.path.join(self.directory, self.file_names[0]+".tar.bz2") #TEMP
+		archive_id  = hashlib.new("ripemd160", "".join(self.file_names_encrypt) ).hexdigest()
+		self.archive_name = archive_id + ".tar.bz2"
+		self.archive_path = os.path.join(self.directory, self.archive_name) #TEMP
+		
 		tar = tarfile.open(self.archive_path, "w:bz2") #write mode in bz2 #compresslevel=9)
-		for each_name in self.file_names:
+		for each_name in self.file_names_encrypt:
 			each_path =  os.path.join(self.directory, each_name)
 			tar.add(each_path, arcname=each_name) #WARNING BY DEFAULT THE DIRECTORY PATH IS ADDED AS WELL, THEREFORE THE FINAL CONTAINER FILE's HASH WILL BE DIFFERENT, USE THIS SOLUTION #http://ubuntuforums.org/showthread.php?t=1699689
 			gevent.sleep() #
@@ -109,10 +116,12 @@ class Encompress():
 
 		with open(self.archive_path,'rb') as archive:
 		
-			self.container_path = self.archive_path+".pastebeam"
+			archive_ext= ".pastebeam"
+			self.container_name = self.archive_name + archive_ext
+			self.container_path = self.archive_path + archive_ext
 			
 			with open(self.container_path, 'wb') as container_file:
-																							
+			
 				cipher = AES.new(self.key, AES.MODE_CBC, self.iv)
 				
 				container_file.write(self.iv)
@@ -126,29 +135,30 @@ class Encompress():
 						finished = True
 					container_file.write(cipher.encrypt(chunk)) #ALWAYS compress before encrypt, otherwise it is useless
 					
-		self.result = self.container_path
+		self.result = (self.container_name, self.container_path)
 		
 	def decrypt(self):
-		
-			self.archive_path = os.path.abspath(self.decrypt_file.name).split(".pastebeam")[0] #http://stackoverflow.com/questions/1881202/getting-the-absolute-path-of-a-file-object
-		
-			print "\nDECRYPT ARCHIVR PATH %s\n"%self.archive_path
-		
-			with open(self.archive_path, 'wb') as archive:
-		
-				cipher = AES.new(self.key, AES.MODE_CBC, self.iv)
-				next_chunk = ''
-				finished = False
-				while not finished:
-					chunk, next_chunk = next_chunk, cipher.decrypt(self.decrypt_file.read(self.READ_BYTES))
-					if len(next_chunk) == 0:
-						padding_length = ord(chunk[-1]) #BRILLIANT! DURING ENCRYPTION IT FILLS THE PADDING WITH A CHARACTER THAT ALSO REPRESENTS THE REMAINDER LENGTH. SO EX. padded with aaaaaa, ord(a) = 6, chr(6) = a 
-						chunk = chunk[:-padding_length]
-						finished = True
-					archive.write(chunk)
+			
+		self.archive_path = self.file_path_decrypt.split(".pastebeam")[0] # 			self.archive_path = os.path.abspath(self.file_decrypt.name).split(".pastebeam")[0] #http://stackoverflow.com/questions/1881202/getting-the-absolute-path-of-a-file-object
+	
+		print "\nDECRYPT ARCHIVR PATH %s\n"%self.archive_path
+	
+		with open(self.archive_path, 'wb') as archive:
+	
+			cipher = AES.new(self.key, AES.MODE_CBC, self.iv)
+			next_chunk = ''
+			finished = False
+			while not finished:
+				chunk, next_chunk = next_chunk, cipher.decrypt(self.file_decrypt.read(self.READ_BYTES))
+				if len(next_chunk) == 0:
+					padding_length = ord(chunk[-1]) #BRILLIANT! DURING ENCRYPTION IT FILLS THE PADDING WITH A CHARACTER THAT ALSO REPRESENTS THE REMAINDER LENGTH. SO EX. padded with aaaaaa, ord(a) = 6, chr(6) = a 
+					chunk = chunk[:-padding_length]
+					finished = True
+				archive.write(chunk)
 		
 	def extract(self):
-		self.extract_path = os.path.join(self.directory,"extracted")
+		#self.extract_path = os.path.join(self.directory,"extracted")
 		tar = tarfile.open(self.archive_path)
-		tar.extractall(path=self.extract_path)
-		self.result = self.extract_path
+		tar.extractall(path=self.directory)
+		self.result = map(lambda each_name: os.path.join(self.directory, each_name), tar.getnames() )
+		tar.close()
