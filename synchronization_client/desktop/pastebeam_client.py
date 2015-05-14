@@ -271,7 +271,18 @@ class Main(wx.Frame):
 		wx.CallLater(1, lambda: self.onStart(None))
 
 	def appendClipToListCtrl(self, clip, is_newest):
-
+		clip_display_decoded = json.loads(clip['clip_display_decoded'])
+		
+		def _generate_clip_display():
+			if clip['clip_type'] in ["text", "link"]:	
+				display_human =  clip_display_decoded[0]
+			elif clip['clip_type'] == "bitmap":
+				display_human = "Clipboard image (%s megapixels)" % clip_display_decoded[0]
+			elif clip['clip_type'] == "files":
+				file_names = clip_display_decoded
+				display_human = "%s %s files"%(len(file_names), ", ".join(set(map(lambda each_file_name: os.path.splitext(each_file_name)[1].strip("."), file_names) ) ) )
+			return display_human
+	
 		def _stylize_new_row():
 			new_item_index = self.panel.lst.GetItemCount() - 1
 			if (new_item_index % 2) != 0:
@@ -281,18 +292,24 @@ class Main(wx.Frame):
 				#color_hex = '#FFFFE3'
 				
 				self.panel.lst.SetItemBackgroundColour(new_item_index, "#f1f1f1") #many ways to set colors, see http://www.wxpython.org/docs/api/wx.Colour-class.html and http://wxpython.org/Phoenix/docs/html/ColourDatabase.html #win.SetBackgroundColour(wxColour(0,0,255)), win.SetBackgroundColour('BLUE'), win.SetBackgroundColour('#0000FF'), win.SetBackgroundColour((0,0,255))
+						
+			if clip['clip_type'] == "text":	
+				file_image_number = self.panel.lst.icon_extensions.index("._clip")
 				
-			clip_file_ext = os.path.splitext(clip['container_name'])[1]
-			file_image_number = self.panel.lst.icon_extensions.index("._clip")
-			if clip['clip_type'] == "files":
+			elif clip['clip_type'] == "files":
+				file_names = clip_display_decoded
+				clip_file_ext = os.path.splitext(file_names[0])[1]
 				try:
 					file_image_number = self.panel.lst.icon_extensions.index(clip_file_ext) #http://stackoverflow.com/questions/176918/finding-the-index-of-an-item-given-a-list-containing-it-in-python
 				except ValueError:
 					file_image_number = self.panel.lst.icon_extensions.index("._blank")
+					
 			elif clip['clip_type'] == "bitmap":
-				file_image_number = self.panel.lst.icon_extensions.index("._bitmap")			
+				file_image_number = self.panel.lst.icon_extensions.index("._bitmap")		
+				
 			elif clip['clip_type'] == "link":
 				file_image_number = self.panel.lst.icon_extensions.index("._page")
+				
 			self.panel.lst.SetItemImage(new_item_index, file_image_number)
 			#self.panel.lst.SetItemBackgroundColour(new_item_index, color_hex)
 			
@@ -312,8 +329,9 @@ class Main(wx.Frame):
 			
 		#new_item_number_to_be = self.panel.lst.GetItemCount() + 1;  self.panel.lst.Append( (new_item_number_to_be...))
 		#timestamp_human = datetime.datetime.fromtimestamp(clip['timestamp_server']).strftime(u'%H:%M:%S \u2219 %Y-%m-%d'.encode("utf-8") ).decode("utf-8") #broken pipe \u00A6
+		display_human =  _generate_clip_display()
 		timestamp_human = u'{dt.hour}:{dt:%M}:{dt:%S} {dt:%p} \u2219 {dt.month}-{dt.day}-{dt.year}'.format(dt=datetime.datetime.fromtimestamp(clip['timestamp_server'] ) ) #http://stackoverflow.com/questions/904928/python-strftime-date-without-leading-0
-		new_index = self.panel.lst.Append( (clip['container_name'], clip['host_name'], clip['clip_type'], clip['clip_display'], timestamp_human ) ) #unicodedecode error fix	#http://stackoverflow.com/questions/2571515/using-a-unicode-format-for-pythons-time-strftime
+		new_index = self.panel.lst.Append( (clip['container_name'], clip['host_name'], clip['clip_type'], display_human, timestamp_human ) ) #unicodedecode error fix	#http://stackoverflow.com/questions/2571515/using-a-unicode-format-for-pythons-time-strftime
 		
 		_stylize_new_row()
 		
@@ -343,30 +361,32 @@ class Main(wx.Frame):
 		#	# Thread aborted (using our convention of None return)
 		#	self.appendClipToListCtrl('Computation aborted\n')
 		if result_event.data:
-			
-			oldest_to_newest_clips = result_event.data[::-1] #reversed copy
-			newest_index = len(oldest_to_newest_clips)-1
-			self.clearList()
-			for item_index, each_clip in enumerate(oldest_to_newest_clips):
-				#print each_clip
-				try:
-					#print "DECODE CLIP %s"%each_clip['clip_display']
-					each_clip['clip_display'] = self.decodeClip(each_clip['clip_display'])
-				except (zlib.error, UnicodeDecodeError):
-					newest_index-=1 #the list will be smaller if some items are duds, so make the newest_index smaller too
-					#print "DECODE/DECRYPT/UNZIP ERROR"
-				else:
-					self.appendClipToListCtrl(each_clip, is_newest = (True if item_index==newest_index else False) )
-				
 			# Process results here
-			latest_content = oldest_to_newest_clips[-1]
+			clip_list = result_event.data
+			
+			latest_content = clip_list[0]
 			
 			if latest_content['send_id'] != SEND_ID: #no point of setting new clipboard to the same machine that just uploaded it
+
 				self.setClipboardContent(container_name= latest_content['container_name'], clip_type =latest_content['clip_type'])
 			
 			print "\nclip file name %s\n"%latest_content['container_name']
 			
-			self.destroyBusyDialog()
+			oldest_to_newest_clips = clip_list[::-1] #reversed copy
+			newest_index = len(oldest_to_newest_clips) - 1
+			self.clearList()
+			for item_index, each_clip in enumerate(oldest_to_newest_clips):
+				#print each_clip
+				try:
+					#print "DECODE CLIP %s"%each_clip['clip_display_encoded']
+					each_clip['clip_display_decoded'] = self.decodeClip(each_clip['clip_display_encoded'])
+				except ZeroDivisionError:#(zlib.error, UnicodeDecodeError):
+					newest_index-=1 #the list will be smaller if some items are duds, so make the newest_index smaller too
+					#print "DECODE/DECRYPT/UNZIP ERROR"
+				else:
+					self.appendClipToListCtrl(each_clip, is_newest = (True if item_index==newest_index else False) )
+					
+		self.destroyBusyDialog()
 
 		
 	@staticmethod
@@ -417,12 +437,12 @@ class Main(wx.Frame):
 				
 				if container_path:
 					
-					with encompress.Encompress(password = "nigger", directory = TEMP_DIR, file_name_decrypt=container_name) as file_names_decrypt:
-						print file_names_decrypt
+					with encompress.Encompress(password = "nigger", directory = TEMP_DIR, file_name_decrypt=container_name) as file_paths_decrypt:
+						print file_paths_decrypt
 						
 						if clip_type in ["text","link"]:
 						
-							clip_file_path = file_names_decrypt[0]
+							clip_file_path = file_paths_decrypt[0]
 						
 							with open(clip_file_path, 'r') as clip_file:
 								clip_text = self.decodeClip(clip_file.read())
@@ -432,7 +452,7 @@ class Main(wx.Frame):
 
 						elif clip_type == "bitmap":
 						
-							clip_file_path = file_names_decrypt[0]
+							clip_file_path = file_paths_decrypt[0]
 						
 							bitmap=wx.Bitmap(clip_file_path, wx.BITMAP_TYPE_BMP)
 							#bitmap.LoadFile(img_file_path, wx.BITMAP_TYPE_BMP)
@@ -440,10 +460,10 @@ class Main(wx.Frame):
 							success = clipboard.SetData(clip_data)		
 							
 						elif clip_type == "files":
-							file_paths = [container_path]
+							clip_file_paths = file_paths_decrypt
 							#bitmap.LoadFile(img_file_path, wx.BITMAP_TYPE_BMP)
 							clip_data = wx.FileDataObject()
-							for each_file_path in file_paths:
+							for each_file_path in clip_file_paths:
 								clip_data.AddFile(each_file_path)
 							success = clipboard.SetData(clip_data)
 				else:
@@ -452,14 +472,15 @@ class Main(wx.Frame):
 		except ZeroDivisionError:
 			wx.MessageBox("Unable to access the clipboard. Another application seems to be locking it.", "Error")
 					
-		print "SUCCESS = %s"%success
+		print "setClipboardContent SUCCESS = %s"%success
+		return success
 		#PUT MESSAGEBOX HERE? ALSO destroyBusyDialog
 		
 	def getClipboardContent(self):
 		try:
 			with wx.TheClipboard.Get() as clipboard:
 			
-				def __upload(file_names_encrypt, clip_type, clip_display_encoded, clip_hash_secure, raw_comparison_data):
+				def __upload(file_names_encrypt, clip_type, clip_display, clip_hash_secure, compare_next):
 						
 					with encompress.Encompress(password = "nigger", directory = TEMP_DIR, file_names_encrypt = file_names_encrypt, file_name_decrypt=False) as container:
 						container_name = container[0]
@@ -477,7 +498,7 @@ class Main(wx.Frame):
 						
 					clip_content = {
 						"clip_type" : clip_type,
-						"clip_display" : clip_display_encoded,
+						"clip_display_encoded" : self.encodeClip(json.dumps(clip_display)),
 						"container_name" : container_name,
 						"clip_hash_secure" : clip_hash_secure, #http://stackoverflow.com/questions/16414559/trying-to-use-hex-without-0x
 						"host_name" : "%s (%s %s)"%(wx.GetHostName(), platform.system(), platform.release()),
@@ -485,8 +506,8 @@ class Main(wx.Frame):
 						"send_id" : SEND_ID,
 					}
 					
-					CLIENT_RECENT_DATA.set(raw_comparison_data)
-					#print "SETTED %s"%raw_comparison_data
+					CLIENT_RECENT_DATA.set(compare_next)
+					#print "SETTED %s"%compare_next
 					
 					return clip_content
 			
@@ -507,9 +528,9 @@ class Main(wx.Frame):
 							clip_text_encoded = self.encodeClip(clip_text_new)
 							
 							if clip_text_is_url:
-								clip_display_encoded = self.encodeClip(clip_text_new)
+								clip_display =  clip_text_new
 							else:
-								clip_display_encoded = self.encodeClip(clip_text_new [:2000])
+								clip_display = clip_text_new[:2000]
 
 							clip_hash_fast = format( hash128( clip_text_encoded ), "x") #hex( hash128( clip_text_encoded ) ) #use instead to get rid of 0x for better looking filenames
 							clip_hash_secure = hashlib.new("ripemd160", clip_hash_fast + "user_salt").hexdigest()
@@ -523,9 +544,9 @@ class Main(wx.Frame):
 							return __upload(
 								file_names_encrypt = [txt_file_name],
 								clip_type = "text" if not clip_text_is_url else "link", 
-								clip_display_encoded = clip_display_encoded, 
+								clip_display = [clip_display], 
 								clip_hash_secure = clip_hash_secure, 
-								raw_comparison_data = clip_text_new
+								compare_next = clip_text_new
 							)
 						
 				def _return_if_bitmap():
@@ -561,7 +582,7 @@ class Main(wx.Frame):
 							
 							megapixels = len(image_new_buffer_array) / 3
 							
-							clip_display_encoded = self.encodeClip("Clipboard image (%s megapixels)" % megapixels)
+							clip_display = megapixels
 							
 							"""
 							print "ENCRYPT"
@@ -576,9 +597,9 @@ class Main(wx.Frame):
 							return __upload(
 								file_names_encrypt = [img_file_name],
 								clip_type = "bitmap", 
-								clip_display_encoded = clip_display_encoded, 
+								clip_display = [clip_display], 
 								clip_hash_secure = clip_hash_secure, 
-								raw_comparison_data = image_new
+								compare_next = image_new
 							)
 							
 							gc.collect() #free up previous references to image_new and image_old arrays, since they are so large #http://stackoverflow.com/questions/1316767/how-can-i-explicitly-free-memory-in-python
@@ -588,34 +609,50 @@ class Main(wx.Frame):
 					success = clipboard.GetData(clip_data)
 
 					if success:
-						#self.setThrottle("slow")
-						old_file = CLIENT_RECENT_DATA.get()
-						#print "OLD%s"%old_file
-						
+						self.setThrottle("slow")
+	
 						os_file_paths_new = sorted(clip_data.GetFilenames())
-						os_file_lists_new =map(lambda each_os_path: [ os.path.split(each_os_path)[1], os.path.getsize(each_os_path) ], os_file_paths_new)
-
-						if sum(map(lambda each: each[1], os_file_lists_new)) < (1024*1024*5):
-							new_file = os_file_lists_new[0]
-							if old_file != new_file:
-								print "\nOLD NEW %s \n %s\n" % (old_file, new_file)
-								new_file_name = new_file[0]
-								new_file_path = os.path.join(TEMP_DIR, new_file_name)
-								#print "NP %s %s"%(new_file_path, os.path.isfile(new_file_path))
-								try:
-									shutil.copy2(os_file_paths_new[0], TEMP_DIR)
-								except shutil.Error:
-									pass
-								clip_hash_secure = hashlib.new("ripemd160", format(hash128( new_file_name + str(new_file[1]) ), "x") + "user_salt").hexdigest()
-								return __upload(
-									upload_file_path = new_file_path, 
-									clip_type = "files",
-									clip_display_encoded =  self.encodeClip("%s file, (%s bytes)"%(os.path.splitext(new_file_path)[1], new_file[1])), 
-									container_name = new_file_name, 
-									clip_hash_secure = clip_hash_secure, 
-									raw_comparison_data = new_file
-								)
+						
+						try:
+							os_file_sizes_new = map(lambda each_os_path: os.path.getsize(each_os_path), os_file_paths_new)
+						except:
+							return
+						
+						if sum(os_file_sizes_new) > (1024*1024*5):
+							return #upload error clip
 							
+						os_file_names_new = map(lambda each_path: os.path.split(each_path)[1], os_file_paths_new)		
+										
+						os_file_hashes_old_set = CLIENT_RECENT_DATA.get()
+
+						os_file_hashes_new = []
+												
+						for each_path_new in os_file_paths_new:
+							try:
+								with open(each_path_new, 'rb') as each_file_new: 
+									os_file_hashes_new.append( os.path.split(each_path_new)[1] + format(hash128( each_file_new.read() ), "x") + "user_salt")
+							except:
+								return #upload error clip
+						print "\nCOMPUTED FILEHASHES\n"
+								
+						os_file_hashes_new_set = set(os_file_hashes_new)
+
+						if os_file_hashes_old_set != set(os_file_hashes_new):  #checks to make sure if name and file are the same
+
+							try:
+								for each_new_path in os_file_paths_new:
+									shutil.copy2(each_new_path, TEMP_DIR)
+							except shutil.Error:
+								pass
+							clip_hash_secure = hashlib.new("ripemd160", "".join(os_file_hashes_new) + "user_salt").hexdigest() #MUST use list of files instead of set because set does not guarantee order and therefore will result in a non-deterministic hash 
+							return __upload(
+								file_names_encrypt = os_file_names_new,
+								clip_type = "files",
+								clip_display = os_file_names_new,
+								clip_hash_secure = clip_hash_secure, 
+								compare_next = os_file_hashes_new_set
+							)
+
 				return (_return_if_text_or_url() or _return_if_bitmap() or _return_if_file() or None)
 				
 		except requests.exceptions.ConnectionError:
