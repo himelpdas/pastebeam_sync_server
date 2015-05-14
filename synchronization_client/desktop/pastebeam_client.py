@@ -312,11 +312,14 @@ class Main(wx.Frame):
 				
 			elif clip['clip_type'] == "files":
 				file_names = clip_display_decoded
-				clip_file_ext = os.path.splitext(file_names[0])[1]
-				try:
-					file_image_number = self.panel.lst.icon_extensions.index(clip_file_ext) #http://stackoverflow.com/questions/176918/finding-the-index-of-an-item-given-a-list-containing-it-in-python
-				except ValueError:
-					file_image_number = self.panel.lst.icon_extensions.index("._blank")
+				if len(file_names) == 1:
+					clip_file_ext = os.path.splitext(file_names[0])[1]
+					try:
+						file_image_number = self.panel.lst.icon_extensions.index(clip_file_ext) #http://stackoverflow.com/questions/176918/finding-the-index-of-an-item-given-a-list-containing-it-in-python
+					except ValueError:
+						file_image_number = self.panel.lst.icon_extensions.index("._blank")
+				else:
+					file_image_number = self.panel.lst.icon_extensions.index("._multi")
 					
 			elif clip['clip_type'] == "bitmap":
 				file_image_number = self.panel.lst.icon_extensions.index("._bitmap")		
