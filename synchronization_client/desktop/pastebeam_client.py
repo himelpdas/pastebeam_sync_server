@@ -273,7 +273,7 @@ class Main(wx.Frame):
 	def appendClipToListCtrl(self, clip, is_newest):
 		clip_display_decoded = json.loads(clip['clip_display_decoded'])
 		
-		def _generate_clip_display():
+		def _generate_display_human():
 			if clip['clip_type'] in ["text", "link"]:	
 				display_human =  clip_display_decoded[0]
 			elif clip['clip_type'] == "bitmap":
@@ -346,7 +346,7 @@ class Main(wx.Frame):
 			
 		#new_item_number_to_be = self.panel.lst.GetItemCount() + 1;  self.panel.lst.Append( (new_item_number_to_be...))
 		#timestamp_human = datetime.datetime.fromtimestamp(clip['timestamp_server']).strftime(u'%H:%M:%S \u2219 %Y-%m-%d'.encode("utf-8") ).decode("utf-8") #broken pipe \u00A6
-		display_human =  _generate_clip_display()
+		display_human =  _generate_display_human()
 		timestamp_human = u'{dt.hour}:{dt:%M}:{dt:%S} {dt:%p} \u2219 {dt.month}-{dt.day}-{dt.year}'.format(dt=datetime.datetime.fromtimestamp(clip['timestamp_server'] ) ) #http://stackoverflow.com/questions/904928/python-strftime-date-without-leading-0
 		new_index = self.panel.lst.Append( (clip['container_name'], clip['host_name'], clip['clip_type'], display_human, timestamp_human ) ) #unicodedecode error fix	#http://stackoverflow.com/questions/2571515/using-a-unicode-format-for-pythons-time-strftime
 		
