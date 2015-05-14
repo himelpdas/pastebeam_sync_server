@@ -283,7 +283,7 @@ class Main(wx.Frame):
 				
 				number_of_files = len(file_names)
 				files_or_files = "files" if number_of_files > 1 else "file"
-				file_exts = sorted(set(map(lambda each_file_name: os.path.splitext(each_file_name)[1].strip("."), file_names))) #use set to prevent jpg, jpg, jpg
+				file_exts = sorted(set(map(lambda each_file_name: os.path.splitext(each_file_name)[1].strip(".") or "??", file_names))) #use set to prevent jpg, jpg, jpg
 				file_exts_first = file_exts[:-1]
 				file_exts_last = file_exts[-1]
 				exts_sentence = ", ".join(file_exts_first)
