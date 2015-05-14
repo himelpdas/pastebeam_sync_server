@@ -282,18 +282,18 @@ class Main(wx.Frame):
 				file_names = clip_display_decoded
 				
 				number_of_files = len(file_names)
-				files_or_files = "files" if number_of_files > 1 else "file"
+				file_or_files = "files" if number_of_files > 1 else "file"
 				file_exts = sorted(set(map(lambda each_file_name: os.path.splitext(each_file_name)[1].strip(".") or "??", file_names))) #use set to prevent jpg, jpg, jpg
 				file_exts_first = file_exts[:-1]
 				file_exts_last = file_exts[-1]
 				exts_sentence = ", ".join(file_exts_first)
 				if file_exts_first:
-					exts_sentence = exts_sentence + ", and " + file_exts_last
+					exts_sentence = exts_sentence + ("," if number_of_files > 2 else "") + " and " + file_exts_last
 				else:
 					exts_sentence = file_exts_last
 
 				#display_human = "%s %s files"%(len(file_names), ", ".join(set(map(lambda each_file_name: os.path.splitext(each_file_name)[1].strip("."), file_names) ) ) )
-				display_human = "%s %s files"%(number_of_files, exts_sentence)
+				display_human = "%s %s %s"%(number_of_files, exts_sentence, file_or_files)
 			
 			return display_human
 	
