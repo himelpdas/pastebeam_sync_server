@@ -518,7 +518,7 @@ class Main(wx.Frame):
 						"clip_display_encoded" : self.encodeClip(json.dumps(clip_display)),
 						"container_name" : container_name,
 						"clip_hash_secure" : clip_hash_secure, #http://stackoverflow.com/questions/16414559/trying-to-use-hex-without-0x
-						"host_name" : "%s (%s %s)"%(wx.GetHostName(), platform.system(), platform.release()),
+						"host_name" : "%s (%s)"%(wx.GetHostName(), platform.system()), #platform.release()),
 						"timestamp_client" : time.time(),
 						"send_id" : SEND_ID,
 					}
@@ -650,7 +650,7 @@ class Main(wx.Frame):
 									os_file_hashes_new.append( os.path.split(each_path_new)[1] + format(hash128( each_file_new.read() ), "x") + "user_salt")
 							except:
 								return #upload error clip
-						print "\nCOMPUTED FILEHASHES\n"
+						#print "\nCOMPUTED FILEHASHES\n"
 								
 						os_file_hashes_new_set = set(os_file_hashes_new)
 
