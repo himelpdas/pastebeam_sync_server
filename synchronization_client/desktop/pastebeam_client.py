@@ -635,7 +635,7 @@ class Main(wx.Frame):
 						except:
 							return
 						
-						if sum(os_file_sizes_new) > (1024*1024*5):
+						if sum(os_file_sizes_new) > (1024*1024*50):
 							return #upload error clip
 							
 						os_file_names_new = map(lambda each_path: os.path.split(each_path)[1], os_file_paths_new)		

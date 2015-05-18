@@ -26,7 +26,8 @@ class MyListCtrl(wx.ListCtrl):
 		self.Bind(wx.EVT_SIZE,
 			self.resizeColumns)
 		
-		icon_file_names = os.listdir(os.path.normpath('images/16px/')) #https://github.com/teambox/Free-file-icons #https://www.iconfinder.com/icons/62659/cam_camera_image_lens_photo_icon#size=16
+		#icon_file_names = os.listdir(os.path.normpath('images/16px/')) #WARNING, USE AN ACTUAL LIST AS OS LEVEL CRAP LIKE Thumbs.db WILL BREAK PROGRAM #https://github.com/teambox/Free-file-icons #https://www.iconfinder.com/icons/62659/cam_camera_image_lens_photo_icon#size=16
+		icon_file_names = ['aac.png', 'ai.png', 'aiff.png', 'avi.png', 'bmp.png', 'c.png', 'cpp.png', 'css.png', 'dat.png', 'dmg.png', 'doc.png', 'dotx.png', 'dwg.png', 'dxf.png', 'eps.png', 'exe.png', 'flv.png', 'gif.png', 'h.png', 'hpp.png', 'html.png', 'ics.png', 'iso.png', 'java.png', 'jpg.png', 'js.png', 'key.png', 'less.png', 'mid.png', 'mp3.png', 'mp4.png', 'mpg.png', 'odf.png', 'ods.png', 'odt.png', 'otp.png', 'ots.png', 'ott.png', 'pdf.png', 'php.png', 'png.png', 'ppt.png', 'psd.png', 'py.png', 'qt.png', 'rar.png', 'rb.png', 'rtf.png', 'sass.png', 'scss.png', 'sql.png', 'tga.png', 'tgz.png', 'tiff.png', 'txt.png', 'wav.png', 'xls.png', 'xlsx.png', 'xml.png', 'yml.png', 'zip.png', '_bitmap.png', '_blank.png', '_clip.png', '_error.png', '_multi.png', '_page.png']
 		self.icon_extensions = map(lambda each: ".%s"%os.path.splitext(each)[0], icon_file_names)
 		images = [ os.path.normpath('images/16px/%s'%each) for each in icon_file_names ]
 		self.il = wx.ImageList(16, 16)
