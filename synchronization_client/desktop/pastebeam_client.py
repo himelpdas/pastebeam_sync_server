@@ -325,7 +325,7 @@ class Main(wx.Frame):
 				file_image_number = self.panel.lst.icon_extensions.index("._bitmap")		
 				
 			elif clip['clip_type'] == "link":
-				file_image_number = self.panel.lst.icon_extensions.index("._page")
+				file_image_number = self.panel.lst.icon_extensions.index("._link")
 				
 			self.panel.lst.SetItemImage(new_item_index, file_image_number)
 			#self.panel.lst.SetItemBackgroundColour(new_item_index, color_hex)
