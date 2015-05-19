@@ -118,7 +118,7 @@ class MyListCtrl(wx.ListCtrl):
 		elif item1 ==  item2:
 			return 0
 		
-class MyPanel(wx.Panel):
+class MyPanel(wx.Panel): #http://zetcode.com/wxpython/gripts/
 	def __init__(self, parent):
 		super(MyPanel, self).__init__(parent)
 		
@@ -144,3 +144,26 @@ class MyPanel(wx.Panel):
 		# Layout
 		self.vsizer_main.Add(self.lst, 1, wx.EXPAND | wx.ALL, 20)
 		# Event Handlers
+		
+class MyStatusBar(wx.StatusBar):
+	
+	def __init__(self, parent):
+		super(MyStatusBar, self).__init__(parent)
+
+		self.SetFieldsCount(2)
+		self.SetStatusText('Welcome to Kika', 0)
+		self.SetStatusWidths([-1, 50])
+		
+		self.icon = wx.StaticBitmap(self, bitmap=wx.Bitmap('images/16px/_error.png'))
+		self.Bind(wx.EVT_SIZE, self.OnSize)
+		self.PlaceIcon()
+
+	def PlaceIcon(self):
+		
+		rect = self.GetFieldRect(1)
+		self.icon.SetPosition((rect.x+5, rect.y+1))
+
+	def OnSize(self, e):
+				
+		e.Skip()
+		self.PlaceIcon()

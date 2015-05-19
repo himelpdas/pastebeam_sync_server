@@ -258,7 +258,9 @@ class Main(wx.Frame):
 		
 		panel.SetSizer(hbox)
 		"""
-		self.CreateStatusBar()
+		#self.sb = self.CreateStatusBar()
+		self.sb = MyStatusBar(self)
+		self.SetStatusBar(self.sb)
 
 	def _do_threads_and_async(self):
 		# Set up event handler for any worker thread results
