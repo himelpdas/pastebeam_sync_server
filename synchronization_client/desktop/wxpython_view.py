@@ -17,8 +17,8 @@ class MyListCtrl(wx.ListCtrl):
 		
 		self.previous_size = self.GetSize()
 		
-		self.Bind(wx.EVT_LIST_ITEM_SELECTED,
-		self.onItemSelected)
+		#self.Bind(wx.EVT_LIST_ITEM_SELECTED,
+		#self.onItemSelected)
 		
 		self.Bind(wx.EVT_LIST_ITEM_ACTIVATED, #DOUBLE CLICK ##SEE PDF http://www.blog.pythonlibrary.org/2013/12/12/wxpython-objectlistview-double-click-items/
 			self.onItemDoubleClick)
@@ -145,25 +145,44 @@ class MyPanel(wx.Panel): #http://zetcode.com/wxpython/gripts/
 		self.vsizer_main.Add(self.lst, 1, wx.EXPAND | wx.ALL, 20)
 		# Event Handlers
 		
-class MyStatusBar(wx.StatusBar):
+class MyStatusBar(wx.StatusBar): #http://zetcode.com/wxpython/gripts/
 	
 	def __init__(self, parent):
 		super(MyStatusBar, self).__init__(parent)
 
-		self.SetFieldsCount(2)
-		self.SetStatusText('Welcome to Kika', 0)
-		self.SetStatusWidths([-1, 50])
+		self.SetFieldsCount(3)
+		self.SetStatusWidths([17, -1, 50])
 		
-		self.icon = wx.StaticBitmap(self, bitmap=wx.Bitmap('images/16px/_error.png'))
+		self.on_icon = wx.StaticBitmap(self, bitmap=wx.Bitmap('images/16px/_link.png'))
+		self.toggleStatus()
+		
 		self.Bind(wx.EVT_SIZE, self.OnSize)
-		self.PlaceIcon()
+		self.placeIcons()
 
-	def PlaceIcon(self):
+	def toggleStatus(self, msg = 'Sarting up...', ok = True):
+		self.SetStatusText(msg, 1)
+		"""
+		if ok == True:
+			self.ok_icon = wx.StaticBitmap(self, bitmap=wx.Bitmap('images/16px/_good.png'))
+		else:
+			self.ok_icon = wx.StaticBitmap(self, bitmap=wx.Bitmap('images/16px/_bad.png'))
+		"""
+		self.ok_icon = wx.StaticBitmap(self)
+		if ok == True:
+			self.ok_icon.SetBitmap(wx.Bitmap('images/16px/_good.png'))
+		else:
+			self.ok_icon.SetBitmap(wx.Bitmap('images/16px/_bad.png'))
+		self.placeIcons()
 		
-		rect = self.GetFieldRect(1)
-		self.icon.SetPosition((rect.x+5, rect.y+1))
+	def placeIcons(self):
+		
+		rect = self.GetFieldRect(0)
+		self.ok_icon.SetPosition((rect.x+5, rect.y+1))
+		
+		rect = self.GetFieldRect(2)
+		self.on_icon.SetPosition((rect.x+5, rect.y+1))
 
 	def OnSize(self, e):
 				
 		e.Skip()
-		self.PlaceIcon()
+		self.placeIcons()

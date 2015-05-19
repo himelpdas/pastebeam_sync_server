@@ -503,7 +503,9 @@ class Main(wx.Frame):
 		except ZeroDivisionError:
 			wx.MessageBox("Unable to access the clipboard. Another application seems to be locking it.", "Error")
 					
-		print "setClipboardContent SUCCESS = %s"%success
+		if success:	
+			self.sb.toggleStatus(msg='Successfully received %s data.' % clip_type, ok=True)
+		
 		return success
 		#PUT MESSAGEBOX HERE? ALSO destroyBusyDialog
 		
@@ -539,6 +541,8 @@ class Main(wx.Frame):
 					
 					CLIENT_RECENT_DATA.set(compare_next)
 					#print "SETTED %s"%compare_next
+					
+					self.sb.toggleStatus(msg='Successfully uploaded %s data.'%clip_type,ok=True)
 					
 					return clip_content
 			
@@ -650,6 +654,7 @@ class Main(wx.Frame):
 							return
 						
 						if sum(os_file_sizes_new) > (1024*1024*50):
+							self.sb.toggleStatus(msg='Files upload failed. Maximum files size is 50 megabytes.',ok=False)
 							return #upload error clip
 							
 						os_file_names_new = map(lambda each_path: os.path.split(each_path)[1], os_file_paths_new)
