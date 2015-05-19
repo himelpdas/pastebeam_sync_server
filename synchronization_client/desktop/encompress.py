@@ -51,8 +51,8 @@ class Encompress():
 	BLOCK_SIZE = AES.block_size
 	READ_BYTES = BLOCK_SIZE*1024 #make sure it is divisible by self.BLOCK_SIZE
 	
-	def __init__(self,  password = "", salt= "user_salt", directory = "", file_names_encrypt = [], file_name_decrypt = None):
-		self.file_names_encrypt = file_names_encrypt
+	def __init__(self,  password = "", salt= "user_salt", directory = "", file_names_and_hash_encrypt = [], file_name_decrypt = None):
+		self.file_names_and_hash_encrypt = file_names_and_hash_encrypt
 		self.directory = directory
 		self.password = password
 		self.file_name_decrypt = file_name_decrypt
@@ -69,7 +69,7 @@ class Encompress():
 			self.setKey()
 			self.decrypt()
 			self.extract()
-		elif self.file_names_encrypt:
+		elif self.file_names_and_hash_encrypt:
 			self.makeIV()
 			self.setKey()
 			self.compress()
@@ -79,7 +79,7 @@ class Encompress():
 
 	def __exit__(self, type, value, traceback):
 		
-		#for each_path in map(lambda each_name: os.path.join(self.directory, each_name), self.file_names_encrypt):
+		#for each_path in map(lambda each_name: os.path.join(self.directory, each_name), self.file_names_and_hash_encrypt):
 		#	pass#os.remove(each_path)
 			
 		if self.archive_path:
@@ -101,12 +101,14 @@ class Encompress():
 		self.key = PBKDF2(self.password, salt = self.salt, dkLen = self.BLOCK_SIZE) #dkLen: The length of the desired key. Default is 16 bytes, suitable for instance for Crypto.Cipher.AES
 			
 	def compress(self):
-		archive_id  = hashlib.new("ripemd160", "".join(self.file_names_encrypt) ).hexdigest()
+		file_names = self.file_names_and_hash_encrypt[0]
+		files_hash = self.file_names_and_hash_encrypt[1]
+		archive_id  = hashlib.new("ripemd160", "".join(file_names) + files_hash ).hexdigest()
 		self.archive_name = archive_id + ".tar.bz2"
 		self.archive_path = os.path.join(self.directory, self.archive_name) #TEMP
 		
 		tar = tarfile.open(self.archive_path, "w:bz2") #write mode in bz2 #compresslevel=9)
-		for each_name in self.file_names_encrypt:
+		for each_name in file_names:
 			each_path =  os.path.join(self.directory, each_name)
 			tar.add(each_path, arcname=each_name) #WARNING BY DEFAULT THE DIRECTORY PATH IS ADDED AS WELL, THEREFORE THE FINAL CONTAINER FILE's HASH WILL BE DIFFERENT, USE THIS SOLUTION #http://ubuntuforums.org/showthread.php?t=1699689
 			gevent.sleep() #
