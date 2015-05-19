@@ -509,9 +509,9 @@ class Main(wx.Frame):
 		try:
 			with wx.TheClipboard.Get() as clipboard:
 			
-				def __upload(file_names_and_hash_encrypt, clip_type, clip_display, clip_hash_secure, compare_next):
+				def __upload(file_names, clip_type, clip_display, clip_hash_secure, compare_next):
 						
-					with encompress.Encompress(password = "nigger", directory = TEMP_DIR, file_names_and_hash_encrypt = file_names_and_hash_encrypt, file_name_decrypt=False) as container: #salt = clip_hash_secure needed so that files with the same name do not result in same hash, if the file data is different, since clip_hash_secure is generated from the file contents
+					with encompress.Encompress(password = "nigger", directory = TEMP_DIR, file_names_encrypt = [file_names, clip_hash_secure], file_name_decrypt=False) as container: #salt = clip_hash_secure needed so that files with the same name do not result in same hash, if the file data is different, since clip_hash_secure is generated from the file contents
 						container_name = container[0]
 						container_path = container[1]
 						print container_name #salting the file_name will cause decryption to fail if
@@ -571,7 +571,7 @@ class Main(wx.Frame):
 								txt_file.write(clip_text_encoded)
 								
 							return __upload(
-								file_names_and_hash_encrypt = [[txt_file_name], clip_hash_secure],
+								file_names = [txt_file_name],
 								clip_type = "text" if not clip_text_is_url else "link", 
 								clip_display = [clip_display], 
 								clip_hash_secure = clip_hash_secure, 
@@ -615,16 +615,16 @@ class Main(wx.Frame):
 							
 							"""
 							print "ENCRYPT"
-							with encompress.Encompress(password = "nigger", directory = TEMP_DIR, file_names_and_hash_encrypt = [img_file_name], file_name_decrypt=False) as result:
+							with encompress.Encompress(password = "nigger", directory = TEMP_DIR, file_names_encrypt = [img_file_name], file_name_decrypt=False) as result:
 								print result #salting the file_name will cause decryption to fail if
 								
 							print "DECRYPT"
 							with open(result, "rb") as file_name_decrypt:
-								with encompress.Encompress(password = "nigger", directory = TEMP_DIR, file_names_and_hash_encrypt = [img_file_name], file_name_decrypt=file_name_decrypt) as result:
+								with encompress.Encompress(password = "nigger", directory = TEMP_DIR, file_names_encrypt = [img_file_name], file_name_decrypt=file_name_decrypt) as result:
 									print result
 							"""
 							return __upload(
-								file_names_and_hash_encrypt = [[img_file_name], clip_hash_secure],
+								file_names = [img_file_name],
 								clip_type = "bitmap", 
 								clip_display = [clip_display], 
 								clip_hash_secure = clip_hash_secure, 
@@ -678,7 +678,7 @@ class Main(wx.Frame):
 	
 							clip_hash_secure = hashlib.new("ripemd160", "".join(os_file_hashes_new) + "user_salt").hexdigest() #MUST use list of files instead of set because set does not guarantee order and therefore will result in a non-deterministic hash 
 							return __upload(
-								file_names_and_hash_encrypt = [os_file_names_new, clip_hash_secure],
+								file_names = os_file_names_new,
 								clip_type = "files",
 								clip_display = os_file_names_new,
 								clip_hash_secure = clip_hash_secure, 
