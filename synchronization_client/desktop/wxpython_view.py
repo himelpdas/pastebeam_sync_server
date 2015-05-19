@@ -7,11 +7,11 @@ class MyListCtrl(wx.ListCtrl):
 		super(MyListCtrl, self).__init__(parent,
 		style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
 		# Add three columns to the list
-		self.InsertColumn(0, "File", width=33  )
-		self.InsertColumn(1, "From", wx.LIST_FORMAT_CENTER, width=89 )
-		self.InsertColumn(2, "Type", wx.LIST_FORMAT_RIGHT, width=33, )
-		self.InsertColumn(3, "Preview (Double-click to copy into clipboard)", width=333 )
-		self.InsertColumn(4, "Date", wx.LIST_FORMAT_RIGHT, width=100 )
+		self.InsertColumn(0, "Data", wx.LIST_FORMAT_RIGHT, )#width=44, )
+		self.InsertColumn(1, "ID")
+		self.InsertColumn(2, "Preview (Double-click to copy into clipboard)", )#width=333 )
+		self.InsertColumn(3, "From", wx.LIST_FORMAT_CENTER,)# width=89 )
+		self.InsertColumn(4, "Date", wx.LIST_FORMAT_RIGHT,)# width=100 )
 		
 		self.resizeColumns(self) #ListCtrl instance also has method GetSize()
 		
@@ -29,8 +29,8 @@ class MyListCtrl(wx.ListCtrl):
 		#icon_file_names = os.listdir(os.path.normpath('images/16px/')) #WARNING, USE AN ACTUAL LIST AS OS LEVEL CRAP LIKE Thumbs.db WILL BREAK PROGRAM #https://github.com/teambox/Free-file-icons #https://www.iconfinder.com/icons/62659/cam_camera_image_lens_photo_icon#size=16
 		icon_file_names = ['aac.png', 'ai.png', 'aiff.png', 'avi.png', 'bmp.png', 'c.png', 'cpp.png', 'css.png', 'dat.png', 'dmg.png', 'doc.png', 'dotx.png', 'dwg.png', 'dxf.png', 'eps.png', 'exe.png', 'flv.png', 'gif.png', 'h.png', 'hpp.png', 'html.png', 'ics.png', 'iso.png', 'java.png', 'jpg.png', 'js.png', 'key.png', 'less.png', 'mid.png', 'mp3.png', 'mp4.png', 'mpg.png', 'odf.png', 'ods.png', 'odt.png', 'otp.png', 'ots.png', 'ott.png', 'pdf.png', 'php.png', 'png.png', 'ppt.png', 'psd.png', 'py.png', 'qt.png', 'rar.png', 'rb.png', 'rtf.png', 'sass.png', 'scss.png', 'sql.png', 'tga.png', 'tgz.png', 'tiff.png', 'txt.png', 'wav.png', 'xls.png', 'xlsx.png', 'xml.png', 'yml.png', 'zip.png', '_bitmap.png', '_blank.png', '_clip.png', '_error.png', '_link.png', '_multi.png', '_page.png']
 		self.icon_extensions = map(lambda each: ".%s"%os.path.splitext(each)[0], icon_file_names)
-		images = [ os.path.normpath('images/16px/%s'%each) for each in icon_file_names ]
-		self.il = wx.ImageList(16, 16)
+		images = [ os.path.normpath('images/48px/%s'%each) for each in icon_file_names ]
+		self.il = wx.ImageList(48, 48)
 		for i in images:
 			self.il.Add(wx.Bitmap(i))
 		self.SetImageList(self.il, wx.IMAGE_LIST_SMALL)
@@ -50,10 +50,10 @@ class MyListCtrl(wx.ListCtrl):
 		bleed = 25 #make width sligtly smaller so that vScroll can be hidden
 		width = width - bleed
 
-		col0 = width*0.05
-		col1 = width*0.15
-		col2 = width*0.10
-		col3 = width*0.55
+		col0 = width*0.10
+		col1 = width*0.00
+		col2 = width*0.60
+		col3 = width*0.15
 		col4 = width*0.15
 
 		colwidths = [col0, col1, col2, col3, col4]
@@ -84,14 +84,16 @@ class MyListCtrl(wx.ListCtrl):
 		clicked_item = self.getEventItem(event)
 		frame = self.GetTopLevelParent()
 		
-		top_item_container_name = self.GetItemText(0, col=0)
+		top_item_container_id = self.GetItemText(0, col=1)
 		
-		clicked_container_name = clicked_item[0]
-		clicked_clip_type = clicked_item[2]
+		clicked_container_id = clicked_item[1]
+		clicked_container_name = clicked_container_id + ".tar.bz2.pastebeam"
+		
+		clicked_clip_type = clicked_item[0]
 		
 		#print "DCLICK %s - %s"%(clicked_container_name, top_item_container_name)
 		
-		if clicked_container_name != top_item_container_name:
+		if clicked_container_id != top_item_container_id:
 		
 			frame.showBusyDialog()
 

@@ -283,7 +283,8 @@ class Main(wx.Frame):
 				
 				number_of_files = len(file_names)
 				file_or_files = "files" if number_of_files > 1 else "file"
-				file_exts = sorted(set(map(lambda each_file_name: os.path.splitext(each_file_name)[1].strip(".") or "??", file_names))) #use set to prevent jpg, jpg, jpg
+				
+				file_exts = sorted(set(map(lambda each_file_name: os.path.splitext(each_file_name)[1].strip(".").upper() or "??", file_names))) #use set to prevent jpg, jpg, jpg
 				file_exts_first = file_exts[:-1]
 				file_exts_last = file_exts[-1]
 				exts_sentence = ", ".join(file_exts_first)
@@ -293,7 +294,17 @@ class Main(wx.Frame):
 					exts_sentence = file_exts_last
 
 				#display_human = "%s %s files"%(len(file_names), ", ".join(set(map(lambda each_file_name: os.path.splitext(each_file_name)[1].strip("."), file_names) ) ) )
-				display_human = "%s %s %s"%(number_of_files, exts_sentence, file_or_files)
+				exts_human = "%s %s (%s): "%(number_of_files, file_or_files,exts_sentence)
+				
+				file_names_first = file_names[:-1]
+				file_names_last = file_names[-1]
+				names_sentence = ", ".join(file_names_first)
+				if file_names_first:
+					names_sentence = names_sentence + ("," if number_of_files > 2 else "") + " and " + file_names_last
+				else:
+					names_sentence = file_names_last
+
+				display_human = "%s %s"%(exts_human, names_sentence)
 			
 			return display_human
 	
@@ -346,9 +357,10 @@ class Main(wx.Frame):
 			
 		#new_item_number_to_be = self.panel.lst.GetItemCount() + 1;  self.panel.lst.Append( (new_item_number_to_be...))
 		#timestamp_human = datetime.datetime.fromtimestamp(clip['timestamp_server']).strftime(u'%H:%M:%S \u2219 %Y-%m-%d'.encode("utf-8") ).decode("utf-8") #broken pipe \u00A6
+		id_human = clip["container_name"].split(".")[0]
 		display_human =  _generate_display_human()
 		timestamp_human = u'{dt:%I}:{dt:%M}:{dt:%S} {dt:%p} \u2219 {dt.month}-{dt.day}-{dt.year}'.format(dt=datetime.datetime.fromtimestamp(clip['timestamp_server'] ) ) #http://stackoverflow.com/questions/904928/python-strftime-date-without-leading-0
-		new_index = self.panel.lst.Append( (clip['container_name'], clip['host_name'], clip['clip_type'], display_human, timestamp_human ) ) #unicodedecode error fix	#http://stackoverflow.com/questions/2571515/using-a-unicode-format-for-pythons-time-strftime
+		new_index = self.panel.lst.Append( (clip['clip_type'], id_human, display_human,  clip['host_name'], timestamp_human ) ) #unicodedecode error fix	#http://stackoverflow.com/questions/2571515/using-a-unicode-format-for-pythons-time-strftime
 		
 		_stylize_new_row()
 		
@@ -383,7 +395,7 @@ class Main(wx.Frame):
 			
 			latest_content = clip_list[0]
 			
-			if latest_content['send_id'] != SEND_ID: #no point of setting new clipboard to the same machine that just uploaded it
+			if latest_content['send_id'] != SEND_ID: #no point of setting new clipboard to the same machine that just uploaded it. Without this OS cut and paste will break.
 
 				self.setClipboardContent(container_name= latest_content['container_name'], clip_type =latest_content['clip_type'])
 			
@@ -518,7 +530,7 @@ class Main(wx.Frame):
 						"clip_display_encoded" : self.encodeClip(json.dumps(clip_display)),
 						"container_name" : container_name,
 						"clip_hash_secure" : clip_hash_secure, #http://stackoverflow.com/questions/16414559/trying-to-use-hex-without-0x
-						"host_name" : "%s (%s)"%(wx.GetHostName(), platform.system()), #platform.release()),
+						"host_name" : "%s (%s %s)"%(wx.GetHostName(), platform.system(), platform.release()),
 						"timestamp_client" : time.time(),
 						"send_id" : SEND_ID,
 					}
