@@ -151,36 +151,50 @@ class MyStatusBar(wx.StatusBar): #http://zetcode.com/wxpython/gripts/
 		super(MyStatusBar, self).__init__(parent)
 
 		self.SetFieldsCount(3)
-		self.SetStatusWidths([17, -1, 50])
+		self.SetStatusWidths([17, -1, 17])
 		
-		self.on_icon = wx.StaticBitmap(self, bitmap=wx.Bitmap('images/16px/_link.png'))
-		self.toggleStatus()
+		self.toggleStatusIcon()
+		self.toggleSwitchIcon()
 		
 		self.Bind(wx.EVT_SIZE, self.OnSize)
-		self.placeIcons()
+		
+	def toggleSwitchIcon(self, on = True):
+		if on:
+			self.on_icon = wx.StaticBitmap(self, bitmap=wx.Bitmap('images/16px/_on.png'))
+		else:
+			self.on_icon = wx.StaticBitmap(self, bitmap=wx.Bitmap('images/16px/_off.png'))
+			
+		self.placeStatusIcon()
+		
+	def placeSwitchIcon(self):
+		rect = self.GetFieldRect(2)
+		self.on_icon.SetPosition((rect.x+5, rect.y+1))
 
-	def toggleStatus(self, msg = 'Sarting up...', ok = True):
+	def toggleStatusIcon(self, msg = 'Sarting up...', ok = True):
 		self.SetStatusText(msg, 1)
-		"""
-		if ok == True:
+		
+		if ok:
 			self.ok_icon = wx.StaticBitmap(self, bitmap=wx.Bitmap('images/16px/_good.png'))
 		else:
 			self.ok_icon = wx.StaticBitmap(self, bitmap=wx.Bitmap('images/16px/_bad.png'))
+			
 		"""
 		self.ok_icon = wx.StaticBitmap(self)
 		if ok == True:
 			self.ok_icon.SetBitmap(wx.Bitmap('images/16px/_good.png'))
 		else:
 			self.ok_icon.SetBitmap(wx.Bitmap('images/16px/_bad.png'))
-		self.placeIcons()
+		"""
 		
-	def placeIcons(self):
+		self.placeStatusIcon()
 		
+	def placeStatusIcon(self):
 		rect = self.GetFieldRect(0)
 		self.ok_icon.SetPosition((rect.x+5, rect.y+1))
 		
-		rect = self.GetFieldRect(2)
-		self.on_icon.SetPosition((rect.x+5, rect.y+1))
+	def placeIcons(self):
+		self.placeStatusIcon()
+		self.placeSwitchIcon()
 
 	def OnSize(self, e):
 				
