@@ -18,7 +18,7 @@ from threading import Thread # import * BREAKS enumerate!!!
 from wxpython_view import *
 
 #general stuff
-import time, sys, zlib, datetime, uuid, os, tempfile, urllib, platform, gc, hashlib, shutil
+import time, sys, zlib, datetime, uuid, os, tempfile, urllib, platform, gc, hashlib, shutil, distutils
 from functions import *
 import encompress
 
@@ -33,6 +33,10 @@ import bson.json_util as json
 HTTP_BASE = lambda arg, port, scheme: "%s://192.168.0.190:%s/%s"%(scheme, port, arg)
 
 TEMP_DIR = tempfile.mkdtemp(); print TEMP_DIR
+
+MAX_FILE_SIZE = 1024*1024*50
+
+FILE_IGNORE_LIST = map(lambda each: each.upper(), ["desktop.ini","thumbs.db",".ds_store","icon\r",".dropbox",".dropbox.attr"]) #https://www.dropbox.com/en/help/145 and http://stackoverflow.com/questions/15835213/list-of-various-system-files-safe-to-ignore-when-implementing-a-virtual-file-sys
 
 # Button definitions
 ID_START = wx.NewId()
@@ -286,7 +290,7 @@ class Main(wx.Frame):
 				number_of_files = len(file_names)
 				file_or_files = "files" if number_of_files > 1 else "file"
 				
-				file_exts = sorted(set(map(lambda each_file_name: os.path.splitext(each_file_name)[1].strip(".").upper() or "??", file_names))) #use set to prevent jpg, jpg, jpg
+				file_exts = sorted(set(map(lambda each_file_name: os.path.splitext(each_file_name)[1].strip(".").replace("_directory", "folder").upper() or "??", file_names))) #use set to prevent jpg, jpg, jpg
 				file_exts_first = file_exts[:-1]
 				file_exts_last = file_exts[-1]
 				exts_sentence = ", ".join(file_exts_first)
@@ -298,6 +302,7 @@ class Main(wx.Frame):
 				#display_human = "%s %s files"%(len(file_names), ", ".join(set(map(lambda each_file_name: os.path.splitext(each_file_name)[1].strip("."), file_names) ) ) )
 				exts_human = "%s %s (%s): "%(number_of_files, file_or_files,exts_sentence)
 				
+				file_names = map(lambda each_name: each_name.replace("._directory",""), file_names)
 				file_names_first = file_names[:-1]
 				file_names_last = file_names[-1]
 				names_sentence = ", ".join(file_names_first)
@@ -649,29 +654,62 @@ class Main(wx.Frame):
 						os_file_paths_new = sorted(clip_data.GetFilenames())
 						
 						try:
-							os_file_sizes_new = map(lambda each_os_path: os.path.getsize(each_os_path), os_file_paths_new)
+							os_file_sizes_new = map(lambda each_os_path: getFolderSize(each_os_path, max=MAX_FILE_SIZE) if os.path.isdir(each_os_path) else os.path.getsize(each_os_path), os_file_paths_new)
 						except:
 							return
 						
-						if sum(os_file_sizes_new) > (1024*1024*50):
-							self.sb.toggleStatusIcon(msg='Files upload failed. Maximum files size is 50 megabytes.',ok=False)
+						if sum(os_file_sizes_new) > MAX_FILE_SIZE:
+							self.sb.toggleStatusIcon(msg='Files not uploaded. Maximum files size is 50 megabytes.',ok=False)
 							return #upload error clip
-							
-						os_file_names_new = map(lambda each_path: os.path.split(each_path)[1], os_file_paths_new)
 
 						#print os_file_paths_new
 										
 						os_file_hashes_old_set = CLIENT_RECENT_DATA.get()
-
 						os_file_hashes_new = []
+						
+						os_file_names_new = []
+						display_file_names =[]
+						
 												
-						for each_path_new in os_file_paths_new:
-							try:
-								with open(each_path_new, 'rb') as each_file_new: 
-									os_file_hashes_new.append( os.path.split(each_path_new)[1] + format(hash128( each_file_new.read() ), "x") + "user_salt")
-							except:
-								return #upload error clip
-						#print "\nCOMPUTED FILEHASHES\n"
+						try:
+
+							for each_path in os_file_paths_new:
+							
+								each_file_name = os.path.split(each_path)[1]
+							
+								os_file_names_new.append(each_file_name)
+								
+								if os.path.isdir(each_path):
+								
+									display_file_names.append(each_file_name+"._directory")
+								
+									os_folder_hashes = []
+									for dirName, subdirList, fileList in os.walk(each_path, topdown=False):
+										subdirList = filter
+										for fname in fileList:
+											if fname.upper() not in FILE_IGNORE_LIST: #DO NOT calculate hash for system files as they are always changing, and if a folder is in clipboard, a new upload may be initiated each time a system file is changed
+												each_sub_path = os.path.join(dirName, fname)
+												with open(each_sub_path, 'rb') as each_sub_file:
+													each_relative_path = each_sub_path.split(each_path)[1] #c:/python27/lib/ - c:/python27/lib/bin/abc.pyc = bin/abc.pyc
+													each_relative_hash = each_relative_path + hex(hash128( each_sub_file.read())) #WARNING- some files like thumbs.db constantly change, and therefore may cause an infinite upload loop. Need an ignore list.
+													#print each_relative_hash
+													os_folder_hashes.append(each_relative_hash) #use relative path+filename and hash so that set does not ignore two idenitcal files in different sub-directories. Why? let's say bin/abc.pyc and usr/abc.pyc are identical, without the aforementioned system, a folder with just bin/abc.pyc will yield same hash as bin/abc.pyc + usr/abc.pyc, not good.
+									each_file_name = os.path.split(each_path)[1]
+									os_folder_hashes.sort()
+									each_data = "".join(os_folder_hashes) #whole folder hash
+								
+								else: #single file
+								
+									display_file_names.append(each_file_name)
+								
+									with open(each_path, 'rb') as each_file: 
+										each_file_name = os.path.split(each_path)[1]
+										each_data = each_file.read()
+								
+								name_and_data_hash = os_file_hashes_new.append( each_file_name + format(hash128( each_data ), "x") + "user_salt") #append the hash for this file #use filename and hash so that set does not ignore copies of two idenitcal files (but different names) in different directories
+							
+						except ZeroDivisionError:
+							return #upload error clip
 								
 						os_file_hashes_new_set = set(os_file_hashes_new)
 
@@ -679,15 +717,19 @@ class Main(wx.Frame):
 
 							for each_new_path in os_file_paths_new:
 								try:
-									shutil.copy2(each_new_path, TEMP_DIR)
-								except shutil.Error:
-									pass #RAISE ERROR
-	
+									if os.path.isdir(each_new_path):
+										distutils.dir_util.copy_tree(each_new_path, os.path.join(TEMP_DIR, os.path.split(each_new_path)[1] ) )
+									else:
+										distutils.file_util.copy_file(each_new_path, TEMP_DIR )
+								except distutils.errors.DistutilsFileError:
+									pass
+									
+
 							clip_hash_secure = hashlib.new("ripemd160", "".join(os_file_hashes_new) + "user_salt").hexdigest() #MUST use list of files instead of set because set does not guarantee order and therefore will result in a non-deterministic hash 
 							return __upload(
 								file_names = os_file_names_new,
 								clip_type = "files",
-								clip_display = os_file_names_new,
+								clip_display = display_file_names,
 								clip_hash_secure = clip_hash_secure, 
 								compare_next = os_file_hashes_new_set
 							)
@@ -696,7 +738,7 @@ class Main(wx.Frame):
 				
 		except requests.exceptions.ConnectionError:
 			self.destroyBusyDialog()
-			wx.MessageBox("Unable to connect to the internet.", "Error")
+			self.sb.toggleStatusIcon(msg="Unable to connect to the internet.", ok=False)
 			return None
 		except ZeroDivisionError:# TypeError:
 			self.destroyBusyDialog()

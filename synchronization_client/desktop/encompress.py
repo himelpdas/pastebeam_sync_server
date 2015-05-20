@@ -101,7 +101,7 @@ class Encompress():
 		self.key = PBKDF2(self.password, salt = self.salt, dkLen = self.BLOCK_SIZE) #dkLen: The length of the desired key. Default is 16 bytes, suitable for instance for Crypto.Cipher.AES
 			
 	def compress(self):
-		file_names = self.file_names_encrypt[0]
+		file_names = self.file_names_encrypt[0] #redundant / dry here. seems like cliphash secure is good enough
 		files_hash = self.file_names_encrypt[1]
 		archive_id  = hashlib.new("ripemd160", "".join(file_names) + files_hash ).hexdigest()
 		self.archive_name = archive_id + ".tar.bz2"
@@ -162,5 +162,6 @@ class Encompress():
 		#self.extract_path = os.path.join(self.directory,"extracted")
 		tar = tarfile.open(self.archive_path)
 		tar.extractall(path=self.directory)
-		self.result = map(lambda each_name: os.path.join(self.directory, each_name), tar.getnames() )
+		root_file_and_directory_names = filter(lambda each_name: not "/" in each_name, tar.getnames()) #getnames alone returns folder cool.jpg ,48px, 48px/css.png, etc., we want 48px, and cool.jpg only
+		self.result = map(lambda each_name: os.path.join(self.directory, each_name), root_file_and_directory_names )
 		tar.close()
