@@ -290,7 +290,7 @@ class Main(wx.Frame):
 				number_of_files = len(file_names)
 				file_or_files = "files" if number_of_files > 1 else "file"
 				
-				file_exts = sorted(set(map(lambda each_file_name: os.path.splitext(each_file_name)[1].strip(".").replace("_directory", "folder").upper() or "??", file_names))) #use set to prevent jpg, jpg, jpg
+				file_exts = sorted(set(map(lambda each_file_name: os.path.splitext(each_file_name)[1].strip(".").replace("_folder", "folder").upper() or "??", file_names))) #use set to prevent jpg, jpg, jpg
 				file_exts_first = file_exts[:-1]
 				file_exts_last = file_exts[-1]
 				exts_sentence = ", ".join(file_exts_first)
@@ -302,7 +302,7 @@ class Main(wx.Frame):
 				#display_human = "%s %s files"%(len(file_names), ", ".join(set(map(lambda each_file_name: os.path.splitext(each_file_name)[1].strip("."), file_names) ) ) )
 				exts_human = "%s %s (%s): "%(number_of_files, file_or_files,exts_sentence)
 				
-				file_names = map(lambda each_name: each_name.replace("._directory",""), file_names)
+				file_names = map(lambda each_name: each_name.replace("._folder",""), file_names)
 				file_names_first = file_names[:-1]
 				file_names_last = file_names[-1]
 				names_sentence = ", ".join(file_names_first)
@@ -681,7 +681,7 @@ class Main(wx.Frame):
 								
 								if os.path.isdir(each_path):
 								
-									display_file_names.append(each_file_name+"._directory")
+									display_file_names.append(each_file_name+" folder (%s inside)"%len(os.listdir(each_path))+"._folder")
 								
 									os_folder_hashes = []
 									for dirName, subdirList, fileList in os.walk(each_path, topdown=False):
