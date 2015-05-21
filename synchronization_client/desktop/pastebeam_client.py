@@ -18,7 +18,8 @@ from threading import Thread # import * BREAKS enumerate!!!
 from wxpython_view import *
 
 #general stuff
-import time, sys, zlib, datetime, uuid, os, tempfile, urllib, platform, gc, hashlib, shutil, distutils
+import time, sys, zlib, datetime, uuid, os, tempfile, urllib, platform, gc, hashlib, shutil 
+import distutils.file_util, distutils.dir_util, distutils.errors #must import like this else import error in pyinstaller
 from functions import *
 import encompress
 
