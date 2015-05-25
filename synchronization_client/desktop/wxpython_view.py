@@ -87,7 +87,7 @@ class MyListCtrl(wx.ListCtrl):
 		top_item_container_id = self.GetItemText(0, col=1)
 		
 		clicked_container_id = clicked_item[1]
-		clicked_container_name = clicked_container_id + ".tar.bz2.pastebeam"
+		clicked_container_name = clicked_container_id + ".tar.gz.pastebeam"
 		
 		clicked_clip_type = clicked_item[0]
 		

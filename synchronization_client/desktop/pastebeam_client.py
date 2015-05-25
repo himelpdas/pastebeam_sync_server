@@ -185,17 +185,38 @@ class WebSocketThread(WorkerThread):
 		#pdb.set_trace()
 		#print "start outgoing..."
 		while self.KEEP_RUNNING:
+			
 			sendit = False
+			
 			if self.keepAlive(): #also send alive messages and reset connection if receive block indefinitely
 				sendit = dict(message="Alive?")
+			
 			elif CLIENT_LATEST_CLIP.get().get('clip_hash_secure') != SERVER_LATEST_CLIP.get().get('clip_hash_secure'): #start only when there is something to send
-				print "sending...%s"%CLIENT_LATEST_CLIP.get()	
 				
-				sendit = dict(
-					data=CLIENT_LATEST_CLIP.get(),
-					message="Upload"
-				)
-				print "\n\n\nSEND %s... %s"%(CLIENT_LATEST_CLIP.get().get('clip_hash_secure'), SERVER_LATEST_CLIP.get().get('clip_hash_secure'))
+				send_clip = CLIENT_LATEST_CLIP.get()
+				
+				print "sending...%s"%send_clip	
+				
+				container_name = send_clip['container_name']
+				container_path = os.path.join(TEMP_DIR,container_name)
+				
+				try:
+					response = requests.get(HTTP_BASE(arg="file_exists/%s"%container_name,port=8084,scheme="http"))
+					file_exists = json.loads(response.content)
+					gevent.sleep()
+					if not file_exists['result']:
+						r = requests.post(HTTP_BASE(arg="upload",port=8084,scheme="http"), files={"upload": open(container_path, 'rb')})
+						print r
+				except requests.exceptions.ConnectionError:
+					#self.destroyBusyDialog()
+					#self.sb.toggleStatusIcon(msg="Unable to connect to the internet.", ok=False)
+					pass#return None
+				else:
+					sendit = dict(
+						data=CLIENT_LATEST_CLIP.get(),
+						message="Upload"
+					)
+					print "\nSEND %s... %s\n"%(CLIENT_LATEST_CLIP.get().get('clip_hash_secure'), SERVER_LATEST_CLIP.get().get('clip_hash_secure'))
 						
 			if sendit:
 				try:
@@ -474,8 +495,9 @@ class Main(wx.Frame):
 				
 				if container_path:
 					
+					print "DECRYPT"
 					with encompress.Encompress(password = "nigger", directory = TEMP_DIR, file_name_decrypt=container_name) as file_paths_decrypt:
-						print file_paths_decrypt
+						#print file_paths_decrypt
 						
 						if clip_type in ["text","link"]:
 						
@@ -519,38 +541,35 @@ class Main(wx.Frame):
 		try:
 			with wx.TheClipboard.Get() as clipboard:
 			
-				def __upload(file_names, clip_type, clip_display, clip_hash_secure, compare_next):
+				def __prepare_for_upload(file_names, clip_type, clip_display, clip_hash_secure, compare_next):
 						
-					with encompress.Encompress(password = "nigger", directory = TEMP_DIR, file_names_encrypt = [file_names, clip_hash_secure], file_name_decrypt=False) as container: #salt = clip_hash_secure needed so that files with the same name do not result in same hash, if the file data is different, since clip_hash_secure is generated from the file contents
-						container_name = container[0]
-						container_path = container[1]
-						print container_name #salting the file_name will cause decryption to fail if
-					
-					response = requests.get(HTTP_BASE(arg="file_exists/%s"%container_name,port=8084,scheme="http"))
-					file_exists = json.loads(response.content)
-					if not file_exists['result']:
-						r = requests.post(HTTP_BASE(arg="upload",port=8084,scheme="http"), files={"upload": open(container_path, 'rb')})
-						print r
+					print "\nBLOCK!!!\n"
+						
+					self.sb.toggleStatusIcon(msg='Encrypting and uploading %s data...'%clip_type,ok=True)
+						
+					with encompress.Encompress(password = "nigger", directory = TEMP_DIR, file_names_encrypt = [file_names, clip_hash_secure], file_name_decrypt=False) as container_name: #salt = clip_hash_secure needed so that files with the same name do not result in same hash, if the file data is different, since clip_hash_secure is generated from the file contents
+						
+						print "\ngetClipboardContent: container_name: %s\n"%container_name #salting the file_name will cause decryption to fail if
 
-					global SEND_ID #change to sender id
-					SEND_ID = uuid.uuid4()
+						global SEND_ID #change to sender id
+						SEND_ID = uuid.uuid4()
+							
+						clip_content = {
+							"clip_type" : clip_type,
+							"clip_display_encoded" : self.encodeClip(json.dumps(clip_display)),
+							"container_name" : container_name,
+							"clip_hash_secure" : clip_hash_secure, #http://stackoverflow.com/questions/16414559/trying-to-use-hex-without-0x
+							"host_name" : "%s (%s %s)"%(wx.GetHostName(), platform.system(), platform.release()),
+							"timestamp_client" : time.time(),
+							"send_id" : SEND_ID,
+						}
 						
-					clip_content = {
-						"clip_type" : clip_type,
-						"clip_display_encoded" : self.encodeClip(json.dumps(clip_display)),
-						"container_name" : container_name,
-						"clip_hash_secure" : clip_hash_secure, #http://stackoverflow.com/questions/16414559/trying-to-use-hex-without-0x
-						"host_name" : "%s (%s %s)"%(wx.GetHostName(), platform.system(), platform.release()),
-						"timestamp_client" : time.time(),
-						"send_id" : SEND_ID,
-					}
-					
-					CLIENT_RECENT_DATA.set(compare_next)
-					#print "SETTED %s"%compare_next
-					
-					self.sb.toggleStatusIcon(msg='Successfully uploaded %s data.'%clip_type,ok=True)
-					
-					return clip_content
+						CLIENT_RECENT_DATA.set(compare_next)
+						#print "SETTED %s"%compare_next
+						
+						self.sb.toggleStatusIcon(msg='Successfully uploaded %s data.'%clip_type,ok=True)
+						
+						return clip_content
 			
 				def _return_if_text_or_url():
 					clip_data = wx.TextDataObject()
@@ -582,7 +601,7 @@ class Main(wx.Frame):
 							with open(txt_file_path, 'w') as txt_file:
 								txt_file.write(clip_text_encoded)
 								
-							return __upload(
+							return __prepare_for_upload(
 								file_names = [txt_file_name],
 								clip_type = "text" if not clip_text_is_url else "link", 
 								clip_display = [clip_display], 
@@ -617,7 +636,7 @@ class Main(wx.Frame):
 							img_file_name = "%s.bmp"%clip_hash_secure
 							img_file_path = os.path.join(TEMP_DIR,img_file_name)
 							
-							print "img_file_path: \n%s\n"%img_file_path
+							print "\nimg_file_path: \n%s\n"%img_file_path
 							
 							bitmap.SaveFile(img_file_path, wx.BITMAP_TYPE_BMP) #change to or compliment upload
 							
@@ -635,7 +654,7 @@ class Main(wx.Frame):
 								with encompress.Encompress(password = "nigger", directory = TEMP_DIR, file_names_encrypt = [img_file_name], file_name_decrypt=file_name_decrypt) as result:
 									print result
 							"""
-							return __upload(
+							return __prepare_for_upload(
 								file_names = [img_file_name],
 								clip_type = "bitmap", 
 								clip_display = [clip_display], 
@@ -693,8 +712,8 @@ class Main(wx.Frame):
 												with open(each_sub_path, 'rb') as each_sub_file:
 													each_relative_path = each_sub_path.split(each_path)[1] #c:/python27/lib/ - c:/python27/lib/bin/abc.pyc = bin/abc.pyc
 													each_relative_hash = each_relative_path + hex(hash128( each_sub_file.read())) #WARNING- some files like thumbs.db constantly change, and therefore may cause an infinite upload loop. Need an ignore list.
-													#print each_relative_hash
 													os_folder_hashes.append(each_relative_hash) #use relative path+filename and hash so that set does not ignore two idenitcal files in different sub-directories. Why? let's say bin/abc.pyc and usr/abc.pyc are identical, without the aforementioned system, a folder with just bin/abc.pyc will yield same hash as bin/abc.pyc + usr/abc.pyc, not good.
+													#gevent.sleep()#print each_relative_hash
 									each_file_name = os.path.split(each_path)[1]
 									os_folder_hashes.sort()
 									each_data = "".join(os_folder_hashes) #whole folder hash
@@ -725,9 +744,11 @@ class Main(wx.Frame):
 								except distutils.errors.DistutilsFileError:
 									pass
 									
+									
+							print "\nRETURN!!!!\n"
 
 							clip_hash_secure = hashlib.new("ripemd160", "".join(os_file_hashes_new) + "user_salt").hexdigest() #MUST use list of files instead of set because set does not guarantee order and therefore will result in a non-deterministic hash 
-							return __upload(
+							return __prepare_for_upload(
 								file_names = os_file_names_new,
 								clip_type = "files",
 								clip_display = display_file_names,
@@ -737,10 +758,6 @@ class Main(wx.Frame):
 
 				return (_return_if_text_or_url() or _return_if_bitmap() or _return_if_file() or None)
 				
-		except requests.exceptions.ConnectionError:
-			self.destroyBusyDialog()
-			self.sb.toggleStatusIcon(msg="Unable to connect to the internet.", ok=False)
-			return None
 		except ZeroDivisionError:# TypeError:
 			self.destroyBusyDialog()
 			wx.MessageBox("Unable to access the clipboard. Another application seems to be locking it.", "Error")

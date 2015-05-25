@@ -3,10 +3,11 @@ from Crypto.Cipher import AES
 from Crypto import Random
 from Crypto.Protocol.KDF import PBKDF2
 import tarfile
-import gevent
+import time#,  gevent
 import os
 import hashlib
 
+"""
 def derive_key_and_iv(password, salt, key_length, iv_length): #http://stackoverflow.com/questions/16761458/how-to-aes-encrypt-decrypt-files-using-python-pycrypto-in-an-openssl-compatible
 	d = d_i = ''
 	while len(d) < key_length + iv_length:
@@ -43,7 +44,20 @@ def decrypt(in_file, out_file, password, key_length=32):
 			chunk = chunk[:-padding_length]
 			finished = True
 			out_file.write(chunk)
-			
+"""
+
+def timeit(method):
+
+	def timed(*args, **kw):
+		ts = time.time()
+		result = method(*args, **kw)
+		te = time.time()
+
+		print '%r (%r, %r) %2.2f sec' % \
+			  (method.__name__, args, kw, te-ts)
+		return result
+
+	return timed		
 	
 class Encompress():
 	#Based heavily on #http://stackoverflow.com/questions/16761458/how-to-aes-encrypt-decrypt-files-using-python-pycrypto-in-an-openssl-compatible
@@ -85,11 +99,13 @@ class Encompress():
 		if self.archive_path:
 			os.remove(self.archive_path)
 		
+	@timeit
 	def makeIV(self):
 		pre_iv = 'iv:'
 		rand = Random.new() #iv should be different for every file, so that patterns can't be seen in 2 identical files. This is apposed to salt, where the salt can be set once for one password (to prevent rainbow tables)
 		self.iv = pre_iv + rand.read(self.BLOCK_SIZE - len(pre_iv)) #not needed since tarfile already is very random due to timestamp, but do for extra security #CBC requires a non-deterministic approach, in other words you can't recalculate the IV... deterministic is when you make a random-appearing IV, but it's not random indeed ie. using the file hash
 		
+	@timeit
 	def grabIV(self):
 		self.file_path_decrypt = os.path.join(self.directory, self.file_name_decrypt)
 		
@@ -97,23 +113,26 @@ class Encompress():
 		self.iv = self.file_decrypt.read(self.BLOCK_SIZE)
 		print "\nIV:%s\n"%self.iv
 	
+	@timeit
 	def setKey(self):
 		self.key = PBKDF2(self.password, salt = self.salt, dkLen = self.BLOCK_SIZE) #dkLen: The length of the desired key. Default is 16 bytes, suitable for instance for Crypto.Cipher.AES
 			
+	@timeit
 	def compress(self):
 		file_names = self.file_names_encrypt[0] #redundant / dry here. seems like cliphash secure is good enough
 		files_hash = self.file_names_encrypt[1]
 		archive_id  = hashlib.new("ripemd160", "".join(file_names) + files_hash ).hexdigest()
-		self.archive_name = archive_id + ".tar.bz2"
+		self.archive_name = archive_id + ".tar.gz"
 		self.archive_path = os.path.join(self.directory, self.archive_name) #TEMP
 		
-		tar = tarfile.open(self.archive_path, "w:bz2") #write mode in bz2 #compresslevel=9)
+		tar = tarfile.open(self.archive_path, "w:gz") #write mode in gz #compresslevel=9)
 		for each_name in file_names:
 			each_path =  os.path.join(self.directory, each_name)
 			tar.add(each_path, arcname=each_name) #WARNING BY DEFAULT THE DIRECTORY PATH IS ADDED AS WELL, THEREFORE THE FINAL CONTAINER FILE's HASH WILL BE DIFFERENT, USE THIS SOLUTION #http://ubuntuforums.org/showthread.php?t=1699689
-			gevent.sleep() #
+			#gevent.sleep() #
 		tar.close()
 
+	@timeit
 	def encrypt(self):
 
 		with open(self.archive_path,'rb') as archive:
@@ -136,14 +155,16 @@ class Encompress():
 						chunk += padding_length  * chr(padding_length)
 						finished = True
 					container_file.write(cipher.encrypt(chunk)) #ALWAYS compress before encrypt, otherwise it is useless
+					#gevent.sleep()
 					
-		self.result = (self.container_name, self.container_path)
+		self.result = self.container_name
 		
+	@timeit
 	def decrypt(self):
 			
 		self.archive_path = self.file_path_decrypt.split(".pastebeam")[0] # 			self.archive_path = os.path.abspath(self.file_decrypt.name).split(".pastebeam")[0] #http://stackoverflow.com/questions/1881202/getting-the-absolute-path-of-a-file-object
 	
-		print "\nDECRYPT ARCHIVR PATH %s\n"%self.archive_path
+		print "DECRYPT ARCHIVR PATH %s"%self.archive_path
 	
 		with open(self.archive_path, 'wb') as archive:
 	
@@ -157,7 +178,9 @@ class Encompress():
 					chunk = chunk[:-padding_length]
 					finished = True
 				archive.write(chunk)
+				#gevent.sleep()
 		
+	@timeit
 	def extract(self):
 		#self.extract_path = os.path.join(self.directory,"extracted")
 		tar = tarfile.open(self.archive_path)
