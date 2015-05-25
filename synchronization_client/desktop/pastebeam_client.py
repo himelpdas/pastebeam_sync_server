@@ -209,7 +209,7 @@ class WebSocketThread(WorkerThread):
 						print r
 				except requests.exceptions.ConnectionError:
 					#self.destroyBusyDialog()
-					#self.sb.toggleStatusIcon(msg="Unable to connect to the internet.", ok=False)
+					#self.sb.toggleStatusIcon(msg="Unable to connect to the internet.", icon=False)
 					pass#return None
 				else:
 					sendit = dict(
@@ -480,7 +480,7 @@ class Main(wx.Frame):
 		self.SetTransparent( 255 )
 		
 	def showBusyDialog(self):
-		self.busy_dialog = wx.BusyInfo("Please wait a moment...", self)
+		self.busy_dialog = wx.BusyInfo("Retrieving clip. Please wait a moment...", self)
 		self.SetTransparent( 222 )
 		
 	def setClipboardContent(self, container_name, clip_type): 
@@ -490,6 +490,8 @@ class Main(wx.Frame):
 		success = False
 		try:
 			with wx.TheClipboard.Get() as clipboard:
+	
+				self.sb.toggleStatusIcon(msg='Downloading and decrypting %s data...'%clip_type, icon="unlock")
 	
 				container_path = self.downloadClipFileIfNotExist(container_name)
 				
@@ -532,7 +534,7 @@ class Main(wx.Frame):
 			wx.MessageBox("Unable to access the clipboard. Another application seems to be locking it.", "Error")
 					
 		if success:	
-			self.sb.toggleStatusIcon(msg='Successfully received %s data.' % clip_type, ok=True)
+			self.sb.toggleStatusIcon(msg='Successfully received %s data.' % clip_type, icon="good")
 		
 		return success
 		#PUT MESSAGEBOX HERE? ALSO destroyBusyDialog
@@ -545,7 +547,7 @@ class Main(wx.Frame):
 						
 					print "\nBLOCK!!!\n"
 						
-					self.sb.toggleStatusIcon(msg='Encrypting and uploading %s data...'%clip_type,ok=True)
+					self.sb.toggleStatusIcon(msg='Encrypting and uploading %s data...'%clip_type, icon="lock")
 						
 					with encompress.Encompress(password = "nigger", directory = TEMP_DIR, file_names_encrypt = [file_names, clip_hash_secure], file_name_decrypt=False) as container_name: #salt = clip_hash_secure needed so that files with the same name do not result in same hash, if the file data is different, since clip_hash_secure is generated from the file contents
 						
@@ -567,7 +569,7 @@ class Main(wx.Frame):
 						CLIENT_RECENT_DATA.set(compare_next)
 						#print "SETTED %s"%compare_next
 						
-						self.sb.toggleStatusIcon(msg='Successfully uploaded %s data.'%clip_type,ok=True)
+						self.sb.toggleStatusIcon(msg='Successfully uploaded %s data.'%clip_type, icon="good")
 						
 						return clip_content
 			
@@ -679,7 +681,7 @@ class Main(wx.Frame):
 							return
 						
 						if sum(os_file_sizes_new) > MAX_FILE_SIZE:
-							self.sb.toggleStatusIcon(msg='Files not uploaded. Maximum files size is 50 megabytes.',ok=False)
+							self.sb.toggleStatusIcon(msg='Files not uploaded. Maximum files size is 50 megabytes.', icon="bad")
 							return #upload error clip
 
 						#print os_file_paths_new

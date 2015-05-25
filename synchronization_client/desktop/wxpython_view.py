@@ -170,14 +170,11 @@ class MyStatusBar(wx.StatusBar): #http://zetcode.com/wxpython/gripts/
 		rect = self.GetFieldRect(2)
 		self.on_icon.SetPosition((rect.x+5, rect.y+1))
 
-	def toggleStatusIcon(self, msg = 'Sarting up...', ok = True):
+	def toggleStatusIcon(self, msg = 'Sarting up...', icon = "good"):
 		self.SetStatusText(msg, 1)
 		
-		if ok:
-			self.ok_icon = wx.StaticBitmap(self, bitmap=wx.Bitmap('images/16px/_good.png'))
-		else:
-			self.ok_icon = wx.StaticBitmap(self, bitmap=wx.Bitmap('images/16px/_bad.png'))
-			
+		self.ok_icon = wx.StaticBitmap(self, bitmap=wx.Bitmap('images/16px/_%s.png'%icon))
+
 		"""
 		self.ok_icon = wx.StaticBitmap(self)
 		if ok == True:
