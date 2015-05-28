@@ -19,7 +19,6 @@ client=pymongo.MongoClient()
 collection = client.test_database #collection
 clips = collection.clips #database
 
-users = collection.users
 """
 >>> users = collection.users
 >>> users.insert(name=Himel, client_minimum_id = None)

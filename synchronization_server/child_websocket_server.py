@@ -40,8 +40,9 @@ def handle_websocket():
 			pass
 			#print ("="*30+"\n%s:\n%s\n"+"="*30)%(self.uid,data)
 				
-	send_im_still_alive = AsyncResult()
+	send_im_still_alive, send_upload_or_not = AsyncResult(), AsyncResult()
 	send_im_still_alive.set(0)
+	send_upload_or_not.set({})
 				
 	def _incoming(wsock, timeout): #these seem to run in another namespace, you must pass them global or inner variables
 
@@ -60,8 +61,17 @@ def handle_websocket():
 				if data['message'] == "Alive?":
 			
 					send_im_still_alive.set(1)
+					
+				if data['message'] == "Upload?":
+				
+					container_name =  data['data']
+					
+					file_path = os.path.join(UPLOAD_DIR,container_name)
+					file_exists = os.path.isfile(file_path)
+					send_upload_or_not.set({container_name:file_exists})
+					print "\nFILE EXISTS:%s\n"%file_exists
 			
-				elif data['message'] == "Upload":
+				elif data['message'] == "Update":
 					
 					client_latest_clip = data['data']
 														
@@ -95,6 +105,12 @@ def handle_websocket():
 						message = "Alive!"
 					))) #send blank list of clips to tell client's incoming server is still alive.
 					send_im_still_alive.set(0)
+				elif send_upload_or_not.get():
+					wsock.send(json.dumps(dict(
+						message = "Upload!",
+						data = send_upload_or_not.get(),
+					)))
+					send_upload_or_not.set({})
 				else:
 					server_latest_row_and_clips = get_latest_row_and_clips()
 					server_latest_row = server_latest_row_and_clips['latest_row']

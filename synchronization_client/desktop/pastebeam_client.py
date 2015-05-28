@@ -103,6 +103,8 @@ class WebSocketThread(WorkerThread):
 		
 		self.last_sent = self.last_alive = datetime.datetime.now()
 		
+		self.containers_in_server = {}
+		
 		WorkerThread.__init__(self, notify_window)
 	
 	def webSocketReconnect(self):
@@ -169,7 +171,10 @@ class WebSocketThread(WorkerThread):
 					#print "GET %s"% server_latest_clip_row['clip_hash_fast']
 					
 					wx.PostEvent(self._notify_window, EVT_RESULT(server_latest_clip_rowS) )
-
+					
+				elif data["message"] == "Upload!":
+					self.containers_in_server.update(data['data'])
+					
 				elif data["message"] == "Alive!":
 					print "Alive!"
 					self.last_alive = datetime.datetime.now()
@@ -195,28 +200,36 @@ class WebSocketThread(WorkerThread):
 				
 				send_clip = CLIENT_LATEST_CLIP.get()
 				
-				print "sending...%s"%send_clip	
+				#print "sending...%s"%send_clip	
 				
 				container_name = send_clip['container_name']
 				container_path = os.path.join(TEMP_DIR,container_name)
 				
-				try:
-					response = requests.get(HTTP_BASE(arg="file_exists/%s"%container_name,port=8084,scheme="http"))
-					file_exists = json.loads(response.content)
-					gevent.sleep()
-					if not file_exists['result']:
-						r = requests.post(HTTP_BASE(arg="upload",port=8084,scheme="http"), files={"upload": open(container_path, 'rb')})
-						print r
-				except requests.exceptions.ConnectionError:
-					#self.destroyBusyDialog()
-					#self.sb.toggleStatusIcon(msg="Unable to connect to the internet.", icon=False)
-					pass#return None
-				else:
+				#response = requests.get(HTTP_BASE(arg="file_exists/%s"%container_name,port=8084,scheme="http"))
+				#file_exists = json.loads(response.content)
+				if not container_name in self.containers_in_server:
+					print "UPLOAD?"
 					sendit = dict(
-						data=CLIENT_LATEST_CLIP.get(),
-						message="Upload"
-					)
-					print "\nSEND %s... %s\n"%(CLIENT_LATEST_CLIP.get().get('clip_hash_secure'), SERVER_LATEST_CLIP.get().get('clip_hash_secure'))
+								message="Upload?",
+								data = container_name,
+							)
+				else:
+					try:
+						if self.containers_in_server[container_name] == False:
+							r = requests.post(HTTP_BASE(arg="upload",port=8084,scheme="http"), files={"upload": open(container_path, 'rb')})
+							print r
+					except requests.exceptions.ConnectionError:
+						#self.destroyBusyDialog()
+						#self.sb.toggleStatusIcon(msg="Unable to connect to the internet.", icon=False)
+						pass#return None
+					else:
+						sendit = dict(
+							message="Update",
+							data=CLIENT_LATEST_CLIP.get(),
+						)
+						
+						print "\nSEND %s... %s\n"%(CLIENT_LATEST_CLIP.get().get('clip_hash_secure'), SERVER_LATEST_CLIP.get().get('clip_hash_secure'))
+						
 						
 			if sendit:
 				try:
