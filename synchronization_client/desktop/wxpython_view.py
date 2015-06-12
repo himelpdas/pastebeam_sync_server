@@ -124,7 +124,7 @@ class MyPanel(wx.Panel): #http://zetcode.com/wxpython/gripts/
 		
 		self.vsizer_main = wx.BoxSizer(wx.VERTICAL)
 		
-		self._addToolBar()
+		#self._addToolBar()
 				
 		self._addMyListCtrl()
 		

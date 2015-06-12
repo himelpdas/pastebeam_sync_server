@@ -186,13 +186,14 @@ def handle_upload():
 def handle_download(filename):
 	return static_file(filename, root=UPLOAD_DIR)
 
-#geventwebsocket implementation
-from gevent.pywsgi import WSGIServer
-from geventwebsocket import WebSocketError
-from geventwebsocket.handler import WebSocketHandler
-server = WSGIServer(("0.0.0.0", 8084), app,
-					handler_class=WebSocketHandler)
-server.serve_forever()
+if __name__ == "__main__":
+	#geventwebsocket implementation
+	from gevent.pywsgi import WSGIServer
+	from geventwebsocket import WebSocketError
+	from geventwebsocket.handler import WebSocketHandler
+	server = WSGIServer(("0.0.0.0", 8084), app,
+						handler_class=WebSocketHandler)
+	server.serve_forever()
 
 """
 ##ws4py implementation (doesn't work)
