@@ -128,7 +128,8 @@ class WebSocketThread(WorkerThread):
 				self.wsock.connect()
 				break
 			except (SocketError, exc.HandshakeError, RuntimeError):
-				#print "no connection..."
+				print "no connection..."
+				self._notify_window.sb.toggleStatusIcon(msg="Unable to connect to the internet.", icon=False)
 				gevent.sleep(1)
 				
 	def keepAlive(self, heartbeat = 100, timeout = 1000): #increment of 60s times 20 unresponsive = 20 minutes
@@ -221,7 +222,7 @@ class WebSocketThread(WorkerThread):
 					except requests.exceptions.ConnectionError:
 						#self.destroyBusyDialog()
 						#self.sb.toggleStatusIcon(msg="Unable to connect to the internet.", icon=False)
-						pass#return None
+						self.webSocketReconnect()
 					else:
 						sendit = dict(
 							message="Update",
@@ -541,10 +542,12 @@ class Main(wx.Frame):
 								clip_data.AddFile(each_file_path)
 							success = clipboard.SetData(clip_data)
 				else:
+					self.destroyBusyDialog()
 					wx.MessageBox("Unable to download this clip from the server", "Error")
 
-		except ZeroDivisionError:
-			wx.MessageBox("Unable to access the clipboard. Another application seems to be locking it.", "Error")
+		except:
+			wx.MessageBox("Unknown Error. (548)", "Error")
+			self.destroyBusyDialog()
 					
 		if success:	
 			self.sb.toggleStatusIcon(msg='Successfully received %s data.' % clip_type, icon="good")

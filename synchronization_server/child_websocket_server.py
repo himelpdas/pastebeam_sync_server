@@ -9,6 +9,9 @@ import uuid
 from bottle import Bottle, static_file
 app = Bottle()
 
+from Crypto.Protocol.KDF import PBKDF2
+import Crypto.Random
+
 UPLOAD_DIR="C:\\Users\\Himel\\Desktop\\test\\uploads"
 
 @app.route('/echo')
@@ -185,7 +188,24 @@ def handle_upload():
 @app.get('/static/<filename>')
 def handle_download(filename):
 	return static_file(filename, root=UPLOAD_DIR)
+	
+@app.get('/auth/<username>/<password>')
+def register(username,password):
+	response.content_type =  "application/json; charset=UTF8"
 
+	found = accounts.find_one({'username': username})
+
+	if found:
+		return json.dumps({"success": False, "reason":"Username already exists!"})
+	if len(password) < 8:
+		return json.dumps({"success": False, "reason":"Password too short!"})
+
+	random_bytes = Crypto.Random.get_random_bytes(16).encode("base64")
+	key_derivation = PBKDF2(password, random_bytes).encode("base64")
+	new_account_id = accounts.insert_one({"username":username, "key_derivation":key_derivation, "salt":random_bytes})
+	return {"success":True, "Reason":"Account %s successfully created!"%new_account_id}
+	
+	
 if __name__ == "__main__":
 	#geventwebsocket implementation
 	from gevent.pywsgi import WSGIServer

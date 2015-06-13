@@ -16,8 +16,9 @@ import sys, os, time
 debug(True)
 
 client=pymongo.MongoClient()
-collection = client.test_database2 #collection
+collection = client.test_database #collection
 clips = collection.clips #database
+accounts = collection.accounts
 
 """
 >>> users = collection.users
