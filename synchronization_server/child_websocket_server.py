@@ -28,8 +28,7 @@ def test_async_websocket():
 @app.route('/ws')
 def handle_websocket():
 
-	if not login(request.query.password, request.query.password)["success"]:
-		print "login failed!!"
+	print login(request.query.email, request.query.password)
 
 	wsock = request.environ.get('wsgi.websocket')
 	

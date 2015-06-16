@@ -137,8 +137,7 @@ class WebSocketThread(WorkerThread):
 				pass
 			try:
 				self.last_sent = self.last_alive = datetime.datetime.now()
-				self.wsock=WebSocketClient(URL("ws",DEFAULT_DOMAIN, DEFAULT_PORT, "ws") ) #keep static to guarantee one socket for all instances
-				print URL("ws",DEFAULT_DOMAIN, DEFAULT_PORT, "ws")
+				self.wsock=WebSocketClient(URL("ws",DEFAULT_DOMAIN, DEFAULT_PORT, "ws", email="test@123.com", password="test4567") ) #keep static to guarantee one socket for all instances
 				self.wsock.connect()
 				break
 			except (SocketError, exc.HandshakeError, RuntimeError):

@@ -161,6 +161,7 @@ class MyStatusBar(wx.StatusBar): #http://zetcode.com/wxpython/gripts/
 	def toggleSwitchIcon(self, on = True):
 		if on:
 			self.on_icon = wx.StaticBitmap(self, bitmap=wx.Bitmap('images/16px/_on.png'))
+			#self.on_icon = wx.StaticBitmap(self, bitmap=wx.ArtProvider.GetBitmap(wx.ART_FILE_SAVE)) #http://ubuntuforums.org/showthread.php?t=1464292
 		else:
 			self.on_icon = wx.StaticBitmap(self, bitmap=wx.Bitmap('images/16px/_off.png'))
 			

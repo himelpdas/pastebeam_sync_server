@@ -50,6 +50,7 @@ def get_latest_row_and_clips():
 	return latest_row_and_clips
 	
 def login(email, password):
+	print email
 	found = accounts.find_one({"email":email})
 	if not found:
 		return dict(success=False, reason = "Account not found!")
