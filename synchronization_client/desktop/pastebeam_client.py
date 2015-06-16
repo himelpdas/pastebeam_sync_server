@@ -27,11 +27,24 @@ import encompress
 import pdb
 
 #db stuff
-import mmh3
+#import mmh3
 from spooky import hash128
 import bson.json_util as json
 
-HTTP_BASE = lambda arg, port, scheme: "%s://192.168.0.191:%s/%s"%(scheme, port, arg)
+DEFAULT_DOMAIN = "192.168.0.191"
+DEFAULT_PORT = 8084
+
+def URL(scheme, addr, port, *_args, **_vars): 
+	url = "{scheme}://{addr}:{port}/".format(scheme=scheme, addr=addr, port=port)
+	if _args:
+		args = "/".join(_args)
+		url+=args
+	if _vars:
+		url+="?"
+		for key, value in _vars.items():
+			url+="{key}={value}&".format(key=key, value=value)
+		url=url[:-1]
+	return url
 
 TEMP_DIR = tempfile.mkdtemp(); print TEMP_DIR
 
@@ -124,7 +137,8 @@ class WebSocketThread(WorkerThread):
 				pass
 			try:
 				self.last_sent = self.last_alive = datetime.datetime.now()
-				self.wsock=WebSocketClient(HTTP_BASE(arg="ws", port=8084, scheme="ws") ) #keep static to guarantee one socket for all instances
+				self.wsock=WebSocketClient(URL("ws",DEFAULT_DOMAIN, DEFAULT_PORT, "ws") ) #keep static to guarantee one socket for all instances
+				print URL("ws",DEFAULT_DOMAIN, DEFAULT_PORT, "ws")
 				self.wsock.connect()
 				break
 			except (SocketError, exc.HandshakeError, RuntimeError):
@@ -207,7 +221,7 @@ class WebSocketThread(WorkerThread):
 				container_name = send_clip['container_name']
 				container_path = os.path.join(TEMP_DIR,container_name)
 				
-				#response = requests.get(HTTP_BASE(arg="file_exists/%s"%container_name,port=8084,scheme="http"))
+				#response = requests.get(URL(arg="file_exists/%s"%container_name,port=8084,scheme="http"))
 				#file_exists = json.loads(response.content)
 				if not container_name in self.containers_in_server:
 					print "UPLOAD?"
@@ -218,7 +232,7 @@ class WebSocketThread(WorkerThread):
 				else:
 					try:
 						if self.containers_in_server[container_name] == False:
-							r = requests.post(HTTP_BASE(arg="upload",port=8084,scheme="http"), files={"upload": open(container_path, 'rb')})
+							r = requests.post(URL("http", DEFAULT_DOMAIN, DEFAULT_PORT, "upload"), files={"upload": open(container_path, 'rb')})
 							print r
 					except requests.exceptions.ConnectionError:
 						#self.destroyBusyDialog()
@@ -479,8 +493,8 @@ class Main(wx.Frame):
 		else:
 			#TODO- show downloading file dialogue
 			try:
-				#urllib.urlretrieve(HTTP_BASE(arg="static/%s"%container_name,port=8084,scheme="http"), container_path)
-				urllib.URLopener().retrieve(HTTP_BASE(arg="static/%s"%container_name,port=8084,scheme="http"), container_path) #http://stackoverflow.com/questions/1308542/how-to-catch-404-error-in-urllib-urlretrieve
+				#urllib.urlretrieve(URL(arg="static/%s"%container_name,port=8084,scheme="http"), container_path)
+				urllib.URLopener().retrieve(URL("http", DEFAULT_DOMAIN, DEFAULT_PORT, "static", container_name), container_path) #http://stackoverflow.com/questions/1308542/how-to-catch-404-error-in-urllib-urlretrieve
 			except IOError:
 				pass
 			else:
@@ -709,7 +723,7 @@ class Main(wx.Frame):
 						os_file_names_new = []
 						display_file_names =[]
 						
-												
+
 						try:
 
 							for each_path in os_file_paths_new:
