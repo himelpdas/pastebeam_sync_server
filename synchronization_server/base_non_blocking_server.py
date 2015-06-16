@@ -13,6 +13,11 @@ from spooky import hash128
 import bson.json_util as json #can't use regular json module or else type error will occur for unknown types like ObjectID(...), use pymongo's bson module http://api.mongodb.org/python/current/api/bson/json_util.html
 import sys, os, time
 
+import validators
+
+from Crypto.Protocol.KDF import PBKDF2
+import Crypto.Random
+
 debug(True)
 
 client=pymongo.MongoClient()
@@ -43,7 +48,17 @@ def get_latest_row_and_clips():
 	latest_row_and_clips = dict(latest_row=latest_row, latest_clips=latest_clips)
 		
 	return latest_row_and_clips
-
+	
+def login(email, password):
+	found = accounts.find_one({"email":email})
+	if not found:
+		return dict(success=False, reason = "Account not found!")
+	key_derivation = PBKDF2(password, found["salt"]).encode("base64")
+	if found["key_derivation"] != key_derivation:
+		return dict(success=False, reason = "Incorrect password!")
+	else:
+		return dict(success=True, reason= "Passwords matched!")
+		
 
 response.content_type = 'application/json'
 
