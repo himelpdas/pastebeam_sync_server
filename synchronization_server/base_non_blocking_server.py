@@ -11,7 +11,7 @@ from spooky import hash128
 #import hashlib
 
 import bson.json_util as json #can't use regular json module or else type error will occur for unknown types like ObjectID(...), use pymongo's bson module http://api.mongodb.org/python/current/api/bson/json_util.html
-import sys, os, time
+import sys, os, time, uuid
 
 import validators
 
@@ -63,6 +63,8 @@ def login(email, password):
 response.content_type = 'application/json'
 
 #print globals()
+
+##test tools##
 
 @route('/test_async_long_polling')
 def test_async_long_polling():

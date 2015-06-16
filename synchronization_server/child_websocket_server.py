@@ -27,28 +27,17 @@ def test_async_websocket():
 	
 @app.route('/ws')
 def handle_websocket():
+
 	wsock = request.environ.get('wsgi.websocket')
+
 	if not wsock:
 		abort(400, 'Expected WebSocket request.')
-
-	def _initialize_client(client_previous_clip_data):
-		wsock.send(json.dumps(client_previous_clip_data ) ) #Do this once to start outgoing greenlet by populating SERVER_LATEST_SIG variable
-	
-	class _live():
-		uid = uuid.uuid4() #in a webSocket's lifetime, state is maintained
-		def __init__(self, data):
-			pass
-			#print ("="*30+"\n%s:\n%s\n"+"="*30)%(self.uid,data)
-				
-	send_im_still_alive, send_upload_or_not = AsyncResult(), AsyncResult()
-	send_im_still_alive.set(0)
-	send_upload_or_not.set({})
 				
 	def _incoming(wsock, timeout): #these seem to run in another namespace, you must pass them global or inner variables
 
 		try:
 			client_previous_clip = get_latest_row_and_clips()['latest_row'] or {} #SHOULD CHECK SERVER TO AVOID RACE CONDITIONS? #too much bandwidth if receiving row itself, only text and hash are fine (data)
-			#_initialize_client(client_previous_clip_data)
+			
 			for second in range(timeout): #Even though greenlets don't use much memory, if the user disconnects, this server greenlet will run forever, and this "little memory" will become a big problem
 
 				received = wsock.receive()
@@ -68,7 +57,7 @@ def handle_websocket():
 					
 					file_path = os.path.join(UPLOAD_DIR,container_name)
 					file_exists = os.path.isfile(file_path)
-					send_upload_or_not.set({container_name:file_exists})
+					send_upload_command.set({container_name:file_exists})
 					print "\nFILE EXISTS:%s\n"%file_exists
 			
 				elif data['message'] == "Update":
@@ -88,7 +77,7 @@ def handle_websocket():
 						print "hashes match, request rejected"
 						print "OLD: \n%s - %s\nNEW:%s - %s"%(client_previous_clip.get('clip_hash_secure'), client_previous_clip.get("clip_file_name"), client_latest_clip.get('clip_hash_secure'), client_latest_clip.get('clip_file_name') )
 				
-				_live("incoming wait...")
+				print "incoming wait..."
 				sleep(0.1)
 		except ZeroDivisionError:
 			#print "incoming error...%s"%str(sys.exc_info()[0]) #http://goo.gl/cmtlsL
@@ -105,12 +94,12 @@ def handle_websocket():
 						message = "Alive!"
 					))) #send blank list of clips to tell client's incoming server is still alive.
 					send_im_still_alive.set(0)
-				elif send_upload_or_not.get():
+				elif send_upload_command.get():
 					wsock.send(json.dumps(dict(
 						message = "Upload!",
-						data = send_upload_or_not.get(),
+						data = send_upload_command.get(),
 					)))
-					send_upload_or_not.set({})
+					send_upload_command.set({})
 				else:
 					server_latest_row_and_clips = get_latest_row_and_clips()
 					server_latest_row = server_latest_row_and_clips['latest_row']
@@ -118,16 +107,16 @@ def handle_websocket():
 					if server_latest_row:
 						#print server_latest_row
 						if server_latest_row['_id'] != server_previous_row['_id']:
-							#_live("if server_latest_row['_id'] != server_previous_row['_id']")
+							#print "if server_latest_row['_id'] != server_previous_row['_id']")
 							wsock.send(json.dumps(dict(
 								message = "Download",
 								data = server_latest_clips,
 							)))
-							#_live(server_latest_row)
+							#print server_latest_row)
 							
 							server_previous_row = server_latest_row #reset prev
 				
-				#_live("outgoing wait...")
+				#print "outgoing wait...")
 				sleep(0.1)
 		except ZeroDivisionError:
 			#print "outgoing error...%s"%str(sys.exc_info()[0]) #http://goo.gl/cmtlsL
@@ -135,11 +124,14 @@ def handle_websocket():
 		finally:
 			wsock.close()
 
-
 	try:		
 		timeout=40000
 				
 		args = [wsock, timeout] #Only objects in the main thread are visible to greenlets, all other cases, pass the objects as arguments to greenlet.
+				
+		send_im_still_alive, send_upload_command = AsyncResult(), AsyncResult()
+		send_im_still_alive.set(0)
+		send_upload_command.set({})	
 				
 		greenlets = [
 			gevent.spawn(_incoming, *args),
@@ -168,7 +160,7 @@ def handle_upload():
 	result = "OK"
 	save_path = UPLOAD_DIR
 
-	upload     = request.files.get('upload')
+	upload    = request.files.get('upload')
 	
 	name, ext = os.path.splitext(upload.filename)
 	"""
@@ -177,8 +169,11 @@ def handle_upload():
 	else:
 		upload.save(save_path, overwrite=False) # appends upload.filename automatically
 	"""
-	upload.save(save_path, overwrite=False) # appends upload.filename automatically
-
+	try:
+		upload.save(save_path, overwrite=False) # appends upload.filename automatically
+	except IOError:
+		pass
+		
 	response.content_type =  "application/json; charset=UTF8"
 	return json.dumps({"upload_result":result})
 

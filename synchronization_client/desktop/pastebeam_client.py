@@ -129,7 +129,8 @@ class WebSocketThread(WorkerThread):
 				break
 			except (SocketError, exc.HandshakeError, RuntimeError):
 				print "no connection..."
-				self._notify_window.sb.toggleStatusIcon(msg="Unable to connect to the internet.", icon=False)
+				self._notify_window.destroyBusyDialog()
+				self._notify_window.sb.toggleStatusIcon(msg="Unable to connect to the internet.", icon="bad")
 				gevent.sleep(1)
 				
 	def keepAlive(self, heartbeat = 100, timeout = 1000): #increment of 60s times 20 unresponsive = 20 minutes
