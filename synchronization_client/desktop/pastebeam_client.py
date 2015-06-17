@@ -175,7 +175,10 @@ class WebSocketThread(WorkerThread):
 				
 				data = json.loads(str(received) ) #EXTREME: this can last forever, and when creating new connection, this greenlet will hang forever. #receive returns txtmessage object, must convert to string!!! 
 				
-				if data["message"] == "Download":
+				if data["message"] == "Error!":
+					wx.MessageBox("Unable to download this clip from the server", "Error")
+				
+				if data["message"] == "Update!":
 					server_latest_clip_rowS = data['data']
 					server_latest_clip_row = server_latest_clip_rowS[0]
 					#print server_latest_clip_row
@@ -239,7 +242,7 @@ class WebSocketThread(WorkerThread):
 						self.webSocketReconnect()
 					else:
 						sendit = dict(
-							message="Update",
+							message="Update?",
 							data=CLIENT_LATEST_CLIP.get(),
 						)
 						
@@ -270,7 +273,7 @@ class WebSocketThread(WorkerThread):
 		#or you can do this in separate threads but that is annoying,
 		#since gevent monkey patches threads to gevent-like
 				
-class Main(wx.Frame):
+class Main(wx.Frame, MenuBarMixin):
 	#ID_NEW = 1
 	#ID_RENAME = 2
 	#ID_CLEAR = 3
@@ -284,37 +287,11 @@ class Main(wx.Frame):
 
 	def _do_interface(self): #_ used because it is meant to be internal to instance
 		self.panel = MyPanel(self)
-		
-		"""
-		panel = wx.Panel(self)
-		panel.SetBackgroundColour(wx.GREEN)
-		hbox = wx.BoxSizer(wx.HORIZONTAL)
-		
-		self.editor = wx.TextCtrl(panel, style=wx.TE_MULTILINE)
-		hbox.Add(self.editor, 1, wx.EXPAND | wx.ALL, 20)
-		
-		btnPanel = wx.Panel(panel, -1)
-		vbox = wx.BoxSizer(wx.VERTICAL)
-		new = wx.Button(btnPanel, self.ID_NEW, 'New', size=(90, 30))
-		ren = wx.Button(btnPanel, self.ID_RENAME, 'Rename', size=(90, 30))
-		dlt = wx.Button(btnPanel, self.ID_DELETE, 'Delete', size=(90, 30))
-		clr = wx.Button(btnPanel, self.ID_CLEAR, 'Clear', size=(90, 30))
-		self.Bind(wx.EVT_BUTTON, self.clearText, id=self.ID_CLEAR)
 
-		vbox.Add((-1, 20))
-		vbox.Add(new)
-		vbox.Add(ren, 0, wx.TOP, 5)
-		vbox.Add(dlt, 0, wx.TOP, 5)
-		vbox.Add(clr, 0, wx.TOP, 5)
-
-		btnPanel.SetSizer(vbox)
-		hbox.Add(btnPanel, 0.6, wx.EXPAND | wx.RIGHT, 20)
-		
-		panel.SetSizer(hbox)
-		"""
-		#self.sb = self.CreateStatusBar()
 		self.sb = MyStatusBar(self)
 		self.SetStatusBar(self.sb)
+		
+		self.doMenuBar()
 
 	def _do_threads_and_async(self):
 		# Set up event handler for any worker thread results

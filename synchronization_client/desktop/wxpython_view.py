@@ -2,6 +2,23 @@ import wx, os
 
 #see http://zetcode.com/wxpython/skeletons/ for tips
 
+class MenuBarMixin():
+	"""Cannot subclass wx.menubar directly, so make it a mixin"""
+	def doMenuBar(self):
+		menubar = wx.MenuBar()
+		fileMenu = wx.Menu()
+		fitem = fileMenu.Append(wx.ID_EXIT, 'Quit', 'Quit application')
+		menubar.Append(fileMenu, '&File')
+		self.SetMenuBar(menubar)
+		self.Bind(wx.EVT_MENU, self.OnQuit, fitem)
+	
+	def OnQuit(self, e):
+		#self.websocket_worker.KEEP_RUNNING = False
+		#self.Close() #DOES NOT WORK
+		self.sb.toggleStatusIcon(msg='Shutting down...', icon="bad")
+		pid = os.getpid() #http://quickies.seriot.ch/?id=189
+		os.kill(pid, 1)
+
 class MyListCtrl(wx.ListCtrl):
 	def __init__(self, parent):
 		super(MyListCtrl, self).__init__(parent,

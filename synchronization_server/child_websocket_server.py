@@ -62,7 +62,7 @@ def handle_websocket():
 					send_upload_command.set({container_name:file_exists})
 					print "\nFILE EXISTS:%s\n"%file_exists
 			
-				elif data['message'] == "Update":
+				elif data['message'] == "Update?":
 					
 					client_latest_clip = data['data']
 														
@@ -111,7 +111,7 @@ def handle_websocket():
 						if server_latest_row['_id'] != server_previous_row['_id']:
 							#print "if server_latest_row['_id'] != server_previous_row['_id']")
 							wsock.send(json.dumps(dict(
-								message = "Download",
+								message = "Update!",
 								data = server_latest_clips,
 							)))
 							#print server_latest_row)
@@ -134,6 +134,7 @@ def handle_websocket():
 		send_im_still_alive, send_upload_command = AsyncResult(), AsyncResult()
 		send_im_still_alive.set(0)
 		send_upload_command.set({})	
+		#send_update_command.set(None)
 				
 		greenlets = [
 			gevent.spawn(_incoming, *args),
