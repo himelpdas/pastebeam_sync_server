@@ -799,11 +799,10 @@ class Main(wx.Frame, MenuBarMixin):
 					if clip_content:
 						#HOST_CLIP_CONTENT.set( clip_content['clip_text'] )#encode it to a data compatible with murmurhash and wxpython settext, which only expect ascii ie "heart symbol" to u/2339
 						CLIENT_LATEST_CLIP.set( clip_content )  #NOTE SERVER_LATEST_CLIP.get() was not set
-					
-					#resize panel
-					self.panel.lst.checkColumns()
 
 				counter += 1
+			#resize panel
+			self.panel.lst.checkColumns()
 			gevent.sleep(0.001) #SLEEP HERE WILL CAUSE FILEEXPLORER AND UI TO SLOW
 			wx.Yield() #http://goo.gl/6Jea2t
 				

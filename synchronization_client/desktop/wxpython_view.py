@@ -5,7 +5,7 @@ import wx, os
 class MenuBarMixin():
 	"""Cannot subclass wx.menu_bar directly, so make it a mixin"""
 	
-	file_item_id = wx.ID_EXIT
+	file_item_id = wx.NewId() #wx.ID_EXIT #causes something to appear in statusbar
 	toggle_item_id = wx.NewId()
 	about_item_id = wx.NewId()
 	
