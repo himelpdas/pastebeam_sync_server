@@ -3,14 +3,62 @@ import wx, os
 #see http://zetcode.com/wxpython/skeletons/ for tips
 
 class MenuBarMixin():
-	"""Cannot subclass wx.menubar directly, so make it a mixin"""
+	"""Cannot subclass wx.menu_bar directly, so make it a mixin"""
+	
+	file_item_id = wx.ID_EXIT
+	toggle_item_id = wx.NewId()
+	about_item_id = wx.NewId()
+	
 	def doMenuBar(self):
-		menubar = wx.MenuBar()
-		fileMenu = wx.Menu()
-		fitem = fileMenu.Append(wx.ID_EXIT, 'Quit', 'Quit application')
-		menubar.Append(fileMenu, '&File')
-		self.SetMenuBar(menubar)
-		self.Bind(wx.EVT_MENU, self.onQuit, fitem)
+		menu_bar = wx.MenuBar()
+		
+		file_menu = wx.Menu()
+		toggle_item = file_menu.Append(self.toggle_item_id, 'Toggle')
+		file_item = file_menu.Append(self.file_item_id, 'Quit')
+		menu_bar.Append(file_menu, '&File')
+				
+		help_menu = wx.Menu()
+		about_item = help_menu.Append(self.about_item_id, 'About')
+		menu_bar.Append(help_menu, '&Help')
+		
+		self.SetMenuBar(menu_bar)
+
+		self.Bind(wx.EVT_MENU, self.onQuit, file_item)
+		self.Bind(wx.EVT_MENU, self.onToggle, toggle_item)
+		self.Bind(wx.EVT_MENU, self.onAbout, about_item)
+		
+	def onToggle(self, e):
+		if self.websocket_worker.KEEP_RUNNING == True:
+			self.websocket_worker.KEEP_RUNNING = False
+			self.sb.toggleSwitchIcon(on=False)
+		else:
+			self.websocket_worker.KEEP_RUNNING = True
+			self.sb.toggleSwitchIcon(on=True)
+
+	def onAbout(self, e):
+		
+		description = "PasteBeam is a clipboard manager that syncs Copy and Paste across all your devices."
+
+		licence = "PasteBeam is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; either version 2 of the License, or (at your option) any later version.PasteBeam is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details. You should have received a copy of the GNU General Public License along with PasteBeam; if not, write to the Free Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA"
+
+
+		info = wx.AboutDialogInfo()
+		#info.SetIcon(wx.Icon('hunter.png', wx.BITMAP_TYPE_PNG))
+		info.SetIcon(wx.ArtProvider.GetIcon(wx.ART_FILE_SAVE))
+		info.SetName('PasteBeam')
+		info.SetVersion('1.0')
+		info.SetDescription(description)
+		info.SetCopyright('(C) 2015 Himel Das')
+		info.SetWebSite('http://www.pastebeam.com')
+		info.SetLicence(licence)
+		info.AddDeveloper('Himel Das')
+		info.AddDocWriter('Himel Das')
+		info.AddArtist('Shogo Kadoya')
+		info.AddTranslator('Himel Das')
+
+		wx.AboutBox(info)
+
+		
 
 class MyListCtrl(wx.ListCtrl):
 	def __init__(self, parent):
@@ -182,7 +230,7 @@ class MyStatusBar(wx.StatusBar): #http://zetcode.com/wxpython/gripts/
 		
 	def placeSwitchIcon(self):
 		rect = self.GetFieldRect(2)
-		self.on_icon.SetPosition((rect.x+5, rect.y+1))
+		self.on_icon.SetPosition((rect.x+10, rect.y+2))
 
 	def toggleStatusIcon(self, msg = 'Sarting up...', icon = "good"):
 		self.SetStatusText(msg, 1)

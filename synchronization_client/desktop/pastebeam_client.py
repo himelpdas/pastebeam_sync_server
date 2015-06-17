@@ -96,11 +96,11 @@ class WorkerThread(Thread):
 		# also make the GUI thread responsible for calling this
 		self.start()
 
-	@classmethod #similar to static, but passes the class as the first argument... useful for modifying static variables
-	def abort(cls):
+	#@classmethod #similar to static, but passes the class as the first argument... useful for modifying static variables
+	def abort(self):
 		"""abort worker thread."""
 		# Method for use by main thread to signal an abort
-		cls.KEEP_RUNNING = False
+		self.KEEP_RUNNING = False
 		
 class WebSocketThread(WorkerThread):
 	"""

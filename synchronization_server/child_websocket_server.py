@@ -28,7 +28,7 @@ def test_async_websocket():
 @app.route('/ws')
 def handle_websocket():
 	
-	gevent.sleep(3.333)
+	gevent.sleep(1)
 	
 	def _incoming(wsock, timeout): #these seem to run in another namespace, you must pass them global or inner variables
 
