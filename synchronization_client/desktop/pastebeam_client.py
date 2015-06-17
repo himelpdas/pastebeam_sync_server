@@ -792,7 +792,7 @@ class Main(wx.Frame, MenuBarMixin):
 		#between mainloop and this coroutine.
 		counter = 0
 		while 1:
-			if WorkerThread.KEEP_RUNNING:
+			if self.websocket_worker.KEEP_RUNNING:
 				if counter % self.throttle == 0:# only run every second, letting it run without this restriction will call memory failure and high cpu
 					#set clip global
 					clip_content = self.getClipboardContent()

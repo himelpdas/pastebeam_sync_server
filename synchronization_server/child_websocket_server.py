@@ -128,7 +128,7 @@ def handle_websocket():
 		if not wsock:
 			abort(400, 'Expected WebSocket request.')
 			
-		check_login = login(request.query.email+"a", request.query.password)
+		check_login = login(request.query.email, request.query.password)
 		
 		if not check_login['success']:
 			
