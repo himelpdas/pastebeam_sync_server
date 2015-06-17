@@ -10,14 +10,7 @@ class MenuBarMixin():
 		fitem = fileMenu.Append(wx.ID_EXIT, 'Quit', 'Quit application')
 		menubar.Append(fileMenu, '&File')
 		self.SetMenuBar(menubar)
-		self.Bind(wx.EVT_MENU, self.OnQuit, fitem)
-	
-	def OnQuit(self, e):
-		#self.websocket_worker.KEEP_RUNNING = False
-		#self.Close() #DOES NOT WORK
-		self.sb.toggleStatusIcon(msg='Shutting down...', icon="bad")
-		pid = os.getpid() #http://quickies.seriot.ch/?id=189
-		os.kill(pid, 1)
+		self.Bind(wx.EVT_MENU, self.onQuit, fitem)
 
 class MyListCtrl(wx.ListCtrl):
 	def __init__(self, parent):
@@ -170,17 +163,20 @@ class MyStatusBar(wx.StatusBar): #http://zetcode.com/wxpython/gripts/
 		self.SetFieldsCount(3)
 		self.SetStatusWidths([17, -1, 17])
 		
+		self.ok_icon = wx.StaticBitmap(self, bitmap=wx.Bitmap('images/16px/_good.png'))
 		self.toggleStatusIcon()
+		
+		self.on_icon = wx.StaticBitmap(self, bitmap=wx.Bitmap('images/16px/_on.png'))
 		self.toggleSwitchIcon()
 		
 		self.Bind(wx.EVT_SIZE, self.OnSize)
 		
 	def toggleSwitchIcon(self, on = True):
 		if on:
-			self.on_icon = wx.StaticBitmap(self, bitmap=wx.Bitmap('images/16px/_on.png'))
+			self.on_icon.SetBitmap(wx.Bitmap('images/16px/_on.png'))
 			#self.on_icon = wx.StaticBitmap(self, bitmap=wx.ArtProvider.GetBitmap(wx.ART_FILE_SAVE)) #http://ubuntuforums.org/showthread.php?t=1464292
 		else:
-			self.on_icon = wx.StaticBitmap(self, bitmap=wx.Bitmap('images/16px/_off.png'))
+			self.on_icon.SetBitmap(wx.Bitmap('images/16px/_off.png'))
 			
 		self.placeStatusIcon()
 		
@@ -190,9 +186,7 @@ class MyStatusBar(wx.StatusBar): #http://zetcode.com/wxpython/gripts/
 
 	def toggleStatusIcon(self, msg = 'Sarting up...', icon = "good"):
 		self.SetStatusText(msg, 1)
-		
-		self.ok_icon = wx.StaticBitmap(self, bitmap=wx.Bitmap('images/16px/_%s.png'%icon))
-
+		self.ok_icon.SetBitmap(wx.Bitmap('images/16px/_%s.png'%icon))
 		"""
 		self.ok_icon = wx.StaticBitmap(self)
 		if ok == True:

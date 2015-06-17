@@ -27,14 +27,9 @@ def test_async_websocket():
 	
 @app.route('/ws')
 def handle_websocket():
-
-	print login(request.query.email, request.query.password)
-
-	wsock = request.environ.get('wsgi.websocket')
 	
-	if not wsock:
-		abort(400, 'Expected WebSocket request.')
-				
+	gevent.sleep(3.333)
+	
 	def _incoming(wsock, timeout): #these seem to run in another namespace, you must pass them global or inner variables
 
 		try:
@@ -127,20 +122,36 @@ def handle_websocket():
 			wsock.close()
 
 	try:		
-		timeout=40000
+	
+		wsock = request.environ.get('wsgi.websocket')
 				
-		args = [wsock, timeout] #Only objects in the main thread are visible to greenlets, all other cases, pass the objects as arguments to greenlet.
-				
-		send_im_still_alive, send_upload_command = AsyncResult(), AsyncResult()
-		send_im_still_alive.set(0)
-		send_upload_command.set({})	
-		#send_update_command.set(None)
-				
-		greenlets = [
-			gevent.spawn(_incoming, *args),
-			gevent.spawn(_outgoing, *args),
-		]
-		gevent.joinall(greenlets)
+		if not wsock:
+			abort(400, 'Expected WebSocket request.')
+			
+		check_login = login(request.query.email+"a", request.query.password)
+		
+		if not check_login['success']:
+			
+			wsock.send(json.dumps(dict(
+				message = "Error!",
+				data = check_login["reason"],
+			)))
+			
+		else:
+			timeout=40000
+					
+			args = [wsock, timeout] #Only objects in the main thread are visible to greenlets, all other cases, pass the objects as arguments to greenlet.
+					
+			send_im_still_alive, send_upload_command = AsyncResult(), AsyncResult()
+			send_im_still_alive.set(0)
+			send_upload_command.set({})	
+			#send_update_command.set(None)
+					
+			greenlets = [
+				gevent.spawn(_incoming, *args),
+				gevent.spawn(_outgoing, *args),
+			]
+			gevent.joinall(greenlets)
 
 	except WebSocketError:
 		abort(500, 'Websocket failure.')

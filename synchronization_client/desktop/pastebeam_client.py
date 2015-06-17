@@ -86,7 +86,6 @@ class WorkerThread(Thread):
 	"""Worker Thread Class."""
 
 	KEEP_RUNNING = True
-	USE_WEBSOCKET = True
 	
 	def __init__(self, notify_window):
 		"""Init Worker Thread Class."""
@@ -130,21 +129,22 @@ class WebSocketThread(WorkerThread):
 		This function is triggered when CLIENT_LATEST_CLIP is set, but
 		SERVER_LATEST_CLIP is not, and the outgoing loop keeps calling
 		"""
-		while self.KEEP_RUNNING:
-			try:
-				self.wsock.close_connection() # Terminate Nones the environ and stream attributes, which is for servers
-			except AttributeError:
-				pass
-			try:
-				self.last_sent = self.last_alive = datetime.datetime.now()
-				self.wsock=WebSocketClient(URL("ws",DEFAULT_DOMAIN, DEFAULT_PORT, "ws", email="test@123.com", password="test4567") ) #keep static to guarantee one socket for all instances
-				self.wsock.connect()
-				break
-			except (SocketError, exc.HandshakeError, RuntimeError):
-				print "no connection..."
-				self._notify_window.destroyBusyDialog()
-				self._notify_window.sb.toggleStatusIcon(msg="Unable to connect to the internet.", icon="bad")
-				gevent.sleep(1)
+		while 1:
+			if self.KEEP_RUNNING:
+				try:
+					self.wsock.close_connection() # Terminate Nones the environ and stream attributes, which is for servers
+				except AttributeError:
+					pass
+				try:
+					self.last_sent = self.last_alive = datetime.datetime.now()
+					self.wsock=WebSocketClient(URL("ws",DEFAULT_DOMAIN, DEFAULT_PORT, "ws", email="test@123.com", password="test4567") ) #keep static to guarantee one socket for all instances
+					self.wsock.connect()
+					break
+				except (SocketError, exc.HandshakeError, RuntimeError):
+					print "no connection..."
+					self._notify_window.destroyBusyDialog()
+					self._notify_window.sb.toggleStatusIcon(msg="Unable to connect to the internet.", icon="bad")
+			gevent.sleep(1)
 				
 	def keepAlive(self, heartbeat = 100, timeout = 1000): #increment of 60s times 20 unresponsive = 20 minutes
 		"""
@@ -164,102 +164,107 @@ class WebSocketThread(WorkerThread):
 	def incoming(self):
 		#pdb.set_trace()
 		#print "start incoming..."
-		while self.KEEP_RUNNING:
-			#if CLIENT_LATEST_CLIP.get() != SERVER_LATEST_CLIP.get():
-			#print "getting... c:%s, s:%s"%(CLIENT_LATEST_CLIP.get(),SERVER_LATEST_CLIP.get())
-			try:
-				received = self.wsock.receive() #WebSocket run method is implicitly called, "Performs the operation of reading from the underlying connection in order to feed the stream of bytes." According to WS4PY This method is blocking and should likely be run in a thread.
+		while 1:
+			if self.KEEP_RUNNING:
+				#if CLIENT_LATEST_CLIP.get() != SERVER_LATEST_CLIP.get():
+				#print "getting... c:%s, s:%s"%(CLIENT_LATEST_CLIP.get(),SERVER_LATEST_CLIP.get())
+				try:
+					received = self.wsock.receive() #WebSocket run method is implicitly called, "Performs the operation of reading from the underlying connection in order to feed the stream of bytes." According to WS4PY This method is blocking and should likely be run in a thread.
+					
+					if received == None:
+						raise SocketError #disconnected!
+					
+					data = json.loads(str(received) ) #EXTREME: this can last forever, and when creating new connection, this greenlet will hang forever. #receive returns txtmessage object, must convert to string!!! 
+					
+					if data["message"] == "Error!":
+						print data["data"]
+						self._notify_window.sb.toggleStatusIcon(msg=data["data"], icon="bad")
+						self._notify_window.sb.toggleSwitchIcon(on=False)
+						self.abort()
+					
+					if data["message"] == "Update!":
+						server_latest_clip_rowS = data['data']
+						server_latest_clip_row = server_latest_clip_rowS[0]
+						#print server_latest_clip_row
+						
+						SERVER_LATEST_CLIP.set(server_latest_clip_row) #should move this to after postevent or race condition may occur, but since this is gevent, it might not be necessary
+						CLIENT_LATEST_CLIP.set(server_latest_clip_row)
+						
+						#print "GET %s"% server_latest_clip_row['clip_hash_fast']
+						
+						wx.PostEvent(self._notify_window, EVT_RESULT(server_latest_clip_rowS) )
+						
+					elif data["message"] == "Upload!":
+						self.containers_in_server.update(data['data'])
+						
+					elif data["message"] == "Alive!":
+						print "Alive!"
+						self.last_alive = datetime.datetime.now()
+		
+				#except (SocketError, RuntimeError, AttributeError, ValueError, TypeError): #gevent traceback didn't mention it was a socket error, just "error", but googling the traceback proved it was. #if received is not None: #test if socket can send
+				except:
+					#print "can't get...%s"%str(sys.exc_info()[0])
+					self.webSocketReconnect()
 				
-				if received == None:
-					raise SocketError #disconnected!
-				
-				data = json.loads(str(received) ) #EXTREME: this can last forever, and when creating new connection, this greenlet will hang forever. #receive returns txtmessage object, must convert to string!!! 
-				
-				if data["message"] == "Error!":
-					wx.MessageBox("Unable to download this clip from the server", "Error")
-				
-				if data["message"] == "Update!":
-					server_latest_clip_rowS = data['data']
-					server_latest_clip_row = server_latest_clip_rowS[0]
-					#print server_latest_clip_row
-					
-					SERVER_LATEST_CLIP.set(server_latest_clip_row) #should move this to after postevent or race condition may occur, but since this is gevent, it might not be necessary
-					CLIENT_LATEST_CLIP.set(server_latest_clip_row)
-					
-					#print "GET %s"% server_latest_clip_row['clip_hash_fast']
-					
-					wx.PostEvent(self._notify_window, EVT_RESULT(server_latest_clip_rowS) )
-					
-				elif data["message"] == "Upload!":
-					self.containers_in_server.update(data['data'])
-					
-				elif data["message"] == "Alive!":
-					print "Alive!"
-					self.last_alive = datetime.datetime.now()
-	
-			#except (SocketError, RuntimeError, AttributeError, ValueError, TypeError): #gevent traceback didn't mention it was a socket error, just "error", but googling the traceback proved it was. #if received is not None: #test if socket can send
-			except:
-				#print "can't get...%s"%str(sys.exc_info()[0])
-				self.webSocketReconnect()
-			
 			gevent.sleep(0.25)
 				
 	def outgoing(self):
 		#pdb.set_trace()
 		#print "start outgoing..."
-		while self.KEEP_RUNNING:
-			
-			sendit = False
-			
-			if self.keepAlive(): #also send alive messages and reset connection if receive block indefinitely
-				sendit = dict(message="Alive?")
-			
-			elif CLIENT_LATEST_CLIP.get().get('clip_hash_secure') != SERVER_LATEST_CLIP.get().get('clip_hash_secure'): #start only when there is something to send
+		while 1:
+			if self.KEEP_RUNNING:
 				
-				send_clip = CLIENT_LATEST_CLIP.get()
+				sendit = False
 				
-				#print "sending...%s"%send_clip	
+				if self.keepAlive(): #also send alive messages and reset connection if receive block indefinitely
+					sendit = dict(message="Alive?")
 				
-				container_name = send_clip['container_name']
-				container_path = os.path.join(TEMP_DIR,container_name)
-				
-				#response = requests.get(URL(arg="file_exists/%s"%container_name,port=8084,scheme="http"))
-				#file_exists = json.loads(response.content)
-				if not container_name in self.containers_in_server:
-					print "UPLOAD?"
-					sendit = dict(
-								message="Upload?",
-								data = container_name,
-							)
-				else:
-					try:
-						if self.containers_in_server[container_name] == False:
-							r = requests.post(URL("http", DEFAULT_DOMAIN, DEFAULT_PORT, "upload"), files={"upload": open(container_path, 'rb')})
-							print r
-					except requests.exceptions.ConnectionError:
-						#self.destroyBusyDialog()
-						#self.sb.toggleStatusIcon(msg="Unable to connect to the internet.", icon=False)
-						self.webSocketReconnect()
-					else:
+				elif CLIENT_LATEST_CLIP.get().get('clip_hash_secure') != SERVER_LATEST_CLIP.get().get('clip_hash_secure'): #start only when there is something to send
+					
+					send_clip = CLIENT_LATEST_CLIP.get()
+					
+					#print "sending...%s"%send_clip	
+					
+					container_name = send_clip['container_name']
+					container_path = os.path.join(TEMP_DIR,container_name)
+					
+					#response = requests.get(URL(arg="file_exists/%s"%container_name,port=8084,scheme="http"))
+					#file_exists = json.loads(response.content)
+					if not container_name in self.containers_in_server:
+						print "UPLOAD? %s"%container_name
 						sendit = dict(
-							message="Update?",
-							data=CLIENT_LATEST_CLIP.get(),
-						)
+									message="Upload?",
+									data = container_name,
+								)
+					else:
+						try:
+							if self.containers_in_server[container_name] == False:
+								r = requests.post(URL("http", DEFAULT_DOMAIN, DEFAULT_PORT, "upload"), files={"upload": open(container_path, 'rb')})
+								print r
+						except requests.exceptions.ConnectionError:
+							#self.destroyBusyDialog()
+							#self.sb.toggleStatusIcon(msg="Unable to connect to the internet.", icon=False)
+							self.webSocketReconnect()
+						else:
+							sendit = dict(
+								message="Update?",
+								data=CLIENT_LATEST_CLIP.get(),
+							)
+							
+							print "\nSEND %s... %s\n"%(CLIENT_LATEST_CLIP.get().get('clip_hash_secure'), SERVER_LATEST_CLIP.get().get('clip_hash_secure'))
+							
+							
+				if sendit:
+					try:
+						self.wsock.send(json.dumps(sendit))
 						
-						print "\nSEND %s... %s\n"%(CLIENT_LATEST_CLIP.get().get('clip_hash_secure'), SERVER_LATEST_CLIP.get().get('clip_hash_secure'))
-						
-						
-			if sendit:
-				try:
-					self.wsock.send(json.dumps(sendit))
-					
-					self.last_sent = datetime.datetime.now()
+						self.last_sent = datetime.datetime.now()
 
-				#except (SocketError, RuntimeError, AttributeError, ValueError, TypeError): #if self.wsock.stream: #test if socket can get
-				except:
-					#print "can't send...%s"%str(sys.exc_info()[0])
-					self.webSocketReconnect()
-					
+					#except (SocketError, RuntimeError, AttributeError, ValueError, TypeError): #if self.wsock.stream: #test if socket can get
+					except:
+						#print "can't send...%s"%str(sys.exc_info()[0])
+						self.webSocketReconnect()
+						
 			
 			gevent.sleep(0.25) #yield to next coroutine.
 		
@@ -405,18 +410,15 @@ class Main(wx.Frame, MenuBarMixin):
 
 	def onStart(self, button_event):
 		"""Start Computation."""
-		# Trigger the worker thread unless it's already busy
-		if WorkerThread.USE_WEBSOCKET:
-			self.websocket_worker = WebSocketThread(self)
-		else:
-			self.long_poller_worker = LongPollerThread(self)
+		self.websocket_worker = WebSocketThread(self)
 		self.runAsyncWorker()
 
-	def onStop(self, button_event):
-		"""Stop Computation."""
-		# Flag the worker thread to stop if running
-		WorkerThread.abort()
-		self.async_worker = False
+	def onQuit(self, event):
+		#self.websocket_worker.KEEP_RUNNING = False
+		#self.Close() #DOES NOT WORK
+		self.sb.toggleStatusIcon(msg='Shutting down...', icon="bad")
+		pid = os.getpid() #http://quickies.seriot.ch/?id=189
+		os.kill(pid, 1)
 
 	def onResult(self, result_event):
 		"""Show Result status."""
@@ -789,18 +791,19 @@ class Main(wx.Frame, MenuBarMixin):
 		#race issues). wx.Yield simply switches back and forth
 		#between mainloop and this coroutine.
 		counter = 0
-		while WorkerThread.KEEP_RUNNING:
-			if counter % self.throttle == 0:# only run every second, letting it run without this restriction will call memory failure and high cpu
-				#set clip global
-				clip_content = self.getClipboardContent()
-				if clip_content:
-					#HOST_CLIP_CONTENT.set( clip_content['clip_text'] )#encode it to a data compatible with murmurhash and wxpython settext, which only expect ascii ie "heart symbol" to u/2339
-					CLIENT_LATEST_CLIP.set( clip_content )  #NOTE SERVER_LATEST_CLIP.get() was not set
-				
-				#resize panel
-				self.panel.lst.checkColumns()
+		while 1:
+			if WorkerThread.KEEP_RUNNING:
+				if counter % self.throttle == 0:# only run every second, letting it run without this restriction will call memory failure and high cpu
+					#set clip global
+					clip_content = self.getClipboardContent()
+					if clip_content:
+						#HOST_CLIP_CONTENT.set( clip_content['clip_text'] )#encode it to a data compatible with murmurhash and wxpython settext, which only expect ascii ie "heart symbol" to u/2339
+						CLIENT_LATEST_CLIP.set( clip_content )  #NOTE SERVER_LATEST_CLIP.get() was not set
+					
+					#resize panel
+					self.panel.lst.checkColumns()
 
-			counter += 1
+				counter += 1
 			gevent.sleep(0.001) #SLEEP HERE WILL CAUSE FILEEXPLORER AND UI TO SLOW
 			wx.Yield() #http://goo.gl/6Jea2t
 				
