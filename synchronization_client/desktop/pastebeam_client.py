@@ -3,6 +3,8 @@ from gevent import monkey; monkey.patch_all() #no need to monkeypatch all, just 
 from gevent.event import AsyncResult
 import gevent
 
+import keyring
+
 #socket stuff
 from ws4py.client.geventclient import WebSocketClient
 from ws4py import exc
@@ -18,7 +20,7 @@ from threading import Thread # import * BREAKS enumerate!!!
 from wxpython_view import *
 
 #general stuff
-import time, sys, zlib, datetime, uuid, os, tempfile, urllib, platform, gc, hashlib, shutil 
+import time, sys, zlib, datetime, uuid, os, tempfile, urllib, platform, gc, hashlib, shutil,json 
 import distutils.file_util, distutils.dir_util, distutils.errors #must import like this else import error in pyinstaller
 from functions import *
 import encompress
@@ -102,6 +104,9 @@ class WorkerThread(Thread):
 		# Method for use by main thread to signal an abort
 		self.KEEP_RUNNING = False
 		
+	def resume(self):
+		self.KEEP_RUNNING = True
+		
 class WebSocketThread(WorkerThread):
 	"""
 	Websocket.receive() blocks until there is a response.
@@ -137,7 +142,11 @@ class WebSocketThread(WorkerThread):
 					pass
 				try:
 					self.last_sent = self.last_alive = datetime.datetime.now()
-					self.wsock=WebSocketClient(URL("ws",DEFAULT_DOMAIN, DEFAULT_PORT, "ws", email="test@123.com", password="test4567") ) #keep static to guarantee one socket for all instances
+					
+					ring = keyring.get_password("pastebeam","login")
+					login = json.loads(ring) if ring else {} #todo store email locally, and access only password!
+					self.wsock=WebSocketClient(URL("ws",DEFAULT_DOMAIN, DEFAULT_PORT, "ws", email=login.get("email") or "", password=login.get("password" or ""), ) ) #email="test@123.com", password="test4567" #keep static to guarantee one socket for all instances
+					
 					self.wsock.connect()
 					break
 				except (SocketError, exc.HandshakeError, RuntimeError):
@@ -284,6 +293,9 @@ class Main(wx.Frame, MenuBarMixin):
 	#ID_CLEAR = 3
 	#ID_DELETE = 4
 	TEMP_DIR = TEMP_DIR
+
+	TEMP_EMAIL = ""
+	TEMP_PASS = ""
 	
 	def __init__(self):
 		wx.Frame.__init__(self, None, -1, "PasteBeam")
@@ -302,7 +314,7 @@ class Main(wx.Frame, MenuBarMixin):
 		# Set up event handler for any worker thread results
 		BIND_EVT_RESULT(self,self.onResult)
 		# And indicate we don't have a worker thread yet
-		self.websocket_worker = self.long_poller_worker = self.async_worker = None
+		self.websocket_worker = None
 		# Temporary... no button event, so pass None
 		
 		self.setThrottle()
@@ -803,6 +815,7 @@ class Main(wx.Frame, MenuBarMixin):
 				counter += 1
 			#resize panel
 			self.panel.lst.checkColumns()
+			#print "email %s | pass %s" % (self.TEMP_EMAIL, self.TEMP_PASS)
 			gevent.sleep(0.001) #SLEEP HERE WILL CAUSE FILEEXPLORER AND UI TO SLOW
 			wx.Yield() #http://goo.gl/6Jea2t
 				

@@ -1,4 +1,6 @@
-import wx, os
+import wx, os, json
+
+import keyring #store passwords safely in the os
 
 #see http://zetcode.com/wxpython/skeletons/ for tips
 
@@ -8,6 +10,7 @@ class MenuBarMixin():
 	file_item_id = wx.NewId() #wx.ID_EXIT #causes something to appear in statusbar
 	toggle_item_id = wx.NewId()
 	about_item_id = wx.NewId()
+	login_item_id = wx.NewId()
 	
 	def doMenuBar(self):
 		menu_bar = wx.MenuBar()
@@ -17,6 +20,10 @@ class MenuBarMixin():
 		file_item = file_menu.Append(self.file_item_id, 'Quit')
 		menu_bar.Append(file_menu, '&File')
 				
+		edit_menu = wx.Menu()
+		login_item = edit_menu.Append(self.login_item_id, 'Login')
+		menu_bar.Append(edit_menu, '&Edit')
+		
 		help_menu = wx.Menu()
 		about_item = help_menu.Append(self.about_item_id, 'About')
 		menu_bar.Append(help_menu, '&Help')
@@ -24,10 +31,11 @@ class MenuBarMixin():
 		self.SetMenuBar(menu_bar)
 
 		self.Bind(wx.EVT_MENU, self.onQuit, file_item)
-		self.Bind(wx.EVT_MENU, self.onToggle, toggle_item)
-		self.Bind(wx.EVT_MENU, self.onAbout, about_item)
+		self.Bind(wx.EVT_MENU, self.onToggleItem, toggle_item)
+		self.Bind(wx.EVT_MENU, self.onAboutItem, about_item)
+		self.Bind(wx.EVT_MENU, self.onLoginItem, login_item)
 		
-	def onToggle(self, e):
+	def onToggleItem(self, e):
 		if self.websocket_worker.KEEP_RUNNING == True:
 			self.websocket_worker.KEEP_RUNNING = False
 			self.sb.toggleSwitchIcon(on=False)
@@ -35,7 +43,7 @@ class MenuBarMixin():
 			self.websocket_worker.KEEP_RUNNING = True
 			self.sb.toggleSwitchIcon(on=True)
 
-	def onAbout(self, e):
+	def onAboutItem(self, e):
 		
 		description = "PasteBeam is a clipboard manager that syncs Copy and Paste across all your devices."
 
@@ -57,7 +65,11 @@ class MenuBarMixin():
 		info.AddTranslator('Himel Das')
 
 		wx.AboutBox(info)
-
+		
+	def onLoginItem(self, e):
+		
+		self.login_dialog = MyLoginDialog(self)
+		self.login_dialog.ShowModal()
 		
 
 class MyListCtrl(wx.ListCtrl):
@@ -139,8 +151,13 @@ class MyListCtrl(wx.ListCtrl):
 		
 	def onItemDoubleClick(self, event):
 	
-		clicked_item = self.getEventItem(event)
 		frame = self.GetTopLevelParent()
+		
+		if not frame.websocket_worker.KEEP_RUNNING:
+			wx.MessageBox(u"You must resume PasteBeam first!\n\nGo to File \u2192 Toggle or Edit \u2192 Login", "Error")
+			return
+	
+		clicked_item = self.getEventItem(event)
 		
 		top_item_container_id = self.GetItemText(0, col=1)
 		
@@ -150,7 +167,7 @@ class MyListCtrl(wx.ListCtrl):
 		clicked_clip_type = clicked_item[0]
 		
 		#print "DCLICK %s - %s"%(clicked_container_name, top_item_container_name)
-		
+			
 		if clicked_container_id != top_item_container_id:
 		
 			frame.showBusyDialog()
@@ -202,7 +219,8 @@ class MyPanel(wx.Panel): #http://zetcode.com/wxpython/gripts/
 		# Layout
 		self.vsizer_main.Add(self.lst, 1, wx.EXPAND | wx.ALL, 20)
 		# Event Handlers
-		
+	
+
 class MyStatusBar(wx.StatusBar): #http://zetcode.com/wxpython/gripts/
 	
 	def __init__(self, parent):
@@ -257,3 +275,48 @@ class MyStatusBar(wx.StatusBar): #http://zetcode.com/wxpython/gripts/
 				
 		e.Skip()
 		self.placeIcons()
+
+
+class MyLoginDialog(wx.Dialog):
+	"""
+	Class to define login dialog
+	"""
+	def __init__(self, parent):
+		"""Constructor"""
+				
+		wx.Dialog.__init__(self, parent, title="Login Info", size=(200,150))
+		
+		self.frame = parent
+
+		# email info
+		email_sizer = wx.BoxSizer(wx.HORIZONTAL)
+ 
+		email_lbl = wx.StaticText(self, label="       Email:")
+		email_sizer.Add(email_lbl, 0, wx.ALL|wx.CENTER, 5)
+		self.email = wx.TextCtrl(self)
+		email_sizer.Add(self.email, 0, wx.ALL, 5)
+ 
+		# pass info
+		p_sizer = wx.BoxSizer(wx.HORIZONTAL)
+ 
+		p_lbl = wx.StaticText(self, label="Password:")
+		p_sizer.Add(p_lbl, 0, wx.ALL|wx.CENTER, 5)
+		self.password = wx.TextCtrl(self, style=wx.TE_PASSWORD|wx.TE_PROCESS_ENTER)
+		p_sizer.Add(self.password, 0, wx.ALL, 5)
+ 
+		main_sizer = wx.BoxSizer(wx.VERTICAL)
+		main_sizer.Add(email_sizer, 0, wx.ALL, 5)
+		main_sizer.Add(p_sizer, 0, wx.ALL, 5)
+ 
+		btn = wx.Button(self, label="Save")
+		btn.Bind(wx.EVT_BUTTON, self.onSave)
+		main_sizer.Add(btn, 0, wx.ALL|wx.CENTER, 5)
+ 
+		self.SetSizer(main_sizer)
+		
+	def onSave(self, e):
+		
+		keyring.set_password("pastebeam","login",json.dumps({"email":self.email.GetValue(), "password":self.password.GetValue()}))
+		self.frame.websocket_worker.KEEP_RUNNING = True
+		self.frame.sb.toggleSwitchIcon(on=True)
+		self.Destroy()
