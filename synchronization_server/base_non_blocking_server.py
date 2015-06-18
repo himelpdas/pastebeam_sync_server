@@ -56,9 +56,9 @@ def login(email, password):
 		return dict(success=False, reason = "Account not found!")
 	key_derivation = PBKDF2(password, found["salt"]).encode("base64")
 	if found["key_derivation"] != key_derivation:
-		return dict(success=False, reason = "Incorrect password!")
+		return dict(success=False, reason = "Incorrect password!", found = found)
 	else:
-		return dict(success=True, reason= "Passwords matched!")
+		return dict(success=True, reason= "Passwords matched!", found = found)
 		
 
 response.content_type = 'application/json'

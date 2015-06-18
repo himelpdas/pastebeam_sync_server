@@ -88,6 +88,7 @@ class WorkerThread(Thread):
 	"""Worker Thread Class."""
 
 	KEEP_RUNNING = True
+	ACCOUNT_SALT = False
 	
 	def __init__(self, notify_window):
 		"""Init Worker Thread Class."""
@@ -185,16 +186,20 @@ class WebSocketThread(WorkerThread):
 					if received == None:
 						raise SocketError #disconnected!
 					
-					data = json.loads(str(received) ) #EXTREME: this can last forever, and when creating new connection, this greenlet will hang forever. #receive returns txtmessage object, must convert to string!!! 
+					delivered = json.loads(str(received) ) #EXTREME: this can last forever, and when creating new connection, this greenlet will hang forever. #receive returns txtmessage object, must convert to string!!! 
 					
-					if data["message"] == "Error!":
-						print data["data"]
-						self._notify_window.sb.toggleStatusIcon(msg=data["data"], icon="bad")
+					if delivered["message"] == "Error!":
+						print delivered["data"]
+						self._notify_window.sb.toggleStatusIcon(msg=delivered["data"], icon="bad")
 						self._notify_window.sb.toggleSwitchIcon(on=False)
 						self.abort()
 					
-					if data["message"] == "Update!":
-						server_latest_clip_rowS = data['data']
+					if delivered["message"] == "Salt!":
+						print "\nsalt %s\n"%delivered["data"]
+						self.ACCOUNT_SALT = delivered["data"]
+					
+					if delivered["message"] == "Update!":
+						server_latest_clip_rowS = delivered['data']
 						server_latest_clip_row = server_latest_clip_rowS[0]
 						#print server_latest_clip_row
 						
@@ -205,10 +210,10 @@ class WebSocketThread(WorkerThread):
 						
 						wx.PostEvent(self._notify_window, EVT_RESULT(server_latest_clip_rowS) )
 						
-					elif data["message"] == "Upload!":
-						self.containers_in_server.update(data['data'])
+					elif delivered["message"] == "Upload!":
+						self.containers_in_server.update(delivered['data'])
 						
-					elif data["message"] == "Alive!":
+					elif delivered["message"] == "Alive!":
 						print "Alive!"
 						self.last_alive = datetime.datetime.now()
 		
@@ -229,6 +234,12 @@ class WebSocketThread(WorkerThread):
 				
 				if self.keepAlive(): #also send alive messages and reset connection if receive block indefinitely
 					sendit = dict(message="Alive?")
+					
+				if not self.ACCOUNT_SALT:
+					print "Salt?"
+					sendit = dict(
+						message="Salt?",
+					)
 				
 				elif CLIENT_LATEST_CLIP.get().get('clip_hash_secure') != SERVER_LATEST_CLIP.get().get('clip_hash_secure'): #start only when there is something to send
 					
@@ -624,7 +635,7 @@ class Main(wx.Frame, MenuBarMixin):
 								clip_display = clip_text_new[:2000]
 
 							clip_hash_fast = format( hash128( clip_text_encoded ), "x") #hex( hash128( clip_text_encoded ) ) #use instead to get rid of 0x for better looking filenames
-							clip_hash_secure = hashlib.new("ripemd160", clip_hash_fast + "user_salt").hexdigest()
+							clip_hash_secure = hashlib.new("ripemd160", clip_hash_fast + self.websocket_worker.ACCOUNT_SALT).hexdigest()
 														
 							txt_file_name = "%s.txt"%clip_hash_secure
 							txt_file_path = os.path.join(TEMP_DIR,txt_file_name)
@@ -662,7 +673,7 @@ class Main(wx.Frame, MenuBarMixin):
 						if image_new_buffer_array != image_old_buffer_array: #for performance reasons we are not using the bmp for hash, but rather the wx Image GetData array
 														
 							clip_hash_fast = format(hash128(image_new_buffer_array), "x") #hex(hash128(image_new)) #KEEP PRIVATE and use to get hash of large data quickly
-							clip_hash_secure = hashlib.new("ripemd160", clip_hash_fast + "user_salt").hexdigest() #to prevent rainbow table attacks of known files and their hashes, will also cause decryption to fail if file name is changed
+							clip_hash_secure = hashlib.new("ripemd160", clip_hash_fast + self.websocket_worker.ACCOUNT_SALT).hexdigest() #to prevent rainbow table attacks of known files and their hashes, will also cause decryption to fail if file name is changed
 							
 							img_file_name = "%s.bmp"%clip_hash_secure
 							img_file_path = os.path.join(TEMP_DIR,img_file_name)
@@ -757,7 +768,7 @@ class Main(wx.Frame, MenuBarMixin):
 										each_file_name = os.path.split(each_path)[1]
 										each_data = each_file.read()
 								
-								name_and_data_hash = os_file_hashes_new.append( each_file_name + format(hash128( each_data ), "x") + "user_salt") #append the hash for this file #use filename and hash so that set does not ignore copies of two idenitcal files (but different names) in different directories
+								name_and_data_hash = os_file_hashes_new.append( each_file_name + format(hash128( each_data ), "x") + self.websocket_worker.ACCOUNT_SALT) #append the hash for this file #use filename and hash so that set does not ignore copies of two idenitcal files (but different names) in different directories
 							
 						except ZeroDivisionError:
 							return #upload error clip
@@ -778,7 +789,7 @@ class Main(wx.Frame, MenuBarMixin):
 									
 							print "\nRETURN!!!!\n"
 
-							clip_hash_secure = hashlib.new("ripemd160", "".join(os_file_hashes_new) + "user_salt").hexdigest() #MUST use list of files instead of set because set does not guarantee order and therefore will result in a non-deterministic hash 
+							clip_hash_secure = hashlib.new("ripemd160", "".join(os_file_hashes_new) + self.websocket_worker.ACCOUNT_SALT).hexdigest() #MUST use list of files instead of set because set does not guarantee order and therefore will result in a non-deterministic hash 
 							return __prepare_for_upload(
 								file_names = os_file_names_new,
 								clip_type = "files",
@@ -812,14 +823,13 @@ class Main(wx.Frame, MenuBarMixin):
 		#between mainloop and this coroutine.
 		counter = 0
 		while 1:
-			if self.websocket_worker.KEEP_RUNNING:
+			if self.websocket_worker.KEEP_RUNNING and self.websocket_worker.ACCOUNT_SALT: #wait until user account salt arrives for encryption
 				if counter % self.throttle == 0:# only run every second, letting it run without this restriction will call memory failure and high cpu
 					#set clip global
 					clip_content = self.getClipboardContent()
 					if clip_content:
 						#HOST_CLIP_CONTENT.set( clip_content['clip_text'] )#encode it to a data compatible with murmurhash and wxpython settext, which only expect ascii ie "heart symbol" to u/2339
 						CLIENT_LATEST_CLIP.set( clip_content )  #NOTE SERVER_LATEST_CLIP.get() was not set
-
 				counter += 1
 			#resize panel
 			self.panel.lst.checkColumns()

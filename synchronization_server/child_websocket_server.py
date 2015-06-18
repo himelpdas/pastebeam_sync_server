@@ -42,24 +42,28 @@ def handle_websocket():
 				if not received:
 					raise WebSocketError
 					
-				data = json.loads(received)
+				delivered = json.loads(received)
 				
-				if data['message'] == "Alive?":
+				if delivered['message'] == "Alive?":
 			
 					send_im_still_alive.set(1)
 					
-				if data['message'] == "Upload?":
+				if delivered["message"] == "Salt?":
 				
-					container_name =  data['data']
+					send_usr_crypt_salt.set(checked_login["found"]["salt"])
+					
+				if delivered['message'] == "Upload?":
+				
+					container_name =  delivered['data']
 					
 					file_path = os.path.join(UPLOAD_DIR,container_name)
 					file_exists = os.path.isfile(file_path)
 					send_upload_command.set({container_name:file_exists})
 					print "\nFILE EXISTS:%s\n"%file_exists
 			
-				elif data['message'] == "Update?":
+				elif delivered['message'] == "Update?":
 					
-					client_latest_clip = data['data']
+					client_latest_clip = delivered['data']
 														
 					if client_latest_clip.get('clip_hash_secure') != client_previous_clip.get('clip_hash_secure'): #else just wait
 						
@@ -91,6 +95,12 @@ def handle_websocket():
 						message = "Alive!"
 					))) #send blank list of clips to tell client's incoming server is still alive.
 					send_im_still_alive.set(0)
+				if send_usr_crypt_salt.get():
+					wsock.send(json.dumps(dict(
+						message = "Salt!",
+						data = send_usr_crypt_salt.get()
+					)))
+					send_usr_crypt_salt.set(None)
 				elif send_upload_command.get():
 					wsock.send(json.dumps(dict(
 						message = "Upload!",
@@ -127,14 +137,14 @@ def handle_websocket():
 				
 		if not wsock:
 			abort(400, 'Expected WebSocket request.')
-			
-		check_login = login(request.query.email, request.query.password)
-		
-		if not check_login['success']:
+
+		checked_login = login(request.query.email, request.query.password)
+
+		if not checked_login['success']:
 			
 			wsock.send(json.dumps(dict(
 				message = "Error!",
-				data = check_login["reason"],
+				data = checked_login["reason"],
 			)))
 			
 		else:
@@ -142,8 +152,9 @@ def handle_websocket():
 					
 			args = [wsock, timeout] #Only objects in the main thread are visible to greenlets, all other cases, pass the objects as arguments to greenlet.
 					
-			send_im_still_alive, send_upload_command = AsyncResult(), AsyncResult()
+			send_im_still_alive, send_upload_command, send_usr_crypt_salt = AsyncResult(), AsyncResult(), AsyncResult()
 			send_im_still_alive.set(0)
+			send_usr_crypt_salt.set(None)
 			send_upload_command.set({})	
 			#send_update_command.set(None)
 					
