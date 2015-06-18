@@ -93,8 +93,8 @@ class MyListCtrl(wx.ListCtrl):
 		self.Bind(wx.EVT_LIST_ITEM_ACTIVATED, #DOUBLE CLICK ##SEE PDF http://www.blog.pythonlibrary.org/2013/12/12/wxpython-objectlistview-double-click-items/
 			self.onItemDoubleClick)
 		
-		self.Bind(wx.EVT_SIZE,
-			self.resizeColumns)
+		#self.Bind(wx.EVT_SIZE,
+		#	self.resizeColumns)
 		
 		#icon_file_names = os.listdir(os.path.normpath('images/16px/')) #WARNING, USE AN ACTUAL LIST AS OS LEVEL CRAP LIKE Thumbs.db WILL BREAK PROGRAM #https://github.com/teambox/Free-file-icons #https://www.iconfinder.com/icons/62659/cam_camera_image_lens_photo_icon#size=16
 		icon_file_names = ['aac.png', 'ai.png', 'aiff.png', 'avi.png', 'bmp.png', 'c.png', 'cpp.png', 'css.png', 'dat.png', 'dmg.png', 'doc.png', 'dotx.png', 'dwg.png', 'dxf.png', 'eps.png', 'exe.png', 'flv.png', 'gif.png', 'h.png', 'hpp.png', 'html.png', 'ics.png', 'iso.png', 'java.png', 'jpg.png', 'js.png', 'key.png', 'less.png', 'mid.png', 'mp3.png', 'mp4.png', 'mpg.png', 'odf.png', 'ods.png', 'odt.png', 'otp.png', 'ots.png', 'ott.png', 'pdf.png', 'php.png', 'png.png', 'ppt.png', 'psd.png', 'py.png', 'qt.png', 'rar.png', 'rb.png', 'rtf.png', 'sass.png', 'scss.png', 'sql.png', 'tga.png', 'tgz.png', 'tiff.png', 'txt.png', 'wav.png', 'xls.png', 'xlsx.png', 'xml.png', 'yml.png', 'zip.png', '_bitmap.png', '_blank.png', '_clip.png', '_folder.png', '_error.png', '_link.png', '_multi.png', '_page.png']
@@ -129,8 +129,8 @@ class MyListCtrl(wx.ListCtrl):
 		colwidths = [col0, col1, col2, col3, col4]
 		
 		for number, width in enumerate(colwidths):
-			if not wx.GetMouseState().LeftIsDown(): #left key is still up at the very last few resize events, so anything before left key down will be ignored, and resize of columns will be much faster
-				wx.CallLater(0.01, lambda number=number, width=width: self.SetColumnWidth(number, width)) #wx calllater for smoother operation #https://groups.google.com/forum/#!topic/wxpython-users/tWiSDnbpWcM
+			#if not wx.GetMouseState().LeftIsDown(): #left key is still up at the very last few resize events, so anything before left key down will be ignored, and resize of columns will be much faster
+			wx.CallLater(0.01, lambda number=number, width=width: self.SetColumnWidth(number, width)) #wx calllater for smoother operation #https://groups.google.com/forum/#!topic/wxpython-users/tWiSDnbpWcM
 	
 	def PopulateList(self, data):
 		"""Populate the list with the set of data. Data
