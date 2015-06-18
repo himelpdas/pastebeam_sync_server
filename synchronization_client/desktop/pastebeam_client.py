@@ -20,7 +20,7 @@ from threading import Thread # import * BREAKS enumerate!!!
 from wxpython_view import *
 
 #general stuff
-import time, sys, zlib, datetime, uuid, os, tempfile, urllib, platform, gc, hashlib, shutil,json 
+import time, sys, zlib, datetime, uuid, os, tempfile, urllib, gc, hashlib, shutil,json 
 import distutils.file_util, distutils.dir_util, distutils.errors #must import like this else import error in pyinstaller
 from functions import *
 import encompress
@@ -590,7 +590,7 @@ class Main(wx.Frame, MenuBarMixin):
 							"clip_display_encoded" : self.encodeClip(json.dumps(clip_display)),
 							"container_name" : container_name,
 							"clip_hash_secure" : clip_hash_secure, #http://stackoverflow.com/questions/16414559/trying-to-use-hex-without-0x
-							"host_name" : "%s (%s %s)"%(wx.GetHostName(), platform.system(), platform.release()),
+							"host_name" : self.getLogin().get("device_name"),
 							"timestamp_client" : time.time(),
 							"send_id" : SEND_ID,
 						}

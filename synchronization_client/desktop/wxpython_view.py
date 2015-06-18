@@ -1,8 +1,11 @@
-import wx, os, json
+import wx, os, json, platform
 
 import keyring #store passwords safely in the os
 
 #see http://zetcode.com/wxpython/skeletons/ for tips
+
+DEFAULT_DEVICE_NAME = "%s (%s %s)"%(wx.GetHostName(), platform.system(), platform.release())
+
 
 class MenuBarMixin():
 	"""Cannot subclass wx.menu_bar directly, so make it a mixin"""
@@ -283,30 +286,43 @@ class MyLoginDialog(wx.Dialog):
 	"""
 	def __init__(self, parent):
 		"""Constructor"""
-				
+		"""http://www.blog.pythonlibrary.org/2014/07/11/wxpython-how-to-create-a-login-dialog/"""
 		wx.Dialog.__init__(self, parent, title="Login Info")
 		
 		self.frame = parent
+		
+		field_size = (222,-1)
 
 		# email info
 		email_sizer = wx.BoxSizer(wx.HORIZONTAL)
  
-		email_lbl = wx.StaticText(self, label="       Email:")
+		email_lbl = wx.StaticText(self, label="              Email:")
 		email_sizer.Add(email_lbl, 0, wx.ALL|wx.CENTER, 5)
-		self.email_field = wx.TextCtrl(self, size=(200,-1))
+		self.email_field = wx.TextCtrl(self, size=field_size, style=wx.TE_PROCESS_ENTER)
+		self.email_field.Bind(wx.EVT_TEXT_ENTER, self.onSave)
 		email_sizer.Add(self.email_field, 0, wx.ALL, 5)
  
 		# pass info
 		password_sizer = wx.BoxSizer(wx.HORIZONTAL)
  
-		password_lbl = wx.StaticText(self, label="Password:")
+		password_lbl = wx.StaticText(self, label="       Password:")
 		password_sizer.Add(password_lbl, 0, wx.ALL|wx.CENTER, 5)
-		self.password_field = wx.TextCtrl(self, style=wx.TE_PASSWORD|wx.TE_PROCESS_ENTER, size=(200,-1))
+		self.password_field = wx.TextCtrl(self, style=wx.TE_PASSWORD|wx.TE_PROCESS_ENTER, size=field_size)
+		self.password_field.Bind(wx.EVT_TEXT_ENTER, self.onSave)
 		password_sizer.Add(self.password_field, 0, wx.ALL, 5)
+		
+		device_name_sizer = wx.BoxSizer(wx.HORIZONTAL)
+		
+		device_name_lbl = wx.StaticText(self, label="Device Name:\n(Optional)")
+		device_name_sizer.Add(device_name_lbl, 0, wx.ALL|wx.CENTER, 5)
+		self.device_name_field = wx.TextCtrl(self, size=field_size, style=wx.TE_PROCESS_ENTER)
+		self.device_name_field.Bind(wx.EVT_TEXT_ENTER, self.onSave)
+		device_name_sizer.Add(self.device_name_field, 0, wx.ALL, 5)
  
 		main_sizer = wx.BoxSizer(wx.VERTICAL)
 		main_sizer.Add(email_sizer, 0, wx.ALL, 5)
 		main_sizer.Add(password_sizer, 0, wx.ALL, 5)
+		main_sizer.Add(device_name_sizer, 0, wx.ALL, 5)
  
 		btn = wx.Button(self, label="Save")
 		btn.Bind(wx.EVT_BUTTON, self.onSave)
@@ -318,10 +334,18 @@ class MyLoginDialog(wx.Dialog):
 		login = self.frame.getLogin()
 		self.email_field.SetValue(login.get("email"))
 		self.password_field.SetValue(login.get("password"))
+		device_name = login.get("device_name")
+		if not device_name:
+			device_name = DEFAULT_DEVICE_NAME
+		self.device_name_field.SetValue(device_name)
 		
 	def onSave(self, e):
 		
-		keyring.set_password("pastebeam","login",json.dumps({"email":self.email_field.GetValue(), "password":self.password_field.GetValue()}))
+		keyring.set_password("pastebeam","login",json.dumps({
+			"email":self.email_field.GetValue(), 
+			"password":self.password_field.GetValue(),
+			"device_name":self.device_name_field.GetValue(),
+		}))
 		#put in method\/
 		self.frame.websocket_worker.KEEP_RUNNING = True
 		self.frame.websocket_worker.FORCE_RECONNECT = True #this is needed to refresh the password on server
