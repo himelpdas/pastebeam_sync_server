@@ -284,7 +284,7 @@ class MyLoginDialog(wx.Dialog):
 	def __init__(self, parent):
 		"""Constructor"""
 				
-		wx.Dialog.__init__(self, parent, title="Login Info", size=(200,150))
+		wx.Dialog.__init__(self, parent, title="Login Info")
 		
 		self.frame = parent
 
@@ -293,30 +293,35 @@ class MyLoginDialog(wx.Dialog):
  
 		email_lbl = wx.StaticText(self, label="       Email:")
 		email_sizer.Add(email_lbl, 0, wx.ALL|wx.CENTER, 5)
-		self.email = wx.TextCtrl(self)
-		email_sizer.Add(self.email, 0, wx.ALL, 5)
+		self.email_field = wx.TextCtrl(self, size=(200,-1))
+		email_sizer.Add(self.email_field, 0, wx.ALL, 5)
  
 		# pass info
-		p_sizer = wx.BoxSizer(wx.HORIZONTAL)
+		password_sizer = wx.BoxSizer(wx.HORIZONTAL)
  
-		p_lbl = wx.StaticText(self, label="Password:")
-		p_sizer.Add(p_lbl, 0, wx.ALL|wx.CENTER, 5)
-		self.password = wx.TextCtrl(self, style=wx.TE_PASSWORD|wx.TE_PROCESS_ENTER)
-		p_sizer.Add(self.password, 0, wx.ALL, 5)
+		password_lbl = wx.StaticText(self, label="Password:")
+		password_sizer.Add(password_lbl, 0, wx.ALL|wx.CENTER, 5)
+		self.password_field = wx.TextCtrl(self, style=wx.TE_PASSWORD|wx.TE_PROCESS_ENTER, size=(200,-1))
+		password_sizer.Add(self.password_field, 0, wx.ALL, 5)
  
 		main_sizer = wx.BoxSizer(wx.VERTICAL)
 		main_sizer.Add(email_sizer, 0, wx.ALL, 5)
-		main_sizer.Add(p_sizer, 0, wx.ALL, 5)
+		main_sizer.Add(password_sizer, 0, wx.ALL, 5)
  
 		btn = wx.Button(self, label="Save")
 		btn.Bind(wx.EVT_BUTTON, self.onSave)
 		main_sizer.Add(btn, 0, wx.ALL|wx.CENTER, 5)
  
-		self.SetSizer(main_sizer)
+		self.SetSizerAndFit(main_sizer)
+		
+		#set defaults
+		login = self.frame.getLogin()
+		self.email_field.SetValue(login.get("email"))
+		self.password_field.SetValue(login.get("password"))
 		
 	def onSave(self, e):
 		
-		keyring.set_password("pastebeam","login",json.dumps({"email":self.email.GetValue(), "password":self.password.GetValue()}))
+		keyring.set_password("pastebeam","login",json.dumps({"email":self.email_field.GetValue(), "password":self.password_field.GetValue()}))
 		#put in method\/
 		self.frame.websocket_worker.KEEP_RUNNING = True
 		self.frame.websocket_worker.FORCE_RECONNECT = True #this is needed to refresh the password on server

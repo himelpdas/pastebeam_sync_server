@@ -145,8 +145,7 @@ class WebSocketThread(WorkerThread):
 				try:
 					self.last_sent = self.last_alive = datetime.datetime.now()
 					
-					ring = keyring.get_password("pastebeam","login")
-					login = json.loads(ring) if ring else {} #todo store email locally, and access only password!
+					login = self._notify_window.getLogin()
 					self.wsock=WebSocketClient(URL("ws",DEFAULT_DOMAIN, DEFAULT_PORT, "ws", email=login.get("email") or "", password=login.get("password" or ""), ) ) #email="test@123.com", password="test4567" #keep static to guarantee one socket for all instances
 					
 					self.wsock.connect()
@@ -322,6 +321,12 @@ class Main(wx.Frame, MenuBarMixin):
 		
 		self.setThrottle()
 		wx.CallLater(1, lambda: self.onStart(None))
+		
+	@staticmethod
+	def getLogin():
+		ring = keyring.get_password("pastebeam","login")
+		login = json.loads(ring) if ring else {} #todo store email locally, and access only password!
+		return login
 
 	def appendClipToListCtrl(self, clip, is_newest):
 		clip_display_decoded = json.loads(clip['clip_display_decoded'])
