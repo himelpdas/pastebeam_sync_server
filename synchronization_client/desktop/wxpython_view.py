@@ -349,6 +349,7 @@ class MyLoginDialog(wx.Dialog):
 		#put in method\/
 		self.frame.websocket_worker.KEEP_RUNNING = True
 		self.frame.websocket_worker.FORCE_RECONNECT = True #this is needed to refresh the password on server
+		self.frame.websocket_worker.ACCOUNT_SALT = False
 		self.frame.sb.toggleSwitchIcon(on=True)
 		
 		self.Destroy()

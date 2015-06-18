@@ -89,6 +89,7 @@ class WorkerThread(Thread):
 
 	KEEP_RUNNING = True
 	ACCOUNT_SALT = False
+	FORCE_RECONNECT = False
 	
 	def __init__(self, notify_window):
 		"""Init Worker Thread Class."""
@@ -122,9 +123,7 @@ class WebSocketThread(WorkerThread):
 		self.last_sent = self.last_alive = datetime.datetime.now()
 		
 		self.containers_in_server = {}
-		
-		self.FORCE_RECONNECT = False
-		
+				
 		WorkerThread.__init__(self, notify_window)
 	
 	def webSocketReconnect(self):
@@ -195,7 +194,7 @@ class WebSocketThread(WorkerThread):
 						self.abort()
 					
 					if delivered["message"] == "Salt!":
-						print "\nsalt %s\n"%delivered["data"]
+						print "\nSalt! %s\n"%delivered["data"]
 						self.ACCOUNT_SALT = delivered["data"]
 					
 					if delivered["message"] == "Update!":
