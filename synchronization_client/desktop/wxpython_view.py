@@ -344,7 +344,7 @@ class MyLoginDialog(wx.Dialog):
 		keyring.set_password("pastebeam","login",json.dumps({
 			"email":self.email_field.GetValue(), 
 			"password":self.password_field.GetValue(),
-			"device_name":self.device_name_field.GetValue(),
+			"device_name":self.device_name_field.GetValue() or DEFAULT_DEVICE_NAME,
 		}))
 		#put in method\/
 		self.frame.websocket_worker.KEEP_RUNNING = True
