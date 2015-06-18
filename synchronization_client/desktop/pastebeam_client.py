@@ -122,6 +122,8 @@ class WebSocketThread(WorkerThread):
 		
 		self.containers_in_server = {}
 		
+		self.FORCE_RECONNECT = False
+		
 		WorkerThread.__init__(self, notify_window)
 	
 	def webSocketReconnect(self):
@@ -163,8 +165,9 @@ class WebSocketThread(WorkerThread):
 		therefore we can account for when the user is idle.
 		"""
 		now = datetime.datetime.now()
-		if ( now - self.last_alive ).seconds > timeout:
+		if self.FORCE_RECONNECT or ( now - self.last_alive ).seconds > timeout:
 			self.webSocketReconnect()
+			self.FORCE_RECONNECT = False
 		elif ( now  - self.last_sent ).seconds > heartbeat:
 			self.last_sent= datetime.datetime.now()
 			return True

@@ -45,7 +45,7 @@ class MenuBarMixin():
 
 	def onAboutItem(self, e):
 		
-		description = "PasteBeam is a clipboard manager that syncs Copy and Paste across all your devices."
+		description = 'PasteBeam is a clipboard manager that syncs "Copy and Paste" across your devices.'
 
 		licence = "PasteBeam is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; either version 2 of the License, or (at your option) any later version. PasteBeam is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details. You should have received a copy of the GNU General Public License along with PasteBeam; if not, write to the Free Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA"
 
@@ -317,6 +317,9 @@ class MyLoginDialog(wx.Dialog):
 	def onSave(self, e):
 		
 		keyring.set_password("pastebeam","login",json.dumps({"email":self.email.GetValue(), "password":self.password.GetValue()}))
+		#put in method\/
 		self.frame.websocket_worker.KEEP_RUNNING = True
+		self.frame.websocket_worker.FORCE_RECONNECT = True #this is needed to refresh the password on server
 		self.frame.sb.toggleSwitchIcon(on=True)
+		
 		self.Destroy()
