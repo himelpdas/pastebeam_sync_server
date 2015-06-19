@@ -254,15 +254,12 @@ class MyStatusBar(wx.StatusBar): #http://zetcode.com/wxpython/gripts/
 		self.on_icon.SetPosition((rect.x+10, rect.y+2))
 
 	def toggleStatusIcon(self, msg = 'Sarting up...', icon = "good"):
-		self.SetStatusText(msg, 1)
-		self.ok_icon.SetBitmap(wx.Bitmap('images/16px/_%s.png'%icon))
-		"""
-		self.ok_icon = wx.StaticBitmap(self)
-		if ok == True:
-			self.ok_icon.SetBitmap(wx.Bitmap('images/16px/_good.png'))
+		if icon and msg:
+			self.SetStatusText(msg, 1)
+			self.ok_icon.SetBitmap(wx.Bitmap('images/16px/_%s.png'%icon))
 		else:
-			self.ok_icon.SetBitmap(wx.Bitmap('images/16px/_bad.png'))
-		"""
+			self.SetStatusText("", 1)
+			self.ok_icon.SetBitmap(wx.Bitmap(""))
 		
 		self.placeStatusIcon()
 		
@@ -278,6 +275,9 @@ class MyStatusBar(wx.StatusBar): #http://zetcode.com/wxpython/gripts/
 				
 		e.Skip()
 		self.placeIcons()
+		
+	def clear(self):
+			self.toggleStatusIcon(msg = "", icon=False)
 
 
 class MyLoginDialog(wx.Dialog):

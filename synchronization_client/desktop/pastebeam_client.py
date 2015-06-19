@@ -106,11 +106,13 @@ class WorkerThread(Thread):
 		# Method for use by main thread to signal an abort
 		self.KEEP_RUNNING = False
 		self._notify_window.sb.toggleSwitchIcon(on=False)
+		self._notify_window.sb.clear()
 		self._notify_window.toggle_item.SetText("Resume PasteBeam")
 		
 	def resume(self):
 		self.KEEP_RUNNING = True
 		self._notify_window.sb.toggleSwitchIcon(on=True)
+		self._notify_window.sb.clear()
 		self._notify_window.toggle_item.SetText("Pause PasteBeam")
 		
 	def restart(self):
@@ -198,8 +200,8 @@ class WebSocketThread(WorkerThread):
 					
 					if delivered["message"] == "Error!":
 						print delivered["data"]
-						self._notify_window.sb.toggleStatusIcon(msg=delivered["data"], icon="bad")
 						self.pause()
+						self._notify_window.sb.toggleStatusIcon(msg=delivered["data"], icon="bad")
 					
 					if delivered["message"] == "Salt!":
 						print "\nSalt! %s\n"%delivered["data"]
