@@ -101,13 +101,19 @@ class WorkerThread(Thread):
 		self.start()
 
 	#@classmethod #similar to static, but passes the class as the first argument... useful for modifying static variables
-	def abort(self):
+	def pause(self):
 		"""abort worker thread."""
 		# Method for use by main thread to signal an abort
 		self.KEEP_RUNNING = False
 		
 	def resume(self):
 		self.KEEP_RUNNING = True
+		
+	def restart(self):
+		self.KEEP_RUNNING = True
+		self.FORCE_RECONNECT = True #this is needed to refresh the password on server
+		self.ACCOUNT_SALT = False
+		self._notify_window.sb.toggleSwitchIcon(on=True)
 		
 class WebSocketThread(WorkerThread):
 	"""
@@ -191,7 +197,7 @@ class WebSocketThread(WorkerThread):
 						print delivered["data"]
 						self._notify_window.sb.toggleStatusIcon(msg=delivered["data"], icon="bad")
 						self._notify_window.sb.toggleSwitchIcon(on=False)
-						self.abort()
+						self.pause()
 					
 					if delivered["message"] == "Salt!":
 						print "\nSalt! %s\n"%delivered["data"]
