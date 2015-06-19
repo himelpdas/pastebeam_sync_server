@@ -77,8 +77,8 @@ class EVT_RESULT(wx.PyEvent):
 #lock = Lock() #locks not needed in gevent, use AsyncResult
 #with lock:
 #...
-
-SERVER_LATEST_CLIP, CLIENT_LATEST_CLIP, CLIENT_RECENT_DATA, SEND_ID = AsyncResult(), AsyncResult(), AsyncResult(), AsyncResult()
+SEND_ID = None
+SERVER_LATEST_CLIP, CLIENT_LATEST_CLIP, CLIENT_RECENT_DATA = AsyncResult(), AsyncResult(), AsyncResult()
 SERVER_LATEST_CLIP.set({}) #the latest clip's hash on server
 CLIENT_LATEST_CLIP.set({}) #the latest clip's hash on client. Take no action if equal with above.
 CLIENT_RECENT_DATA.set(None)
@@ -105,15 +105,18 @@ class WorkerThread(Thread):
 		"""abort worker thread."""
 		# Method for use by main thread to signal an abort
 		self.KEEP_RUNNING = False
+		self._notify_window.sb.toggleSwitchIcon(on=False)
+		self._notify_window.toggle_item.SetText("Resume PasteBeam")
 		
 	def resume(self):
 		self.KEEP_RUNNING = True
+		self._notify_window.sb.toggleSwitchIcon(on=True)
+		self._notify_window.toggle_item.SetText("Pause PasteBeam")
 		
 	def restart(self):
-		self.KEEP_RUNNING = True
+		self.resume()
 		self.FORCE_RECONNECT = True #this is needed to refresh the password on server
 		self.ACCOUNT_SALT = False
-		self._notify_window.sb.toggleSwitchIcon(on=True)
 		
 class WebSocketThread(WorkerThread):
 	"""
@@ -196,7 +199,6 @@ class WebSocketThread(WorkerThread):
 					if delivered["message"] == "Error!":
 						print delivered["data"]
 						self._notify_window.sb.toggleStatusIcon(msg=delivered["data"], icon="bad")
-						self._notify_window.sb.toggleSwitchIcon(on=False)
 						self.pause()
 					
 					if delivered["message"] == "Salt!":

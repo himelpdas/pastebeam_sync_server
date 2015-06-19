@@ -19,7 +19,7 @@ class MenuBarMixin():
 		menu_bar = wx.MenuBar()
 		
 		file_menu = wx.Menu()
-		toggle_item = file_menu.Append(self.toggle_item_id, 'Toggle')
+		self.toggle_item = file_menu.Append(self.toggle_item_id, 'Pause PasteBeam')
 		file_item = file_menu.Append(self.file_item_id, 'Quit')
 		menu_bar.Append(file_menu, '&File')
 				
@@ -34,17 +34,17 @@ class MenuBarMixin():
 		self.SetMenuBar(menu_bar)
 
 		self.Bind(wx.EVT_MENU, self.onQuit, file_item)
-		self.Bind(wx.EVT_MENU, self.onToggleItem, toggle_item)
+		self.Bind(wx.EVT_MENU, self.onToggleItem, self.toggle_item)
 		self.Bind(wx.EVT_MENU, self.onAboutItem, about_item)
 		self.Bind(wx.EVT_MENU, self.onLoginItem, login_item)
 		
 	def onToggleItem(self, e):
 		if self.websocket_worker.KEEP_RUNNING == True:
-			self.websocket_worker.KEEP_RUNNING = False
-			self.sb.toggleSwitchIcon(on=False)
+			self.websocket_worker.pause()
 		else:
-			self.websocket_worker.KEEP_RUNNING = True
-			self.sb.toggleSwitchIcon(on=True)
+			self.websocket_worker.resume()
+
+			
 
 	def onAboutItem(self, e):
 		
