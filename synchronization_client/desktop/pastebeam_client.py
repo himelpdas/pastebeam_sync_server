@@ -553,13 +553,11 @@ class Main(wx.Frame, MenuBarMixin):
 							clip_file_path = file_paths_decrypt[0]
 						
 							bitmap=wx.Bitmap(clip_file_path, wx.BITMAP_TYPE_BMP)
-							#bitmap.LoadFile(img_file_path, wx.BITMAP_TYPE_BMP)
 							clip_data = wx.BitmapDataObject(bitmap)
 							success = clipboard.SetData(clip_data)		
 							
 						elif clip_type == "files":
 							clip_file_paths = file_paths_decrypt
-							#bitmap.LoadFile(img_file_path, wx.BITMAP_TYPE_BMP)
 							clip_data = wx.FileDataObject()
 							for each_file_path in clip_file_paths:
 								clip_data.AddFile(each_file_path)
@@ -695,6 +693,12 @@ class Main(wx.Frame, MenuBarMixin):
 								with encompress.Encompress(password = "nigger", directory = TEMP_DIR, file_names_encrypt = [img_file_name], file_name_decrypt=file_name_decrypt) as result:
 									print result
 							"""
+							
+							try:
+								image_old.Destroy()
+							except AttributeError:
+								pass	
+							
 							return __prepare_for_upload(
 								file_names = [img_file_name],
 								clip_type = "bitmap", 
@@ -702,9 +706,10 @@ class Main(wx.Frame, MenuBarMixin):
 								clip_hash_secure = clip_hash_secure, 
 								compare_next = image_new
 							)
-							
-							gc.collect() #free up previous references to image_new and image_old arrays, since they are so large #http://stackoverflow.com/questions/1316767/how-can-i-explicitly-free-memory-in-python
-							
+						else:
+							image_new.Destroy() #clear memory
+							#gc.collect() #free up previous references to image_new and image_old arrays, since they are so large #http://stackoverflow.com/questions/1316767/how-can-i-explicitly-free-memory-in-python
+
 				def _return_if_file():
 					clip_data = wx.FileDataObject()
 					success = clipboard.GetData(clip_data)
