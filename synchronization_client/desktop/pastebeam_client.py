@@ -673,52 +673,44 @@ class Main(wx.Frame, MenuBarMixin):
 						except AttributeError:
 							image_old_buffer_array = None #if prevuous is not an image
 						
-						bitmap = clip_data.GetBitmap()
-						image_new  = bitmap.ConvertToImage() #OLD #GET DATA IS HIDDEN METHOD, IT RETURNS BYTE ARRAY... DO NOT USE GETDATABUFFER AS IT CRASHES. BESIDES GETDATABUFFER IS ONLY GOOD TO CHANGE BYTES IN MEMORY http://wxpython.org/Phoenix/docs/html/MigrationGuide.html
-						image_new_buffer_array = image_new.GetDataBuffer()
-																		
-						if image_new_buffer_array != image_old_buffer_array: #for performance reasons we are not using the bmp for hash, but rather the wx Image GetData array
-														
-							clip_hash_fast = format(hash128(image_new_buffer_array), "x") #hex(hash128(image_new)) #KEEP PRIVATE and use to get hash of large data quickly
-							clip_hash_secure = hashlib.new("ripemd160", clip_hash_fast + self.websocket_worker.ACCOUNT_SALT).hexdigest() #to prevent rainbow table attacks of known files and their hashes, will also cause decryption to fail if file name is changed
-							
-							img_file_name = "%s.bmp"%clip_hash_secure
-							img_file_path = os.path.join(TEMP_DIR,img_file_name)
-							
-							print "\nimg_file_path: \n%s\n"%img_file_path
-							
-							bitmap.SaveFile(img_file_path, wx.BITMAP_TYPE_BMP) #change to or compliment upload
-							
-							megapixels = len(image_new_buffer_array) / 3
-							
-							clip_display = megapixels
-							
-							"""
-							print "ENCRYPT"
-							with encompress.Encompress(password = "nigger", directory = TEMP_DIR, file_names_encrypt = [img_file_name], file_name_decrypt=False) as result:
-								print result #salting the file_name will cause decryption to fail if
+						try:
+							bitmap = clip_data.GetBitmap()
+							image_new  = bitmap.ConvertToImage() #OLD #GET DATA IS HIDDEN METHOD, IT RETURNS BYTE ARRAY... DO NOT USE GETDATABUFFER AS IT CRASHES. BESIDES GETDATABUFFER IS ONLY GOOD TO CHANGE BYTES IN MEMORY http://wxpython.org/Phoenix/docs/html/MigrationGuide.html
+							image_new_buffer_array = image_new.GetDataBuffer()
+						except wx._core.PyAssertionError:
+							pass	
+						else:					
+							if image_new_buffer_array != image_old_buffer_array: #for performance reasons we are not using the bmp for hash, but rather the wx Image GetData array
+															
+								clip_hash_fast = format(hash128(image_new_buffer_array), "x") #hex(hash128(image_new)) #KEEP PRIVATE and use to get hash of large data quickly
+								clip_hash_secure = hashlib.new("ripemd160", clip_hash_fast + self.websocket_worker.ACCOUNT_SALT).hexdigest() #to prevent rainbow table attacks of known files and their hashes, will also cause decryption to fail if file name is changed
 								
-							print "DECRYPT"
-							with open(result, "rb") as file_name_decrypt:
-								with encompress.Encompress(password = "nigger", directory = TEMP_DIR, file_names_encrypt = [img_file_name], file_name_decrypt=file_name_decrypt) as result:
-									print result
-							"""
-							
-							try:
-								image_old.Destroy()
-							except AttributeError:
-								pass	
-							
-							return __prepare_for_upload(
-								file_names = [img_file_name],
-								clip_type = "bitmap", 
-								clip_display = [clip_display], 
-								clip_hash_secure = clip_hash_secure, 
-								compare_next = image_new
-							)
-						else:
-							image_new.Destroy() #clear memory
-							#gc.collect() #free up previous references to image_new and image_old arrays, since they are so large #http://stackoverflow.com/questions/1316767/how-can-i-explicitly-free-memory-in-python
+								img_file_name = "%s.bmp"%clip_hash_secure
+								img_file_path = os.path.join(TEMP_DIR,img_file_name)
+								
+								print "\nimg_file_path: \n%s\n"%img_file_path
+								
+								bitmap.SaveFile(img_file_path, wx.BITMAP_TYPE_BMP) #change to or compliment upload
+								
+								megapixels = len(image_new_buffer_array) / 3
+								
+								clip_display = megapixels
+								
+								try:
+									image_old.Destroy()
+								except AttributeError:
+									pass	
+								
+								return __prepare_for_upload(
+									file_names = [img_file_name],
+									clip_type = "bitmap", 
+									clip_display = [clip_display], 
+									clip_hash_secure = clip_hash_secure, 
+									compare_next = image_new
+								)
+							else:
+								image_new.Destroy() #clear memory
+								#gc.collect() #free up previous references to image_new and image_old arrays, since they are so large #http://stackoverflow.com/questions/1316767/how-can-i-explicitly-free-memory-in-python
 
 				def _return_if_file():
 					clip_data = wx.FileDataObject()
