@@ -1,8 +1,10 @@
 # -*- coding: utf8 -*-
-from gevent import monkey; monkey.patch_all() #no need to monkeypatch all, just sockets... Now we can bidirectionally communicate, unlike with blocking websocket client
+from gevent import monkey; monkey.patch_all() #monkey.patch_socket() #no need to monkeypatch all, just sockets... Now we can bidirectionally communicate, unlike with blocking websocket client
 from gevent.event import AsyncResult
 import gevent
 
+#import keyring.backends.file... #https://github.com/jaraco/keyring/issues/124 #https://github.com/joeferraro/MavensMate/issues/79#issue-18637867
+import keyring.backends.file,keyring.backends.Gnome,keyring.backends.Google,keyring.backends.keyczar,keyring.backends.kwallet,keyring.backends.multi,keyring.backends.OS_X,keyring.backends.pyfs,keyring.backends.SecretService,keyring.backends.Windows,keyring.util.escape,keyring.credentials
 import keyring
 
 #socket stuff
@@ -77,7 +79,6 @@ class EVT_RESULT(wx.PyEvent):
 #lock = Lock() #locks not needed in gevent, use AsyncResult
 #with lock:
 #...
-SEND_ID = None
 SERVER_LATEST_CLIP, CLIENT_LATEST_CLIP, CLIENT_RECENT_DATA = AsyncResult(), AsyncResult(), AsyncResult()
 SERVER_LATEST_CLIP.set({}) #the latest clip's hash on server
 CLIENT_LATEST_CLIP.set({}) #the latest clip's hash on client. Take no action if equal with above.
@@ -86,7 +87,6 @@ CLIENT_RECENT_DATA.set(None)
 
 class WorkerThread(Thread):
 	"""Worker Thread Class."""
-
 	KEEP_RUNNING = True
 	ACCOUNT_SALT = False
 	FORCE_RECONNECT = False
@@ -315,9 +315,7 @@ class Main(wx.Frame, MenuBarMixin):
 	#ID_CLEAR = 3
 	#ID_DELETE = 4
 	TEMP_DIR = TEMP_DIR
-
-	TEMP_EMAIL = ""
-	TEMP_PASS = ""
+	SEND_ID = None
 	
 	def __init__(self):
 		wx.Frame.__init__(self, None, -1, "PasteBeam")
@@ -458,7 +456,8 @@ class Main(wx.Frame, MenuBarMixin):
 		#self.Close() #DOES NOT WORK
 		self.sb.toggleStatusIcon(msg='Shutting down...', icon="bad")
 		pid = os.getpid() #http://quickies.seriot.ch/?id=189
-		os.kill(pid, 1)
+		os.kill(pid, 9)
+		#self.Destroy()
 
 	def onResult(self, result_event):
 		"""Show Result status."""
@@ -471,7 +470,7 @@ class Main(wx.Frame, MenuBarMixin):
 			
 			latest_content = clip_list[0]
 			
-			if latest_content['send_id'] != SEND_ID: #no point of setting new clipboard to the same machine that just uploaded it. Without this OS cut and paste will break.
+			if latest_content['send_id'] != self.SEND_ID: #no point of setting new clipboard to the same machine that just uploaded it. Without this OS cut and paste will break.
 
 				self.setClipboardContent(container_name= latest_content['container_name'], clip_type =latest_content['clip_type'])
 			
@@ -485,7 +484,7 @@ class Main(wx.Frame, MenuBarMixin):
 				try:
 					#print "DECODE CLIP %s"%each_clip['clip_display_encoded']
 					each_clip['clip_display_decoded'] = self.decodeClip(each_clip['clip_display_encoded'])
-				except ZeroDivisionError:#(zlib.error, UnicodeDecodeError):
+				except:#(zlib.error, UnicodeDecodeError):
 					newest_index-=1 #the list will be smaller if some items are duds, so make the newest_index smaller too
 					#print "DECODE/DECRYPT/UNZIP ERROR"
 				else:
@@ -577,7 +576,7 @@ class Main(wx.Frame, MenuBarMixin):
 					wx.MessageBox("Unable to download this clip from the server", "Error")
 
 		except:
-			wx.MessageBox("Unknown Error. (548)", "Error")
+			wx.MessageBox("Unexpected error: %s" % sys.exc_info()[0], "Error", wx.ICON_ERROR)
 			self.destroyBusyDialog()
 					
 		if success:	
@@ -597,8 +596,7 @@ class Main(wx.Frame, MenuBarMixin):
 				
 				print "\ngetClipboardContent: container_name: %s\n"%container_name #salting the file_name will cause decryption to fail if
 
-				global SEND_ID #change to sender id
-				SEND_ID = uuid.uuid4()
+				self.SEND_ID = uuid.uuid4() #change to sender id
 					
 				clip_content = {
 					"clip_type" : clip_type,
@@ -607,7 +605,7 @@ class Main(wx.Frame, MenuBarMixin):
 					"clip_hash_secure" : clip_hash_secure, #http://stackoverflow.com/questions/16414559/trying-to-use-hex-without-0x
 					"host_name" : self.getLogin().get("device_name"),
 					"timestamp_client" : time.time(),
-					"send_id" : SEND_ID,
+					"send_id" : self.SEND_ID,
 				}
 				
 				CLIENT_RECENT_DATA.set(compare_next)
@@ -664,31 +662,29 @@ class Main(wx.Frame, MenuBarMixin):
 
 			if not success:
 				return
-
+				
 			self.setThrottle("slow")
 			
 			image_old = CLIENT_RECENT_DATA.get()
 			#print "image_old %s"%image_old
-			
+						
 			try: 
 				image_old_buffer_array = image_old.GetDataBuffer() #SOLVED GetDataBuffer crashing! You need to ensure that you do not use this buffer object after the image has been destroyed. http://wxpython.org/Phoenix/docs/html/MigrationGuide.html bitmap.ConvertToImage().GetDataBuffer() WILL FAIL because the image is destroyed after GetDataBuffer() is called so doing a buffer1 != buffer2 comparison will crash
 			except AttributeError:
-				image_old_buffer_array = None #if prevuous is not an image
+				image_old_buffer_array = None #if previous is not an image
 			
 			try:
 				bitmap = clip_data.GetBitmap()
 				image_new  = bitmap.ConvertToImage() #OLD #GET DATA IS HIDDEN METHOD, IT RETURNS BYTE ARRAY... DO NOT USE GETDATABUFFER AS IT CRASHES. BESIDES GETDATABUFFER IS ONLY GOOD TO CHANGE BYTES IN MEMORY http://wxpython.org/Phoenix/docs/html/MigrationGuide.html
 				image_new_buffer_array = image_new.GetDataBuffer()
-																
+				
 				if image_new_buffer_array == image_old_buffer_array: #for performance reasons we are not using the bmp for hash, but rather the wx Image GetData array
 					image_new.Destroy() #will be created again in next iteration
-					del image_new	
 					return
 					
 				megapixels = len(image_new_buffer_array) / 3 / 1000000.0
 				if megapixels > 100.0:
 					image_new.Destroy() #will be created again in next iteration
-					del image_new	
 					self.sb.toggleStatusIcon(msg='Bitmap not uploaded. Maximum resolution is 100 megapixels.', icon="bad")
 					return
 				megapixels = "%.2f" % megapixels
@@ -704,8 +700,6 @@ class Main(wx.Frame, MenuBarMixin):
 				bitmap.SaveFile(img_file_path, wx.BITMAP_TYPE_BMP) #change to or compliment upload
 				try:
 					image_old.Destroy() #image new will be image_old in next iteration, so get rid of old reference.
-					del image_old
-					CLIENT_RECENT_DATA.set(None)
 				except AttributeError:
 					pass
 				
@@ -719,7 +713,6 @@ class Main(wx.Frame, MenuBarMixin):
 
 			finally:
 				bitmap.Destroy()
-				del bitmap
 				gc.collect()
 
 		def _return_if_file():
@@ -834,10 +827,11 @@ class Main(wx.Frame, MenuBarMixin):
 			if self.websocket_worker.KEEP_RUNNING and self.websocket_worker.ACCOUNT_SALT: #wait until user account salt arrives for encryption
 				if counter % self.throttle == 0:# only run every second, letting it run without this restriction will call memory failure and high cpu
 					#set clip global
+					clip_content = None
 					try:		
 						with wx.TheClipboard.Get() as clipboard:
 							clip_content = self.getClipboardContent(clipboard)
-					except:# TypeError:
+					except: #ZeroDivisionError: #TypeError:
 						self.destroyBusyDialog()
 						wx.MessageBox("Unexpected error: %s" % sys.exc_info()[0], "Error", wx.ICON_ERROR)
 					if clip_content:

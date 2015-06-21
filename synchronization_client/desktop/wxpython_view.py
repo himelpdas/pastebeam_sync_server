@@ -10,7 +10,7 @@ DEFAULT_DEVICE_NAME = "%s (%s %s)"%(wx.GetHostName(), platform.system(), platfor
 class MenuBarMixin():
 	"""Cannot subclass wx.menu_bar directly, so make it a mixin"""
 	
-	file_item_id = wx.NewId() #wx.ID_EXIT #causes something to appear in statusbar
+	quit_item_id = wx.NewId() #wx.ID_EXIT #causes something to appear in statusbar
 	toggle_item_id = wx.NewId()
 	about_item_id = wx.NewId()
 	login_item_id = wx.NewId()
@@ -20,7 +20,7 @@ class MenuBarMixin():
 		
 		file_menu = wx.Menu()
 		self.toggle_item = file_menu.Append(self.toggle_item_id, 'Pause PasteBeam')
-		file_item = file_menu.Append(self.file_item_id, 'Quit')
+		quit_item = file_menu.Append(self.quit_item_id, 'Quit')
 		menu_bar.Append(file_menu, '&File')
 				
 		edit_menu = wx.Menu()
@@ -33,7 +33,7 @@ class MenuBarMixin():
 		
 		self.SetMenuBar(menu_bar)
 
-		self.Bind(wx.EVT_MENU, self.onQuit, file_item)
+		self.Bind(wx.EVT_MENU, self.onQuit, quit_item)
 		self.Bind(wx.EVT_MENU, self.onToggleItem, self.toggle_item)
 		self.Bind(wx.EVT_MENU, self.onAboutItem, about_item)
 		self.Bind(wx.EVT_MENU, self.onLoginItem, login_item)
@@ -332,12 +332,12 @@ class MyLoginDialog(wx.Dialog):
 		
 		#set defaults
 		login = self.frame.getLogin()
-		self.email_field.SetValue(login.get("email"))
-		self.password_field.SetValue(login.get("password"))
+		self.email_field.SetValue(login.get("email") or "")
+		self.password_field.SetValue(login.get("password") or "")
 		device_name = login.get("device_name")
 		if not device_name:
 			device_name = DEFAULT_DEVICE_NAME
-		self.device_name_field.SetValue(device_name)
+		self.device_name_field.SetValue(device_name or "")
 		
 	def onSave(self, e):
 		
