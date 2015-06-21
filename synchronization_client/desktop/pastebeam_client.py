@@ -586,246 +586,240 @@ class Main(wx.Frame, MenuBarMixin):
 		return success
 		#PUT MESSAGEBOX HERE? ALSO destroyBusyDialog
 		
-	def getClipboardContent(self):
-		try:
-			with wx.TheClipboard.Get() as clipboard:
-			
-				def __prepare_for_upload(file_names, clip_type, clip_display, clip_hash_secure, compare_next):
-						
-					print "\nBLOCK!!!\n"
-						
-					self.sb.toggleStatusIcon(msg='Encrypting and uploading %s data...'%clip_type, icon="lock")
-						
-					with encompress.Encompress(password = "nigger", directory = TEMP_DIR, file_names_encrypt = [file_names, clip_hash_secure], file_name_decrypt=False) as container_name: #salt = clip_hash_secure needed so that files with the same name do not result in same hash, if the file data is different, since clip_hash_secure is generated from the file contents
-						
-						print "\ngetClipboardContent: container_name: %s\n"%container_name #salting the file_name will cause decryption to fail if
-
-						global SEND_ID #change to sender id
-						SEND_ID = uuid.uuid4()
-							
-						clip_content = {
-							"clip_type" : clip_type,
-							"clip_display_encoded" : self.encodeClip(json.dumps(clip_display)),
-							"container_name" : container_name,
-							"clip_hash_secure" : clip_hash_secure, #http://stackoverflow.com/questions/16414559/trying-to-use-hex-without-0x
-							"host_name" : self.getLogin().get("device_name"),
-							"timestamp_client" : time.time(),
-							"send_id" : SEND_ID,
-						}
-						
-						CLIENT_RECENT_DATA.set(compare_next)
-						#print "SETTED %s"%compare_next
-						
-						self.sb.toggleStatusIcon(msg='Successfully uploaded %s data.'%clip_type, icon="good")
-						
-						return clip_content
-			
-				def _return_if_text_or_url():
-					clip_data = wx.TextDataObject()
-					success = clipboard.GetData(clip_data)
-					
-					if success:
-						self.setThrottle("fast")
-					
-						clip_text_old = CLIENT_RECENT_DATA.get()
-						
-						clip_text_new = clip_data.GetText()
-						
-						if clip_text_new != clip_text_old: #UnicodeWarning: Unicode equal comparison failed to convert both arguments to Unicode - interpreting them as being unequal
-							clip_text_is_url = string_is_url(clip_text_new)
-							
-							clip_text_encoded = self.encodeClip(clip_text_new)
-							
-							if clip_text_is_url:
-								clip_display =  clip_text_new
-							else:
-								clip_display = clip_text_new[:2000]
-
-							clip_hash_fast = format( hash128( clip_text_encoded ), "x") #hex( hash128( clip_text_encoded ) ) #use instead to get rid of 0x for better looking filenames
-							clip_hash_secure = hashlib.new("ripemd160", clip_hash_fast + self.websocket_worker.ACCOUNT_SALT).hexdigest()
-														
-							txt_file_name = "%s.txt"%clip_hash_secure
-							txt_file_path = os.path.join(TEMP_DIR,txt_file_name)
-							
-							with open(txt_file_path, 'w') as txt_file:
-								txt_file.write(clip_text_encoded)
-								
-							return __prepare_for_upload(
-								file_names = [txt_file_name],
-								clip_type = "text" if not clip_text_is_url else "link", 
-								clip_display = [clip_display], 
-								clip_hash_secure = clip_hash_secure, 
-								compare_next = clip_text_new
-							)
-						
-				def _return_if_bitmap():
-					clip_data = wx.BitmapDataObject() #http://stackoverflow.com/questions/2629907/reading-an-image-from-the-clipboard-with-wxpython
-					success = clipboard.GetData(clip_data)
-
-					if success:
-						self.setThrottle("slow")
-						
-						image_old = CLIENT_RECENT_DATA.get()
-						#print "image_old %s"%image_old
-						
-						try: 
-							image_old_buffer_array = image_old.GetDataBuffer() #SOLVED GetDataBuffer crashing! You need to ensure that you do not use this buffer object after the image has been destroyed. http://wxpython.org/Phoenix/docs/html/MigrationGuide.html bitmap.ConvertToImage().GetDataBuffer() WILL FAIL because the image is destroyed after GetDataBuffer() is called so doing a buffer1 != buffer2 comparison will crash
-						except AttributeError:
-							image_old_buffer_array = None #if prevuous is not an image
-						
-						bitmap = clip_data.GetBitmap()
-						image_new  = bitmap.ConvertToImage() #OLD #GET DATA IS HIDDEN METHOD, IT RETURNS BYTE ARRAY... DO NOT USE GETDATABUFFER AS IT CRASHES. BESIDES GETDATABUFFER IS ONLY GOOD TO CHANGE BYTES IN MEMORY http://wxpython.org/Phoenix/docs/html/MigrationGuide.html
-						image_new_buffer_array = image_new.GetDataBuffer()
-																		
-						if image_new_buffer_array != image_old_buffer_array: #for performance reasons we are not using the bmp for hash, but rather the wx Image GetData array
-														
-							clip_hash_fast = format(hash128(image_new_buffer_array), "x") #hex(hash128(image_new)) #KEEP PRIVATE and use to get hash of large data quickly
-							clip_hash_secure = hashlib.new("ripemd160", clip_hash_fast + self.websocket_worker.ACCOUNT_SALT).hexdigest() #to prevent rainbow table attacks of known files and their hashes, will also cause decryption to fail if file name is changed
-							
-							img_file_name = "%s.bmp"%clip_hash_secure
-							img_file_path = os.path.join(TEMP_DIR,img_file_name)
-							
-							print "\nimg_file_path: \n%s\n"%img_file_path
-							
-							bitmap.SaveFile(img_file_path, wx.BITMAP_TYPE_BMP) #change to or compliment upload
-							
-							megapixels = len(image_new_buffer_array) / 3
-							
-							clip_display = megapixels
-							
-							"""
-							print "ENCRYPT"
-							with encompress.Encompress(password = "nigger", directory = TEMP_DIR, file_names_encrypt = [img_file_name], file_name_decrypt=False) as result:
-								print result #salting the file_name will cause decryption to fail if
-								
-							print "DECRYPT"
-							with open(result, "rb") as file_name_decrypt:
-								with encompress.Encompress(password = "nigger", directory = TEMP_DIR, file_names_encrypt = [img_file_name], file_name_decrypt=file_name_decrypt) as result:
-									print result
-							"""
-							
-							try:
-								image_old.Destroy()
-							except AttributeError:
-								pass	
-							
-							return __prepare_for_upload(
-								file_names = [img_file_name],
-								clip_type = "bitmap", 
-								clip_display = [clip_display], 
-								clip_hash_secure = clip_hash_secure, 
-								compare_next = image_new
-							)
-						else:
-							image_new.Destroy() #clear memory
-							#gc.collect() #free up previous references to image_new and image_old arrays, since they are so large #http://stackoverflow.com/questions/1316767/how-can-i-explicitly-free-memory-in-python
-
-				def _return_if_file():
-					clip_data = wx.FileDataObject()
-					success = clipboard.GetData(clip_data)
-
-					if success:
-						self.setThrottle("slow")
-	
-						os_file_paths_new = sorted(clip_data.GetFilenames())
-						
-						try:
-							os_file_sizes_new = map(lambda each_os_path: getFolderSize(each_os_path, max=MAX_FILE_SIZE) if os.path.isdir(each_os_path) else os.path.getsize(each_os_path), os_file_paths_new)
-						except:
-							return
-						
-						if sum(os_file_sizes_new) > MAX_FILE_SIZE:
-							self.sb.toggleStatusIcon(msg='Files not uploaded. Maximum files size is 50 megabytes.', icon="bad")
-							return #upload error clip
-
-						#print os_file_paths_new
-										
-						os_file_hashes_old_set = CLIENT_RECENT_DATA.get()
-						os_file_hashes_new = []
-						
-						os_file_names_new = []
-						display_file_names =[]
-						
-
-						try:
-
-							for each_path in os_file_paths_new:
-							
-								each_file_name = os.path.split(each_path)[1]
-							
-								os_file_names_new.append(each_file_name)
-								
-								if os.path.isdir(each_path):
-								
-									display_file_names.append(each_file_name+" folder (%s inside)"%len(os.listdir(each_path))+"._folder")
-								
-									os_folder_hashes = []
-									for dirName, subdirList, fileList in os.walk(each_path, topdown=False):
-										subdirList = filter
-										for fname in fileList:
-											if fname.upper() not in FILE_IGNORE_LIST: #DO NOT calculate hash for system files as they are always changing, and if a folder is in clipboard, a new upload may be initiated each time a system file is changed
-												each_sub_path = os.path.join(dirName, fname)
-												with open(each_sub_path, 'rb') as each_sub_file:
-													each_relative_path = each_sub_path.split(each_path)[1] #c:/python27/lib/ - c:/python27/lib/bin/abc.pyc = bin/abc.pyc
-													each_relative_hash = each_relative_path + hex(hash128( each_sub_file.read())) #WARNING- some files like thumbs.db constantly change, and therefore may cause an infinite upload loop. Need an ignore list.
-													os_folder_hashes.append(each_relative_hash) #use relative path+filename and hash so that set does not ignore two idenitcal files in different sub-directories. Why? let's say bin/abc.pyc and usr/abc.pyc are identical, without the aforementioned system, a folder with just bin/abc.pyc will yield same hash as bin/abc.pyc + usr/abc.pyc, not good.
-													#gevent.sleep()#print each_relative_hash
-									each_file_name = os.path.split(each_path)[1]
-									os_folder_hashes.sort()
-									each_data = "".join(os_folder_hashes) #whole folder hash
-								
-								else: #single file
-								
-									display_file_names.append(each_file_name)
-								
-									with open(each_path, 'rb') as each_file: 
-										each_file_name = os.path.split(each_path)[1]
-										each_data = each_file.read()
-								
-								name_and_data_hash = os_file_hashes_new.append( each_file_name + format(hash128( each_data ), "x") + self.websocket_worker.ACCOUNT_SALT) #append the hash for this file #use filename and hash so that set does not ignore copies of two idenitcal files (but different names) in different directories
-							
-						except ZeroDivisionError:
-							return #upload error clip
-								
-						os_file_hashes_new_set = set(os_file_hashes_new)
-
-						if os_file_hashes_old_set != set(os_file_hashes_new):  #checks to make sure if name and file are the same
-
-							for each_new_path in os_file_paths_new:
-								try:
-									if os.path.isdir(each_new_path):
-										distutils.dir_util.copy_tree(each_new_path, os.path.join(TEMP_DIR, os.path.split(each_new_path)[1] ) )
-									else:
-										distutils.file_util.copy_file(each_new_path, TEMP_DIR )
-								except distutils.errors.DistutilsFileError:
-									pass
-									
-									
-							print "\nRETURN!!!!\n"
-
-							clip_hash_secure = hashlib.new("ripemd160", "".join(os_file_hashes_new) + self.websocket_worker.ACCOUNT_SALT).hexdigest() #MUST use list of files instead of set because set does not guarantee order and therefore will result in a non-deterministic hash 
-							return __prepare_for_upload(
-								file_names = os_file_names_new,
-								clip_type = "files",
-								clip_display = display_file_names,
-								clip_hash_secure = clip_hash_secure, 
-								compare_next = os_file_hashes_new_set
-							)
-
-				return (_return_if_text_or_url() or _return_if_bitmap() or _return_if_file() or None)
+	def getClipboardContent(self, clipboard):		
+		def __prepare_for_upload(file_names, clip_type, clip_display, clip_hash_secure, compare_next):
 				
-		except ZeroDivisionError:# TypeError:
-			self.destroyBusyDialog()
-			wx.MessageBox("Unable to access the clipboard. Another application seems to be locking it.", "Error")
-			return None
+			print "\nBLOCK!!!\n"
+				
+			self.sb.toggleStatusIcon(msg='Encrypting and uploading %s data...'%clip_type, icon="lock")
+				
+			with encompress.Encompress(password = "nigger", directory = TEMP_DIR, file_names_encrypt = [file_names, clip_hash_secure], file_name_decrypt=False) as container_name: #salt = clip_hash_secure needed so that files with the same name do not result in same hash, if the file data is different, since clip_hash_secure is generated from the file contents
+				
+				print "\ngetClipboardContent: container_name: %s\n"%container_name #salting the file_name will cause decryption to fail if
+
+				global SEND_ID #change to sender id
+				SEND_ID = uuid.uuid4()
+					
+				clip_content = {
+					"clip_type" : clip_type,
+					"clip_display_encoded" : self.encodeClip(json.dumps(clip_display)),
+					"container_name" : container_name,
+					"clip_hash_secure" : clip_hash_secure, #http://stackoverflow.com/questions/16414559/trying-to-use-hex-without-0x
+					"host_name" : self.getLogin().get("device_name"),
+					"timestamp_client" : time.time(),
+					"send_id" : SEND_ID,
+				}
+				
+				CLIENT_RECENT_DATA.set(compare_next)
+				#print "SETTED %s"%compare_next
+				
+				self.sb.toggleStatusIcon(msg='Successfully uploaded %s data.'%clip_type, icon="good")
+				
+				return clip_content
+	
+		def _return_if_text_or_url():
+			clip_data = wx.TextDataObject()
+			success = clipboard.GetData(clip_data)
 			
+			if not success:
+				return
+			self.setThrottle("fast")
+		
+			clip_text_old = CLIENT_RECENT_DATA.get()
+			
+			clip_text_new = clip_data.GetText()
+			
+			if clip_text_new == clip_text_old: #UnicodeWarning: Unicode equal comparison failed to convert both arguments to Unicode - interpreting them as being unequal
+				return
+
+			clip_text_is_url = string_is_url(clip_text_new)
+			
+			clip_text_encoded = self.encodeClip(clip_text_new)
+			
+			if clip_text_is_url:
+				clip_display =  clip_text_new
+			else:
+				clip_display = clip_text_new[:2000]
+
+			clip_hash_fast = format( hash128( clip_text_encoded ), "x") #hex( hash128( clip_text_encoded ) ) #use instead to get rid of 0x for better looking filenames
+			clip_hash_secure = hashlib.new("ripemd160", clip_hash_fast + self.websocket_worker.ACCOUNT_SALT).hexdigest()
+										
+			txt_file_name = "%s.txt"%clip_hash_secure
+			txt_file_path = os.path.join(TEMP_DIR,txt_file_name)
+			
+			with open(txt_file_path, 'w') as txt_file:
+				txt_file.write(clip_text_encoded)
+				
+			return __prepare_for_upload(
+				file_names = [txt_file_name],
+				clip_type = "text" if not clip_text_is_url else "link", 
+				clip_display = [clip_display], 
+				clip_hash_secure = clip_hash_secure, 
+				compare_next = clip_text_new
+			)
+				
+		def _return_if_bitmap():
+			clip_data = wx.BitmapDataObject() #http://stackoverflow.com/questions/2629907/reading-an-image-from-the-clipboard-with-wxpython
+			success = clipboard.GetData(clip_data)
+
+			if not success:
+				return
+
+			self.setThrottle("slow")
+			
+			image_old = CLIENT_RECENT_DATA.get()
+			#print "image_old %s"%image_old
+			
+			try: 
+				image_old_buffer_array = image_old.GetDataBuffer() #SOLVED GetDataBuffer crashing! You need to ensure that you do not use this buffer object after the image has been destroyed. http://wxpython.org/Phoenix/docs/html/MigrationGuide.html bitmap.ConvertToImage().GetDataBuffer() WILL FAIL because the image is destroyed after GetDataBuffer() is called so doing a buffer1 != buffer2 comparison will crash
+			except AttributeError:
+				image_old_buffer_array = None #if prevuous is not an image
+			
+			try:
+				bitmap = clip_data.GetBitmap()
+				image_new  = bitmap.ConvertToImage() #OLD #GET DATA IS HIDDEN METHOD, IT RETURNS BYTE ARRAY... DO NOT USE GETDATABUFFER AS IT CRASHES. BESIDES GETDATABUFFER IS ONLY GOOD TO CHANGE BYTES IN MEMORY http://wxpython.org/Phoenix/docs/html/MigrationGuide.html
+				image_new_buffer_array = image_new.GetDataBuffer()
+																
+				if image_new_buffer_array == image_old_buffer_array: #for performance reasons we are not using the bmp for hash, but rather the wx Image GetData array
+					image_new.Destroy() #will be created again in next iteration
+					del image_new	
+					return
+					
+				megapixels = len(image_new_buffer_array) / 3 / 1000000.0
+				if megapixels > 100.0:
+					image_new.Destroy() #will be created again in next iteration
+					del image_new	
+					self.sb.toggleStatusIcon(msg='Bitmap not uploaded. Maximum resolution is 100 megapixels.', icon="bad")
+					return
+				megapixels = "%.2f" % megapixels
+
+				clip_hash_fast = format(hash128(image_new_buffer_array), "x") #hex(hash128(image_new)) #KEEP PRIVATE and use to get hash of large data quickly
+				clip_hash_secure = hashlib.new("ripemd160", clip_hash_fast + self.websocket_worker.ACCOUNT_SALT).hexdigest() #to prevent rainbow table attacks of known files and their hashes, will also cause decryption to fail if file name is changed
+				
+				img_file_name = "%s.bmp"%clip_hash_secure
+				img_file_path = os.path.join(TEMP_DIR,img_file_name)
+				
+				print "\nimg_file_path: \n%s\n"%img_file_path
+				
+				bitmap.SaveFile(img_file_path, wx.BITMAP_TYPE_BMP) #change to or compliment upload
+				try:
+					image_old.Destroy() #image new will be image_old in next iteration, so get rid of old reference.
+					del image_old
+					CLIENT_RECENT_DATA.set(None)
+				except AttributeError:
+					pass
+				
+				return __prepare_for_upload(
+					file_names = [img_file_name],
+					clip_type = "bitmap", 
+					clip_display = [megapixels], 
+					clip_hash_secure = clip_hash_secure, 
+					compare_next = image_new
+				)
+
+			finally:
+				bitmap.Destroy()
+				del bitmap
+				gc.collect()
+
+		def _return_if_file():
+			clip_data = wx.FileDataObject()
+			success = clipboard.GetData(clip_data)
+
+			if not success:
+				return
+
+			self.setThrottle("slow")
+
+			os_file_paths_new = sorted(clip_data.GetFilenames())
+			
+			try:
+				os_file_sizes_new = map(lambda each_os_path: getFolderSize(each_os_path, max=MAX_FILE_SIZE) if os.path.isdir(each_os_path) else os.path.getsize(each_os_path), os_file_paths_new)
+			except:
+				return
+			
+			if sum(os_file_sizes_new) > MAX_FILE_SIZE:
+				self.sb.toggleStatusIcon(msg='Files not uploaded. Maximum files size is 50 megabytes.', icon="bad")
+				return #upload error clip
+
+			#print os_file_paths_new
+							
+			os_file_hashes_old_set = CLIENT_RECENT_DATA.get()
+			os_file_hashes_new = []
+			
+			os_file_names_new = []
+			display_file_names =[]
+			
+			for each_path in os_file_paths_new:
+			
+				each_file_name = os.path.split(each_path)[1]
+			
+				os_file_names_new.append(each_file_name)
+				
+				if os.path.isdir(each_path):
+				
+					display_file_names.append(each_file_name+" folder (%s inside)"%len(os.listdir(each_path))+"._folder")
+				
+					os_folder_hashes = []
+					for dirName, subdirList, fileList in os.walk(each_path, topdown=False):
+						subdirList = filter
+						for fname in fileList:
+							if fname.upper() not in FILE_IGNORE_LIST: #DO NOT calculate hash for system files as they are always changing, and if a folder is in clipboard, a new upload may be initiated each time a system file is changed
+								each_sub_path = os.path.join(dirName, fname)
+								with open(each_sub_path, 'rb') as each_sub_file:
+									each_relative_path = each_sub_path.split(each_path)[1] #c:/python27/lib/ - c:/python27/lib/bin/abc.pyc = bin/abc.pyc
+									each_relative_hash = each_relative_path + hex(hash128( each_sub_file.read())) #WARNING- some files like thumbs.db constantly change, and therefore may cause an infinite upload loop. Need an ignore list.
+									os_folder_hashes.append(each_relative_hash) #use relative path+filename and hash so that set does not ignore two idenitcal files in different sub-directories. Why? let's say bin/abc.pyc and usr/abc.pyc are identical, without the aforementioned system, a folder with just bin/abc.pyc will yield same hash as bin/abc.pyc + usr/abc.pyc, not good.
+									#gevent.sleep()#print each_relative_hash
+					each_file_name = os.path.split(each_path)[1]
+					os_folder_hashes.sort()
+					each_data = "".join(os_folder_hashes) #whole folder hash
+				
+				else: #single file
+				
+					display_file_names.append(each_file_name)
+				
+					with open(each_path, 'rb') as each_file: 
+						each_file_name = os.path.split(each_path)[1]
+						each_data = each_file.read()
+				
+				name_and_data_hash = os_file_hashes_new.append( each_file_name + format(hash128( each_data ), "x") + self.websocket_worker.ACCOUNT_SALT) #append the hash for this file #use filename and hash so that set does not ignore copies of two idenitcal files (but different names) in different directories
+					
+			os_file_hashes_new_set = set(os_file_hashes_new)
+
+			if os_file_hashes_old_set == set(os_file_hashes_new):  #checks to make sure if name and file are the same
+				return
+
+			for each_new_path in os_file_paths_new:
+				try:
+					if os.path.isdir(each_new_path):
+						distutils.dir_util.copy_tree(each_new_path, os.path.join(TEMP_DIR, os.path.split(each_new_path)[1] ) )
+					else:
+						distutils.file_util.copy_file(each_new_path, TEMP_DIR )
+				except distutils.errors.DistutilsFileError:
+					pass
+					
+					
+			print "\nRETURN!!!!\n"
+
+			clip_hash_secure = hashlib.new("ripemd160", "".join(os_file_hashes_new) + self.websocket_worker.ACCOUNT_SALT).hexdigest() #MUST use list of files instead of set because set does not guarantee order and therefore will result in a non-deterministic hash 
+			return __prepare_for_upload(
+				file_names = os_file_names_new,
+				clip_type = "files",
+				clip_display = display_file_names,
+				clip_hash_secure = clip_hash_secure, 
+				compare_next = os_file_hashes_new_set
+			)
+
+		return (_return_if_text_or_url() or _return_if_bitmap() or _return_if_file() or None)
+		
 	def setThrottle(self, speed="fast"):
 		#the seconds before self.getClipboardContent() runs again
 		#set to slow when dealing with files and bitmaps to prevent memory leaks
 		if speed == "fast":
 			milliseconds = 1111
 		elif speed == "slow":
-			milliseconds = 3333		
+			milliseconds = 3333
 		self.throttle = milliseconds
 		
 	def runAsyncWorker(self): 
@@ -840,7 +834,12 @@ class Main(wx.Frame, MenuBarMixin):
 			if self.websocket_worker.KEEP_RUNNING and self.websocket_worker.ACCOUNT_SALT: #wait until user account salt arrives for encryption
 				if counter % self.throttle == 0:# only run every second, letting it run without this restriction will call memory failure and high cpu
 					#set clip global
-					clip_content = self.getClipboardContent()
+					try:		
+						with wx.TheClipboard.Get() as clipboard:
+							clip_content = self.getClipboardContent(clipboard)
+					except:# TypeError:
+						self.destroyBusyDialog()
+						wx.MessageBox("Unexpected error: %s" % sys.exc_info()[0], "Error", wx.ICON_ERROR)
 					if clip_content:
 						#HOST_CLIP_CONTENT.set( clip_content['clip_text'] )#encode it to a data compatible with murmurhash and wxpython settext, which only expect ascii ie "heart symbol" to u/2339
 						CLIENT_LATEST_CLIP.set( clip_content )  #NOTE SERVER_LATEST_CLIP.get() was not set
