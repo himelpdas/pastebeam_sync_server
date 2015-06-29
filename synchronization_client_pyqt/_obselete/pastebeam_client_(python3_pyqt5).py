@@ -14,14 +14,16 @@ last edited: January 2015
 """
 
 import sys, time
-#from PySide import QtGui, QtCore
-from PySide.QtGui import *
-from gevent import monkey; monkey.patch_all()
+from PyQt5.QtWidgets import * #QWidget, QPushButton, QGridLayout, QApplication, QLineEdit
+#from PyQt5.QtCore import QCoreApplication
+#from PyQt5.QtMultimedia import QCamera, QMediaRecorder
+#from PyQt5.QtMultimediaWidgets import QCameraViewfinder
 
-class Main(QWidget):
+
+class Example(QWidget):
 	
 	def __init__(self, app):
-		super(Main, self).__init__()
+		super().__init__()
 		
 		self.app = app
 		self.initUI()
@@ -39,8 +41,6 @@ class Main(QWidget):
 		#qbtn.move(50, 50)	
 		
 		self.status = QLineEdit()
-		
-		self.listview  = QListWidget()
 
 		grid =  QGridLayout()
 		grid.setSpacing(10)
@@ -48,7 +48,6 @@ class Main(QWidget):
 		grid.addWidget(cbtn, 1 , 1)
 		grid.addWidget(self.status, 1 , 2)
 		grid.addWidget(qbtn, 2 , 2)
-		grid.addWidget(self.listview, 3 , 1)
 		
 		self.setLayout(grid)
 		
@@ -57,7 +56,7 @@ class Main(QWidget):
 		self.show()
 		
 	def setupClip(self):
-		self.clipboard = self.app.clipboard() #clipboard is in the QApplication class as a static (class) attribute. Therefore it is available to all instances as well, ie. the app instance.#http://doc.qt.io/qt-5/qclipboard.html#changed http://codeprogress.com/python/libraries/pyqt/showPyQTExample.php?index=374&key=PyQTQClipBoardDetectTextCopy https://www.youtube.com/watch?v=nixHrjsezac
+		self.clipboard = self.app.clipboard() #http://doc.qt.io/qt-5/qclipboard.html#changed http://codeprogress.com/python/libraries/pyqt/showPyQTExample.php?index=374&key=PyQTQClipBoardDetectTextCopy https://www.youtube.com/watch?v=nixHrjsezac
 		self.clipboard.dataChanged.connect(self.onClipChange) #datachanged is signal, doclip is slot
 		
 	def onClipChange(self):
@@ -68,5 +67,5 @@ class Main(QWidget):
 if __name__ == '__main__':
 	
 	app = QApplication(sys.argv) #create mainloop
-	ex = Main(app) #run widgets
+	ex = Example(app) #run widgets
 	sys.exit(app.exec_())
