@@ -11,7 +11,7 @@ class WebsocketWorkerMixin(object):
 	
 	def onOutgoingSlot(self, emitted):
 		print emitted
-
+			
 class WebsocketWorker(QtCore.QThread):
 
 	#This is the signal that will be emitted during the processing.
@@ -26,7 +26,7 @@ class WebsocketWorker(QtCore.QThread):
 		QtCore.QThread.__init__(self)
 		
 		self.msg = "hello"
-		main.clipChangeSignal.connect(self.onClipChangeSlot)
+		main.clipChangeSignal.connect(self.onClipChangeSlot) #we have to use slots as gevent cannot talk to separate threads that weren't monkey_patched (QThreads are not monkey_patched since they are not pure python)
 		
 	#A QThread is run by calling it's start() function, which calls this run()
 	#function in it's own "thread". 
@@ -39,11 +39,11 @@ class WebsocketWorker(QtCore.QThread):
 		self.wsock = WebSocketClient("ws://sandbox.kaazing.net/echo") #The websocket MUST be runned here, as running it in __init__ would put websocket in main thread
 		self.wsock.connect()
 	
-		greenlets = [
+		self.greenlets = [
 			gevent.spawn(self.outgoingGreenlet),
 			gevent.spawn(self.incommingGreenlet),
 		]
-		gevent.joinall(greenlets)
+		self.green = gevent.joinall(self.greenlets)
 			
 	def incommingGreenlet(self):
 		while 1:

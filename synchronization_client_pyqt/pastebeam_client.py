@@ -113,6 +113,11 @@ class Main(QWidget, WebsocketWorkerMixin):
 			txt = txt.replace(each_url, "<a href='{url}'>{url}</a>".format(url=each_url))
 		return txt
 		
+	def closeEvent(self, event): #http://stackoverflow.com/questions/9249500/pyside-pyqt-detect-if-user-trying-to-close-window
+		# if i don't terminate the worker thread, the app will crash (ex. windows will say python.exe stopped working)
+		self.ws_worker.terminate() #http://stackoverflow.com/questions/1898636/how-can-i-terminate-a-qthread
+		event.accept() #event.ignore() #stops from exiting
+		
 if __name__ == '__main__':
 	
 	app = QApplication(sys.argv) #create mainloop
