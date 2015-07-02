@@ -12,14 +12,17 @@ author: Jan Bodnar
 website: zetcode.com 
 last edited: January 2015
 """
+from gevent import monkey; monkey.patch_all()
 
-import sys, time, uuid
+import sys, time, uuid, cgi
 #from PySide import QtGui, QtCore
 from PySide.QtGui import *
 from PySide import QtCore
-from gevent import monkey; monkey.patch_all()
 
-class Main(QWidget):
+from functions import *
+from parallel import *
+
+class Main(QWidget, WorkerMixin):
 
 	icon_html = "<html><img src='images/{name}.png' width={side} height={side}></html>"
 	
@@ -27,6 +30,10 @@ class Main(QWidget):
 		super(Main, self).__init__()
 		
 		self.app = app
+		self.worker = Worker()
+		self.worker.incommingSignal.connect(self.onIncommingSlot)
+		self.worker.start()
+		
 		self.initUI()
 		self.setupClip()
 		
@@ -89,13 +96,33 @@ class Main(QWidget):
 		else:
 			itm = QListWidgetItem()
 			itm.setIcon(QIcon("images/text.png"))
-			txt = self.clipboard.text()
+			
+			txt = cgi.escape(self.clipboard.text())
+			txt = self.truncateTextLines(txt)
+			txt = self.anchorUrls(txt)
 		self.list_widget.addItem(itm) #or self.list_widget.addItem("some text") (different signature)
 		custom_label = QLabel("<html><b>By Test on {timestamp}:</b><pre>{text}</pre></html>".format(timestamp = time.time(), text=txt ) )
 		self.list_widget.setItemWidget(itm, custom_label )
 		itm.setSizeHint( custom_label.sizeHint() )
 		#self.status.setText(str(time.time()))
 		
+	@staticmethod
+	def truncateTextLines(txt, max_lines=15):
+		line_count = txt.count("\n")
+		if line_count <= max_lines:
+			return txt
+		txt_split = txt.split("\n")
+		line_diff = line_count-max_lines
+		txt_split = txt_split[:max_lines] + ["<span style='color:red'>...", "... %s line%s not shown"%(line_diff, "s" if line_diff > 1 else ""), "...</span>"] + txt_split[-1:] #equal to [txt_split[-1]]
+		txt = "\n".join(txt_split)
+		return txt
+	
+	@staticmethod
+	def anchorUrls(txt):
+		found_urls = map(lambda each: each[0], GRUBER_URLINTEXT_PAT.findall(txt))
+		for each_url in found_urls:
+			txt = txt.replace(each_url, "<a href='{url}'>{url}</a>".format(url=each_url))
+		return txt
 		
 if __name__ == '__main__':
 	
