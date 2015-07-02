@@ -3,6 +3,9 @@ from ws4py.client.geventclient import WebSocketClient
 from PySide import QtCore
 
 class WebsocketWorkerMixin(object):
+
+	clipChangeSignal = QtCore.Signal(str)
+
 	def onIncommingSlot(self, emitted):
 		print emitted	
 	
@@ -19,11 +22,18 @@ class WebsocketWorker(QtCore.QThread):
 
 	#You can do any extra things in this init you need, but for this example
 	#nothing else needs to be done expect call the super's init
-	def __init__(self):
+	def __init__(self, main):
 		QtCore.QThread.__init__(self)
+		
+		self.msg = "hello"
+		main.clipChangeSignal.connect(self.onClipChangeSlot)
 		
 	#A QThread is run by calling it's start() function, which calls this run()
 	#function in it's own "thread". 
+	
+	def onClipChangeSlot(self, msg):
+		self.msg = msg
+	
 	def run(self):
 	
 		self.wsock = WebSocketClient("ws://sandbox.kaazing.net/echo") #The websocket MUST be runned here, as running it in __init__ would put websocket in main thread
@@ -42,9 +52,8 @@ class WebsocketWorker(QtCore.QThread):
 			gevent.sleep(1)
 
 	def outgoingGreenlet(self):
-		for i in xrange(101):
+		while 1:
 			#Emit the signal so it can be received on the UI side.
-			msg = "hello %s"%i
-			self.wsock.send(msg)
-			self.incommingSignal.emit("sent %s"%msg)
+			self.wsock.send(self.msg)
+			self.incommingSignal.emit("sent %s"%self.msg)
 			gevent.sleep(1)

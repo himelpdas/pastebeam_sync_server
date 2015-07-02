@@ -16,7 +16,7 @@ class Main(QWidget, WebsocketWorkerMixin):
 		super(Main, self).__init__()
 		
 		self.app = app
-		self.ws_worker = WebsocketWorker()
+		self.ws_worker = WebsocketWorker(self)
 		self.ws_worker.incommingSignal.connect(self.onIncommingSlot)
 		self.ws_worker.outgoingSignal.connect(self.onOutgoingSlot)
 		self.ws_worker.start()
@@ -91,6 +91,8 @@ class Main(QWidget, WebsocketWorkerMixin):
 		custom_label = QLabel("<html><b>By Test on {timestamp}:</b><pre>{text}</pre></html>".format(timestamp = time.time(), text=txt ) )
 		self.list_widget.setItemWidget(itm, custom_label )
 		itm.setSizeHint( custom_label.sizeHint() )
+		
+		self.clipChangeSignal.emit(txt)
 		#self.status.setText(str(time.time()))
 		
 	@staticmethod
