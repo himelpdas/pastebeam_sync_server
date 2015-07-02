@@ -1,17 +1,3 @@
-#!/usr/bin/python3
-# -*- coding: utf-8 -*-
-
-"""
-ZetCode PyQt5 tutorial 
-
-This program creates a quit
-button. When we press the button,
-the application terminates. 
-
-author: Jan Bodnar
-website: zetcode.com 
-last edited: January 2015
-"""
 from gevent import monkey; monkey.patch_all()
 
 import sys, time, uuid, cgi
@@ -22,7 +8,7 @@ from PySide import QtCore
 from functions import *
 from parallel import *
 
-class Main(QWidget, WorkerMixin):
+class Main(QWidget, WebsocketWorkerMixin):
 
 	icon_html = "<html><img src='images/{name}.png' width={side} height={side}></html>"
 	
@@ -30,9 +16,10 @@ class Main(QWidget, WorkerMixin):
 		super(Main, self).__init__()
 		
 		self.app = app
-		self.worker = Worker()
-		self.worker.incommingSignal.connect(self.onIncommingSlot)
-		self.worker.start()
+		self.ws_worker = WebsocketWorker()
+		self.ws_worker.incommingSignal.connect(self.onIncommingSlot)
+		self.ws_worker.outgoingSignal.connect(self.onOutgoingSlot)
+		self.ws_worker.start()
 		
 		self.initUI()
 		self.setupClip()
