@@ -36,7 +36,7 @@ class WebsocketWorker(QtCore.QThread):
 	
 	def run(self):
 	
-		self.wsock = WebSocketClient("ws://sandbox.kaazing.net/echo") #The websocket MUST be runned here, as running it in __init__ would put websocket in main thread
+		self.wsock = WebSocketClient("ws://sandbox.kaazing.net/echo") #The geventclient's websocket MUST be runned here, as running it in __init__ would put websocket in main thread
 		self.wsock.connect()
 	
 		self.greenlets = [

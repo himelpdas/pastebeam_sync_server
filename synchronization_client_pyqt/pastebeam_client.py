@@ -61,25 +61,10 @@ class Main(QWidget, WebsocketWorkerMixin):
 		pmap = self.clipboard.pixmap()
 		if pmap:
 			#crop and reduce pmap size to fit square icon
-			w=pmap.width()
-			h=pmap.height()
-			is_square = w==h
-			if not is_square:
-				smallest_side = min(w, h)
-				longest_side = max(w, h)
-				shift = longest_side / 4.0
-				is_landscape = w > h
-				if is_landscape:
-					x = shift
-					y = 0
-				else:
-					x = 0
-					y = shift
-				pmap = pmap.copy(x, y, smallest_side, smallest_side) #PySide.QtGui.QPixmap.copy(x, y, width, height) #https://srinikom.github.io/pyside-docs/PySide/QtGui/QPixmap.html#PySide.QtGui.PySide.QtGui.QPixmap.copy
-			pmap = pmap.scaled(48,48)
+			pmap = PixmapThumbnail(pmap)
 			itm =  QListWidgetItem()
-			itm.setIcon(QIcon(pmap))
-			txt = "Copied Image / Screenshot ({w} x {h})".format(w=w,h=h )
+			itm.setIcon(QIcon(pmap.thumbnail))
+			txt = "Copied Image / Screenshot ({w} x {h})".format(w=pmap.original_w, h=pmap.original_h )
 		else:
 			itm = QListWidgetItem()
 			itm.setIcon(QIcon("images/text.png"))
@@ -117,6 +102,30 @@ class Main(QWidget, WebsocketWorkerMixin):
 		# if i don't terminate the worker thread, the app will crash (ex. windows will say python.exe stopped working)
 		self.ws_worker.terminate() #http://stackoverflow.com/questions/1898636/how-can-i-terminate-a-qthread
 		event.accept() #event.ignore() #stops from exiting
+		
+class PixmapThumbnail():
+	def __init__(self, original_pmap):
+		self.original_pmap = original_pmap
+		self.original_w = self.original_h = self.thumbnail = self.is_landscape = None
+		self.pixmapThumbnail()
+
+	def pixmapThumbnail(self):
+		self.original_w = self.original_pmap.width()
+		self.original_h = self.original_pmap.height()
+		is_square = self.original_w==self.original_h
+		if not is_square:
+			smallest_side = min(self.original_w, self.original_h)
+			longest_side = max(self.original_w, self.original_h)
+			shift = longest_side / 4.0
+			self.is_landscape = self.original_w > self.original_h
+			if self.is_landscape:
+				x = shift
+				y = 0
+			else:
+				x = 0
+				y = shift
+			crop = self.original_pmap.copy(x, y, smallest_side, smallest_side) #PySide.QtGui.QPixmap.copy(x, y, width, height) #https://srinikom.github.io/pyside-docs/PySide/QtGui/QPixmap.html#PySide.QtGui.PySide.QtGui.QPixmap.copy
+		self.thumbnail = crop.scaled(48,48)
 		
 if __name__ == '__main__':
 	
