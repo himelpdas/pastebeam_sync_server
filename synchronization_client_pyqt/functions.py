@@ -1,6 +1,16 @@
 import urlparse
 import os
 
+import bson.json_util as json 
+from bson.binary import Binary
+
+import hashlib, uuid, time, sys, cgi, tempfile
+
+from spooky import hash128
+
+from collections import deque
+
+
 def string_is_url(url):
 	split_url = url.split()
 	if len(url) < 2048 and len(split_url) == 1: #make sure text is under 2048 (for performance), and make sure the text is continuous like a url should be
@@ -26,4 +36,18 @@ def getFolderSize(folder, max=None): #http://stackoverflow.com/questions/1392413
 import re, urllib
  
 GRUBER_URLINTEXT_PAT = re.compile(ur'(?i)\b((?:https?://|www\d{0,3}[.]|[a-z0-9.\-]+[.][a-z]{2,4}/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\]{};:\'".,<>?\xab\xbb\u201c\u201d\u2018\u2019]))')
- 
+
+def PRINT(label, data):
+	print "\n%s: %s"%(label.capitalize(), data)
+	
+def URL(scheme, addr, port, *_args, **_vars): 
+	url = "{scheme}://{addr}:{port}/".format(scheme=scheme, addr=addr, port=port)
+	if _args:
+		args = "/".join(_args)
+		url+=args
+	if _vars:
+		url+="?"
+		for key, value in _vars.items():
+			url+="{key}={value}&".format(key=key, value=value)
+		url=url[:-1]
+	return url

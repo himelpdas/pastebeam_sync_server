@@ -1,14 +1,16 @@
+# coding=utf8
+
 from gevent import monkey; monkey.patch_all()
 
-import sys, time, uuid, cgi
 #from PySide import QtGui, QtCore
 from PySide.QtGui import *
 from PySide import QtCore
 
-from functions import *
 from parallel import *
 
 class Main(QWidget, WebsocketWorkerMixin):
+
+	temp_dir = tempfile.mkdtemp()
 
 	icon_html = "<html><img src='images/{name}.png' width={side} height={side}></html>"
 	
@@ -17,8 +19,7 @@ class Main(QWidget, WebsocketWorkerMixin):
 		
 		self.app = app
 		self.ws_worker = WebsocketWorker(self)
-		self.ws_worker.incommingSignal.connect(self.onIncommingSlot)
-		self.ws_worker.outgoingSignal.connect(self.onOutgoingSlot)
+		self.ws_worker.incommingSignalForMain.connect(self.onIncommingSlot)
 		self.ws_worker.start()
 		
 		self.initUI()
@@ -53,10 +54,12 @@ class Main(QWidget, WebsocketWorkerMixin):
 		self.show()
 	
 	def setupClip(self):
+		self.previous_hash = {}
+		
 		self.clipboard = self.app.clipboard() #clipboard is in the QApplication class as a static (class) attribute. Therefore it is available to all instances as well, ie. the app instance.#http://doc.qt.io/qt-5/qclipboard.html#changed http://codeprogress.com/python/libraries/pyqt/showPyQTExample.php?index=374&key=PyQTQClipBoardDetectTextCopy https://www.youtube.com/watch?v=nixHrjsezac
 		self.clipboard.dataChanged.connect(self.onClipChange) #datachanged is signal, doclip is slot, so we are connecting slot to handle signal
 		
-	def onClipChange(self):
+	def _onClipChange(self):
 		#self.status.setText(self.clipboard.text() or str(self.clipboard.pixmap()) )
 		pmap = self.clipboard.pixmap()
 		if pmap:
@@ -77,8 +80,45 @@ class Main(QWidget, WebsocketWorkerMixin):
 		self.list_widget.setItemWidget(itm, custom_label )
 		itm.setSizeHint( custom_label.sizeHint() )
 		
-		self.clipChangeSignal.emit(txt)
+		self.outgoingSignalForWorker.emit(txt)
 		#self.status.setText(str(time.time()))
+		
+	def onClipChange(self):
+		#test if identical
+		pmap = self.clipboard.pixmap()
+		
+		if pmap:
+			prev = self.previous_hash
+			image = pmap.toImage() #just like wxpython do not allow this to del, or else .bits() will crash
+			hash = format(hash128(image.bits()), "x") ##http://stackoverflow.com/questions/16414559/trying-to-use-hex-without-0x #we want the large image out of memory asap, so just take a hash and gc collect the image
+			
+			PRINT("on clip change", (hash,prev))
+			if hash == prev:
+				return
+				
+			pmap = PixmapThumbnail(pmap)
+			image = pmap.thumbnail.toImage()
+			text = "Copied Image / Screenshot ({w} x {h})".format(w=pmap.original_w, h=pmap.original_h )
+			clip_display = dict(
+				text=Binary(text), 
+				thumb = Binary( bytes(image.bits() ) )  #Use Binary to prevent UnicodeDecodeError: 'utf8' codec can't decode byte 0xeb in position 0: invalid continuation byte
+			)
+			secure_hash = hashlib.new("ripemd160", hash + "ACCOUNT_SALT").hexdigest() #use pdkbf2 #to prevent rainbow table attacks of known files and their hashes, will also cause decryption to fail if file name is changed
+			img_file_name = "%s.bmp"%secure_hash
+			img_file_path = os.path.join(self.temp_dir, img_file_name)
+			image.save(img_file_path) #change to or compliment upload
+			
+			prepare = dict(
+				file_names = [img_file_name],
+				clip_display = clip_display,
+				clip_type = "screenshot",
+				secure_hash = secure_hash, 
+				host_name = "TEST",#self.getLogin().get("device_name"),
+			)
+			
+			self.outgoingSignalForWorker.emit(prepare)
+			self.previous_hash = hash
+			#image.destroy()
 		
 	@staticmethod
 	def truncateTextLines(txt, max_lines=15):
@@ -97,6 +137,14 @@ class Main(QWidget, WebsocketWorkerMixin):
 		for each_url in found_urls:
 			txt = txt.replace(each_url, "<a href='{url}'>{url}</a>".format(url=each_url))
 		return txt
+		
+	@staticmethod
+	def decodeClipDisplay(clip):
+		return (clip or '').decode("base64").decode("zlib").decode("utf-8", "replace")
+	
+	@staticmethod
+	def encodeClipDisplay(clip):
+		return (clip or '').encode("utf-8", "replace").encode("zlib").encode("base64") #MUST ENCODE in base64 before transmitting obsfucated data #null clip causes serious looping problems, put some text! Prevent setText's TypeError: String or Unicode type required 
 		
 	def closeEvent(self, event): #http://stackoverflow.com/questions/9249500/pyside-pyqt-detect-if-user-trying-to-close-window
 		# if i don't terminate the worker thread, the app will crash (ex. windows will say python.exe stopped working)
