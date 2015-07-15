@@ -10,6 +10,7 @@ from functions import *
 
 
 from ws4py.client.geventclient import WebSocketClient
+from PySide.QtGui import *
 from PySide import QtCore
 
 import encompress
@@ -22,14 +23,27 @@ class WebsocketWorkerMixin(object):
 	outgoingSignalForWorker = QtCore.Signal(dict)	
 	
 	def onIncommingSlot(self, emitted):
-		print emitted #display clips here
+		#print emitted #display clips here
+		#print "\n\n"+type(emitted)
+		if emitted["clip_type"] == "screenshot":
+			#crop and reduce pmap size to fit square icon
+			itm =  QListWidgetItem()
+			image = QImage()
+			#print "\n\n\n"
+			print image.loadFromData(emitted["clip_display"]["thumb"])
+			itm.setIcon(QIcon(QPixmap(image)))
+			txt = emitted["clip_display"]["text"]
+		self.list_widget.addItem(itm) #or self.list_widget.addItem("some text") (different signature)
+		custom_label = QLabel("<html><b>By Test on {timestamp}:</b><pre>{text}</pre></html>".format(timestamp = time.time(), text=txt ) )
+		self.list_widget.setItemWidget(itm, custom_label )
+		itm.setSizeHint( custom_label.sizeHint() )
 			
 class WebsocketWorker(QtCore.QThread):
 
 	#This is the signal that will be emitted during the processing.
 	#By including int as an argument, it lets the signal know to expect
 	#an integer argument when emitting.
-	incommingSignalForMain = QtCore.Signal(str)
+	incommingSignalForMain = QtCore.Signal(dict)
 
 	#You can do any extra things in this init you need, but for this example
 	#nothing else needs to be done expect call the super's init
@@ -46,7 +60,7 @@ class WebsocketWorker(QtCore.QThread):
 	#function in it's own "thread". 
 	
 	def onOutgoingSlot(self, prepare):
-		PRINT("onOutgoingSlot", prepare)
+		#PRINT("onOutgoingSlot", prepare)
 		
 		ready = self.prepareClipForSend(prepare)
 		
@@ -87,7 +101,7 @@ class WebsocketWorker(QtCore.QThread):
 			PRINT("Begin Incomming Greenlet", "")
 		
 			dump = self.wsock.receive()
-			PRINT("received", dump)
+			#PRINT("received", dump)
 			received = json.loads(str(dump)) #blocks
 			
 			answer = received["answer"]

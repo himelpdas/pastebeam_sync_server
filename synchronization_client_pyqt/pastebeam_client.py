@@ -98,11 +98,18 @@ class Main(QWidget, WebsocketWorkerMixin):
 				
 			pmap = PixmapThumbnail(pmap)
 			image = pmap.thumbnail.toImage()
+			
+			device= QtCore.QBuffer() #is an instance of QIODevice, which is accepted by 
+			image.save(device, "PNG") # writes image into ba in PNG format
+			bytearray = device.data()
+			bytestring = bytearray.data()
+			
 			text = "Copied Image / Screenshot ({w} x {h})".format(w=pmap.original_w, h=pmap.original_h )
 			clip_display = dict(
 				text=Binary(text), 
-				thumb = Binary( bytes(image.bits() ) )  #Use Binary to prevent UnicodeDecodeError: 'utf8' codec can't decode byte 0xeb in position 0: invalid continuation byte
+				thumb = Binary(bytestring)  #Use BSON Binary to prevent UnicodeDecodeError: 'utf8' codec can't decode byte 0xeb in position 0: invalid continuation byte
 			)
+			
 			secure_hash = hashlib.new("ripemd160", hash + "ACCOUNT_SALT").hexdigest() #use pdkbf2 #to prevent rainbow table attacks of known files and their hashes, will also cause decryption to fail if file name is changed
 			img_file_name = "%s.bmp"%secure_hash
 			img_file_path = os.path.join(self.temp_dir, img_file_name)
