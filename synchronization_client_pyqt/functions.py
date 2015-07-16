@@ -28,7 +28,7 @@ def getFolderSize(folder, max=None): #http://stackoverflow.com/questions/1392413
 		elif os.path.isdir(itempath):
 			total_size += getFolderSize(itempath)
 		if max and total_size >= max:
-			return 1024*1024*1024*1024
+			return float("inf") #1024*1024*1024*1024 #http://stackoverflow.com/questions/7781260/how-can-i-represent-an-infinite-number-in-python
 	return total_size
 	
 	

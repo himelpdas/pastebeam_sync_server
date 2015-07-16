@@ -8,11 +8,15 @@ from PySide import QtCore
 
 from parallel import *
 
+import platform
+
 class Main(QWidget, WebsocketWorkerMixin):
 
 	temp_dir = tempfile.mkdtemp()
 
 	icon_html = "<html><img src='images/{name}.png' width={side} height={side}></html>"
+	
+	host_name = "{system} {release}".format(system = platform.system(), release = platform.release() ) #self.getLogin().get("device_name"),
 	
 	def __init__(self, app):
 		super(Main, self).__init__()
@@ -33,7 +37,7 @@ class Main(QWidget, WebsocketWorkerMixin):
 		list_widget_icon_size = QtCore.QSize(48,48)
 		self.list_widget.setIconSize(list_widget_icon_size) #http://www.qtcentre.org/threads/8733-Size-of-an-Icon #http://nullege.com/codes/search/PySide.QtGui.QListWidget.setIconSize
 		self.list_widget.setAlternatingRowColors(True) #http://stackoverflow.com/questions/23213929/qt-qlistwidget-item-with-alternating-colors
-		
+		self.list_widget.doubleClicked.connect(self.itemDoubleClickEvent)
 		
 		search_icon = QLabel(self.icon_html.format(name="find",side=32)) #http://www.iconarchive.com/show/super-mono-3d-icons-by-double-j-design/search-icon.html
 		clipboard_icon = QLabel(self.icon_html.format(name="clipboard",side=32))
@@ -92,17 +96,17 @@ class Main(QWidget, WebsocketWorkerMixin):
 			image = pmap.toImage() #just like wxpython do not allow this to del, or else .bits() will crash
 			hash = format(hash128(image.bits()), "x") ##http://stackoverflow.com/questions/16414559/trying-to-use-hex-without-0x #we want the large image out of memory asap, so just take a hash and gc collect the image
 			
-			PRINT("on clip change", (hash,prev))
+			PRINT("on clip change pmap", (hash,prev))
 			if hash == prev:
 				return
 				
 			pmap = PixmapThumbnail(pmap)
 			image = pmap.thumbnail.toImage()
 			
-			device= QtCore.QBuffer() #is an instance of QIODevice, which is accepted by 
-			image.save(device, "PNG") # writes image into ba in PNG format
-			bytearray = device.data()
-			bytestring = bytearray.data()
+			device= QtCore.QBuffer() #is an instance of QIODevice, which is accepted by image.save()
+			image.save(device, "PNG") # writes image into the in-memory container, rather than a file name
+			bytearray = device.data() #get the buffer itself
+			bytestring = bytearray.data() #copy the full string
 			
 			text = "Copied Image / Screenshot ({w} x {h})".format(w=pmap.original_w, h=pmap.original_h )
 			clip_display = dict(
@@ -110,8 +114,8 @@ class Main(QWidget, WebsocketWorkerMixin):
 				thumb = Binary(bytestring)  #Use BSON Binary to prevent UnicodeDecodeError: 'utf8' codec can't decode byte 0xeb in position 0: invalid continuation byte
 			)
 			
-			secure_hash = hashlib.new("ripemd160", hash + "ACCOUNT_SALT").hexdigest() #use pdkbf2 #to prevent rainbow table attacks of known files and their hashes, will also cause decryption to fail if file name is changed
-			img_file_name = "%s.bmp"%secure_hash
+			#secure_hash = hashlib.new("ripemd160", hash + "ACCOUNT_SALT").hexdigest() #use pdkbf2 #to prevent rainbow table attacks of known files and their hashes, will also cause decryption to fail if file name is changed
+			img_file_name = "%s.bmp"%hash
 			img_file_path = os.path.join(self.temp_dir, img_file_name)
 			image.save(img_file_path) #change to or compliment upload
 			
@@ -119,13 +123,44 @@ class Main(QWidget, WebsocketWorkerMixin):
 				file_names = [img_file_name],
 				clip_display = clip_display,
 				clip_type = "screenshot",
-				secure_hash = secure_hash, 
-				host_name = "TEST",#self.getLogin().get("device_name"),
 			)
 			
-			self.outgoingSignalForWorker.emit(prepare)
-			self.previous_hash = hash
-			#image.destroy()
+		else:
+			
+			prev = self.previous_hash
+			
+			original = self.clipboard.text()
+			
+			hash = format(hash128(original), "x")
+			
+			PRINT("on clip change txt", (hash,prev))
+			if hash == prev:
+				return
+			
+			txt = cgi.escape(original)
+			txt = self.truncateTextLines(txt)
+			txt = self.anchorUrls(txt)
+						
+			txt_file_name = "%s.txt"%hash
+			txt_file_path = os.path.join(self.temp_dir,txt_file_name)
+			
+			with open(txt_file_path, 'w') as txt_file:
+				txt_file.write(original)
+			
+			prepare = dict(
+				file_names = [txt_file_name],
+				clip_display = txt,
+				clip_type = "text",
+			)
+			
+		prepare['host_name'] = self.host_name
+					
+		self.outgoingSignalForWorker.emit(prepare)
+		self.previous_hash = hash
+		#image.destroy()
+		
+	def itemDoubleClickEvent(self, item):
+		print item
 		
 	@staticmethod
 	def truncateTextLines(txt, max_lines=15):

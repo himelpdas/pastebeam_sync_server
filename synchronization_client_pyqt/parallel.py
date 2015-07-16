@@ -7,7 +7,7 @@ from gevent.event import AsyncResult
 
 from functions import *
 
-
+import requests, datetime
 
 from ws4py.client.geventclient import WebSocketClient
 from PySide.QtGui import *
@@ -24,17 +24,24 @@ class WebsocketWorkerMixin(object):
 	
 	def onIncommingSlot(self, emitted):
 		#print emitted #display clips here
-		#print "\n\n"+type(emitted)
+		itm =  QListWidgetItem()
+		
 		if emitted["clip_type"] == "screenshot":
 			#crop and reduce pmap size to fit square icon
-			itm =  QListWidgetItem()
 			image = QImage()
 			#print "\n\n\n"
 			print image.loadFromData(emitted["clip_display"]["thumb"])
 			itm.setIcon(QIcon(QPixmap(image)))
 			txt = emitted["clip_display"]["text"]
+			
+		elif emitted["clip_type"] == "text":
+			itm.setIcon(QIcon("images/text.png"))
+			txt = emitted["clip_display"]
+			
 		self.list_widget.addItem(itm) #or self.list_widget.addItem("some text") (different signature)
-		custom_label = QLabel("<html><b>By Test on {timestamp}:</b><pre>{text}</pre></html>".format(timestamp = time.time(), text=txt ) )
+		space = "&nbsp;"*6
+		timestamp_human = '{dt:%I}:{dt:%M}:{dt:%S}{dt:%p}{space}<span style="color:grey">{dt.month}-{dt.day}-{dt.year}</span>'.format(space = space, dt=datetime.datetime.fromtimestamp(emitted["timestamp_server"] ) ) #http://stackoverflow.com/questions/904928/python-strftime-date-without-leading-0
+		custom_label = QLabel("<html><b>By {host_name}</b>{space}{timestamp}<pre>{text}</pre></html>".format(space = space, host_name = emitted["host_name"], timestamp = timestamp_human, text=txt ) )
 		self.list_widget.setItemWidget(itm, custom_label )
 		itm.setSizeHint( custom_label.sizeHint() )
 			
@@ -59,29 +66,33 @@ class WebsocketWorker(QtCore.QThread):
 	#A QThread is run by calling it's start() function, which calls this run()
 	#function in it's own "thread". 
 	
-	def onOutgoingSlot(self, prepare):
+	def onOutgoingSlot(self, data):
 		#PRINT("onOutgoingSlot", prepare)
-		
-		ready = self.prepareClipForSend(prepare)
-		
-		for question in ["Upload?", "Update?"]:
-		
-			if question == "Upload?":
-				data = dict(container_name = ready["container_name"])
-			if question == "Update?":
-				data = ready
-						
-			send = dict(
-				question = question,
-				data = data
-			)
 
-			self.OUTGOING_QUEUE.append(send)
+		file_names = data["file_names"]
+		
+		if not data.get("container_name"): ##CHECK HERE IF CONTAINER EXISTS IN OTHER ITEMS
+		
+			with encompress.Encompress(password = "nigger", directory = self.temp_dir, file_names_encrypt = file_names) as container_name: 					
+				
+				data["container_name"] = container_name
+				
+		PRINT("encompress", container_name)
+			
+		data["timestamp_client"] = time.time()	
+		
+		send = dict(
+			question = "Update?",
+			data=data
+		)
+
+		self.OUTGOING_QUEUE.append(send)
 	
 	def run(self): #It arranges for the object’s run() method to be invoked in a separate thread of control.
 		#GEVENT OBJECTS CANNOT BE RUNNED OUTSIDE OF THIS THREAD, OR ELSE CONTEXT SWITCHING (COROUTINE YIELDING) WILL FAIL! THIS IS BECAUSE QTHREAD IS NOT MONKEY_PATCHABLE
 	
 		self.INCOMMING_UPDATE_EVENT = AsyncResult()
+		self.INCOMMING_NEWEST_EVENT = AsyncResult()
 		self.INCOMMING_UPLOAD_EVENT = AsyncResult()
 	
 		self.wsock = WebSocketClient(URL("ws",DEFAULT_DOMAIN, DEFAULT_PORT, "ws", email="himeldas@live.com", password="faggotass", ) ) #The geventclient's websocket MUST be runned here, as running it in __init__ would put websocket in main thread
@@ -109,17 +120,22 @@ class WebsocketWorker(QtCore.QThread):
 			data   = received["data"]
 			
 			if answer == "Upload!":
-				
+			
 				self.INCOMMING_UPLOAD_EVENT.set(data) #true or false
-						
-			if answer == "Update!": #there is an update
 				
-				self.INCOMMING_UPDATE_EVENT.set(data) #secure hash
+			if answer == "Newest!":
+			
+				self.INCOMMING_NEWEST_EVENT.set(data) #clip
 				
-				self.downloadClipFileIfNotExist(data)
+				for each in data:
 				
-				self.incommingSignalForMain.emit(data)
+					self.incommingSignalForMain.emit(each)
+					self.downloadContainerIfNotExist(each)
+											
+			if answer == "Update!":
 				
+				self.INCOMMING_UPDATE_EVENT.set(data) #clip			
+
 			gevent.sleep(1)
 
 	def outgoingGreenlet(self):
@@ -135,70 +151,50 @@ class WebsocketWorker(QtCore.QThread):
 			except IndexError:
 				continue
 			else:
-				data = send["data"]
+				data = send.get("data")
 				question = send["question"]
 				
-			if question == "Upload?":
+			if question == "Update?":
+			
+				container_name = data["container_name"]
+				container_path = os.path.join(self.temp_dir, container_name)
+								
+				while 1:
+					
+					self.wsock.send(json.dumps(dict(
+						question = "Upload?",
+						data = container_name
+					)))
+
+					container_exists = self.INCOMMING_UPLOAD_EVENT.wait(timeout=5)
+					
+					if container_exists != None:
+						self.INCOMMING_UPLOAD_EVENT = AsyncResult()	
+						break
+				
+				if container_exists == False:
+
+					try:
+						r = requests.post(URL("http", DEFAULT_DOMAIN, DEFAULT_PORT, "upload"), files={"upload": open(container_path, 'rb')})
+					except requests.exceptions.ConnectionError:
+						#connection error
+						#self.webSocketReconnect()
+						continue 
 				
 				while 1: #mimic do while to prevent waiting before send
 				
 					self.wsock.send(json.dumps(send))
+										
+					data = self.INCOMMING_UPDATE_EVENT.wait(timeout=5) #AsyncResult.get will block until a result is set by another greenlet, after that get will not block anymore. NOTE- get will return exception! Use wait instead 
 					
-					upload_event = self.INCOMMING_UPLOAD_EVENT.wait(timeout=5) #AsyncResult.get will block until a result is set by another greenlet, after that get will not block anymore. NOTE- get will return exception! Use wait instead 
-
-					if upload_event != None:
+					if data != None:
+						self.INCOMMING_UDATE_EVENT = AsyncResult()	
 						break
 						
-				self.INCOMMING_UPLOAD_EVENT = AsyncResult()
-					
-				if upload_event == True:
-									
-					try:
-						r = requests.post(URL("http", DEFAULT_DOMAIN, DEFAULT_PORT, "upload"), files={"upload": open(container_path, 'rb')})
-						print r
-					except requests.exceptions.ConnectionError:
-						pass #self.webSocketReconnect()
-			
-			if question == "Update?":
-						
-				while 1:
+					PRINT("update",data)
 				
-					self.wsock.send(json.dumps(send))
-				
-					if data.get("secure_hash") == (self.INCOMMING_UPDATE_EVENT.wait(timeout = 5) or {}).get("secure_hash"): #blocks at self.server_clip_hash.get() because it is an asyncresult (event) #keep sending until
-						break
-					
-				self.INCOMMING_UPDATE_EVENT = AsyncResult() #reset the event
-				
-	def prepareClipForSend(self, prepare):
-		
-		clip_type = prepare["clip_type"]
-		
-		file_names = prepare["file_names"]
-		
-		secure_hash = prepare["secure_hash"]
-		
-		clip_display = prepare["clip_display"]
-		
-		with encompress.Encompress(password = "nigger", directory = self.temp_dir, file_names_encrypt = [file_names, secure_hash], file_name_decrypt=False) as container_name: #salt = clip_hash_secure needed so that files with the same name do not result in same hash, if the file data is different, since clip_hash_secure is generated from the file contents
 			
-			PRINT("encompress", container_name)
-
-			#self.SEND_ID = uuid.uuid4() #change to sender id
-				
-			clip_content = {
-				"clip_type" : clip_type,
-				"clip_display" : clip_display,
-				"container_name" : container_name,
-				"secure_hash" : secure_hash, 
-				"timestamp_client" : time.time(),
-				#"send_id" : str(self.SEND_ID),
-			}
-			
-			return clip_content
-		
-			
-	def downloadClipFileIfNotExist(self, data):
+	def downloadContainerIfNotExist(self, data):
 		container_name = data["container_name"]
 		container_path = os.path.join(self.temp_dir, container_name)
 		print container_path

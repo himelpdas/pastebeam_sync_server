@@ -11,9 +11,6 @@ import uuid
 from bottle import Bottle, static_file
 app = Bottle()
 
-class ForceRefresh(Exception):
-	pass
-
 UPLOAD_DIR="C:\\Users\\Himel\\Desktop\\test\\uploads"
 
 def PRINT(label, data):
@@ -35,7 +32,7 @@ def test_async_websocket():
 			
 def incommingGreenlet(wsock, timeout, OUTGOING_QUEUE): #these seem to run in another namespace, you must pass them global or inner variables
 
-	client_previous_clip = get_latest_row_and_clips()['latest_row'] or {} #SHOULD CHECK SERVER TO AVOID RACE CONDITIONS? #too much bandwidth if receiving row itself, only text and hash are fine (data)
+	#client_previous_clip = get_latest_row_and_clips()['latest_row'] or {} #SHOULD CHECK SERVER TO AVOID RACE CONDITIONS? #too much bandwidth if receiving row itself, only text and hash are fine (data)
 	
 	for second in xrange(timeout): #Even though greenlets don't use much memory, if the user disconnects, this server greenlet will run forever, and this "little memory" will become a big problem
 
@@ -59,55 +56,34 @@ def incommingGreenlet(wsock, timeout, OUTGOING_QUEUE): #these seem to run in ano
 			send_usr_crypt_salt.set(checked_login["found"]["salt"])
 			
 		if question == "Upload?":
-		
-			container_name =  data["container_name"]
+				
+			container_name =  data
 			
 			PRINT("container_name", container_name)
 			
 			file_path = os.path.join(UPLOAD_DIR,container_name)
 			
-			file_exists = os.path.isfile(file_path)
+			container_exists = os.path.isfile(file_path)
 			
 			OUTGOING_QUEUE.append(dict(
 				answer = "Upload!",
-				data = file_exists
+				data = container_exists
 			))
 			
-			PRINT("file exists", file_exists)
+			PRINT("container_exists", container_exists)
 	
 		elif question == "Update?":
-			
-			client_latest_clip = data
-			
-			latest_hash = client_latest_clip.get('secure_hash')
-			
-			previous_hash = client_previous_clip.get('secure_hash')
-												
-			if latest_hash != previous_hash: #else just wait
 				
-				client_latest_clip['timestamp_server'] = time.time()
-				
-				new_clip_id = clips.insert_one(client_latest_clip).inserted_id
-				
-				client_previous_clip = client_latest_clip #reset prev
-				
-				PRINT("insert new clip", new_clip_id)
+			data['timestamp_server'] = time.time()
 			
-			client_latest_clip["_id"] = new_clip_id
-						
+			new_clip_id = clips.insert_one(data).inserted_id
+															
 			OUTGOING_QUEUE.append(dict(
 				answer = "Update!",
-				data = client_latest_clip
+				data = new_clip_id
 			))
 			
-		elif question == "Refresh?":
-			
-			if data.get("delete"):
-				collection.remove(data["delete"]) #delete the id
-			
-			OUTGOING_QUEUE.append(dict(
-				answer = "Refresh!",
-			))
+			PRINT("update", new_clip_id)
 			
 		PRINT("incomming", "wait...")
 		sleep(0.1)
@@ -115,7 +91,7 @@ def incommingGreenlet(wsock, timeout, OUTGOING_QUEUE): #these seem to run in ano
 	wsock.close() #OR IT WILL LEAVE THE GREENLET HANGING!
 	
 def outgoingGreenlet(wsock, timeout, OUTGOING_QUEUE):
-	server_previous_row = {'_id':None}
+	
 	for second in xrange(timeout):
 	
 		sleep(0.1)
@@ -124,19 +100,26 @@ def outgoingGreenlet(wsock, timeout, OUTGOING_QUEUE):
 				
 			send = OUTGOING_QUEUE.pop() #get all the queues first... raises index error when empty.
 			
-			if send["answer"] == "Refresh!": #go straight to refresh logic
-				raise ForceRefresh
+		except IndexError: #then monitor for external changes	
+		
+			try:	
+				if server_latest_clips:
+					server_latest_row = server_latest_clips[0]
 			
-		except (IndexError, ForceRefresh): #then monitor for external changes
-			server_latest_row_and_clips = get_latest_row_and_clips()
-			server_latest_row = server_latest_row_and_clips['latest_row']
-			server_latest_clips = server_latest_row_and_clips['latest_clips']
-			if server_latest_row and server_latest_row['_id'] != server_previous_row['_id']: #change to refresh if signature of last 50 clips changed
-				wsock.send(json.dumps(dict(
-					answer = "Refresh!", #when there is a new clip from an outside source, or deletion
-					data = server_latest_clips,
-				)))
-				server_previous_row = server_latest_row #reset prev
+				if server_latest_row.get('_id') != server_previous_row.get('_id'): #change to Reload if signature of last 50 clips changed
+					PRINT("sending new",server_latest_row.get('_id'))
+					wsock.send(json.dumps(dict(
+						answer = "Newest!", #when there is a new clip from an outside source, or deletion
+						data = server_latest_clips,
+					)))
+					server_previous_row = server_latest_row #reset prev
+					
+				server_latest_clips = [each for each in clips.find({"_id":{"$gt":server_latest_row["_id"]}}).sort('_id',pymongo.DESCENDING).limit( 50 )]
+			except UnboundLocalError:
+				server_previous_row = {}
+				server_latest_clips = [each for each in clips.find().sort('_id',pymongo.DESCENDING).limit( 50 )]
+				
+			
 		else:
 			wsock.send(json.dumps(send))
 			

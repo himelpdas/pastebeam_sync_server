@@ -3,9 +3,7 @@ from Crypto.Cipher import AES
 from Crypto import Random
 from Crypto.Protocol.KDF import PBKDF2
 import tarfile
-import time#,  gevent
-import os
-import hashlib
+import time, os, hashlib, uuid
 
 """
 def derive_key_and_iv(password, salt, key_length, iv_length): #http://stackoverflow.com/questions/16761458/how-to-aes-encrypt-decrypt-files-using-python-pycrypto-in-an-openssl-compatible
@@ -65,25 +63,35 @@ class Encompress():
 	BLOCK_SIZE = AES.block_size
 	READ_BYTES = BLOCK_SIZE*1024 #make sure it is divisible by self.BLOCK_SIZE
 	
-	def __init__(self,  password = "", salt= "user_salt", directory = "", file_names_encrypt = [], file_name_decrypt = None):
-		self.file_names_encrypt = file_names_encrypt
+	def __init__(self,  password = "", directory = "", file_names_encrypt = [], archive_id = None):
+		if archive_id:
+			self.mode = "decrypt"
+			self.archive_id = archive_id
+		else:
+			self.mode = "encrypt"
+			self.archive_id = str(uuid.uuid4())
+			
+		self.archive_name = self.archive_id + ".tar.gz"
+		self.archive_path = os.path.join(directory, self.archive_name) #TEMP
+		archive_ext= ".pastebeam"
+		self.container_name = self.archive_name + archive_ext
+		self.container_path = self.archive_path + archive_ext
+				
+		self.file_names = file_names_encrypt
 		self.directory = directory
 		self.password = password
-		self.file_name_decrypt = file_name_decrypt
-		
-		self.salt = salt
-		
-		self.result = self.archive_path = self.container_path = self.iv = self.key = None
+				
+		self.result = self.iv = self.key = None
 		
 		
 	def __enter__(self):
 	
-		if self.file_name_decrypt:
+		if self.mode=="decrypt":
 			self.grabIV()
 			self.setKey()
 			self.decrypt()
 			self.extract()
-		elif self.file_names_encrypt:
+		elif self.mode=="encrypt":
 			self.makeIV()
 			self.setKey()
 			self.compress()
@@ -102,31 +110,29 @@ class Encompress():
 	@timeit
 	def makeIV(self):
 		pre_iv = 'iv:'
+		pre_salt = 'salt:'
 		rand = Random.new() #iv should be different for every file, so that patterns can't be seen in 2 identical files. This is apposed to salt, where the salt can be set once for one password (to prevent rainbow tables)
 		self.iv = pre_iv + rand.read(self.BLOCK_SIZE - len(pre_iv)) #not needed since tarfile already is very random due to timestamp, but do for extra security #CBC requires a non-deterministic approach, in other words you can't recalculate the IV... deterministic is when you make a random-appearing IV, but it's not random indeed ie. using the file hash
+		self.salt = pre_salt + rand.read(self.BLOCK_SIZE - len(pre_salt)) #not needed since tarfile already is very random due to timestamp, but do for extra security #CBC requires a non-deterministic approach, in other words you can't recalculate the IV... deterministic is when you make a random-appearing IV, but it's not random indeed ie. using the file hash
 		
 	@timeit
-	def grabIV(self):
-		self.file_path_decrypt = os.path.join(self.directory, self.file_name_decrypt)
-		
-		self.file_decrypt  = open(self.file_path_decrypt, "rb")
+	def grabIV(self):		
+		self.file_decrypt  = open(self.container_path, "rb")
 		self.iv = self.file_decrypt.read(self.BLOCK_SIZE)
+		self.salt = self.file_decrypt.read(self.BLOCK_SIZE)
 		print "\nIV:%s\n"%self.iv
 	
 	@timeit
-	def setKey(self):
+	def setKey(self): #salt isn't needed as IV scrambles aes, but pbkdf2 will slow down bruteforce plain key attacks by magnitudes
 		self.key = PBKDF2(self.password, salt = self.salt, dkLen = self.BLOCK_SIZE) #dkLen: The length of the desired key. Default is 16 bytes, suitable for instance for Crypto.Cipher.AES
 			
 	@timeit
 	def compress(self):
-		file_names = self.file_names_encrypt[0] #redundant / dry here. seems like cliphash secure is good enough
-		files_hash = self.file_names_encrypt[1]
-		archive_id  = hashlib.new("ripemd160", "".join(file_names) + files_hash ).hexdigest()
-		self.archive_name = archive_id + ".tar.gz"
-		self.archive_path = os.path.join(self.directory, self.archive_name) #TEMP
+		#file_names = self.file_names_encrypt[0] #redundant / dry here. seems like cliphash secure is good enough
+		#archive_id  = hashlib.new("ripemd160", "".join(file_names) + files_hash ).hexdigest()
 		
 		tar = tarfile.open(self.archive_path, "w:gz") #write mode in gz #compresslevel=9)
-		for each_name in file_names:
+		for each_name in self.file_names:
 			each_path =  os.path.join(self.directory, each_name)
 			tar.add(each_path, arcname=each_name) #WARNING BY DEFAULT THE DIRECTORY PATH IS ADDED AS WELL, THEREFORE THE FINAL CONTAINER FILE's HASH WILL BE DIFFERENT, USE THIS SOLUTION #http://ubuntuforums.org/showthread.php?t=1699689
 			#gevent.sleep() #
@@ -136,10 +142,6 @@ class Encompress():
 	def encrypt(self):
 
 		with open(self.archive_path,'rb') as archive:
-		
-			archive_ext= ".pastebeam"
-			self.container_name = self.archive_name + archive_ext
-			self.container_path = self.archive_path + archive_ext
 			
 			with open(self.container_path, 'wb') as container_file:
 			
@@ -162,7 +164,7 @@ class Encompress():
 	@timeit
 	def decrypt(self):
 			
-		self.archive_path = self.file_path_decrypt.split(".pastebeam")[0] # 			self.archive_path = os.path.abspath(self.file_decrypt.name).split(".pastebeam")[0] #http://stackoverflow.com/questions/1881202/getting-the-absolute-path-of-a-file-object
+		#self.archive_path = self.file_path_decrypt.split(".pastebeam")[0] # 			self.archive_path = os.path.abspath(self.file_decrypt.name).split(".pastebeam")[0] #http://stackoverflow.com/questions/1881202/getting-the-absolute-path-of-a-file-object
 	
 		print "DECRYPT ARCHIVR PATH %s"%self.archive_path
 	
