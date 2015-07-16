@@ -63,19 +63,20 @@ class Encompress():
 	BLOCK_SIZE = AES.block_size
 	READ_BYTES = BLOCK_SIZE*1024 #make sure it is divisible by self.BLOCK_SIZE
 	
-	def __init__(self,  password = "", directory = "", file_names_encrypt = [], archive_id = None):
-		if archive_id:
+	def __init__(self,  password = "", directory = "", file_names_encrypt = [], container_name = None):
+		if container_name:
 			self.mode = "decrypt"
-			self.archive_id = archive_id
+			self.container_name = container_name
+			self.archive_name = container_name.split(".pastebeam")[0]
 		else:
 			self.mode = "encrypt"
 			self.archive_id = str(uuid.uuid4())
-			
-		self.archive_name = self.archive_id + ".tar.gz"
+			self.archive_name = self.archive_id + ".tar.gz"
+			archive_ext= ".pastebeam"
+			self.container_name = self.archive_name + archive_ext
+
 		self.archive_path = os.path.join(directory, self.archive_name) #TEMP
-		archive_ext= ".pastebeam"
-		self.container_name = self.archive_name + archive_ext
-		self.container_path = self.archive_path + archive_ext
+		self.container_path = os.path.join(directory, self.container_name)
 				
 		self.file_names = file_names_encrypt
 		self.directory = directory
@@ -148,6 +149,7 @@ class Encompress():
 				cipher = AES.new(self.key, AES.MODE_CBC, self.iv)
 				
 				container_file.write(self.iv)
+				container_file.write(self.salt)
 										
 				finished = False
 				while not finished:
@@ -185,6 +187,7 @@ class Encompress():
 	@timeit
 	def extract(self):
 		#self.extract_path = os.path.join(self.directory,"extracted")
+		print "\n\nArchive: %s\n\n"%self.archive_path
 		tar = tarfile.open(self.archive_path)
 		tar.extractall(path=self.directory)
 		root_file_and_folder_names = filter(lambda each_name: not "/" in each_name, tar.getnames()) #getnames alone returns folder cool.jpg ,48px, 48px/css.png, etc., we want 48px, and cool.jpg only

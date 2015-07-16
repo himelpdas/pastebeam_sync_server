@@ -100,6 +100,11 @@ class Main(QWidget, WebsocketWorkerMixin):
 			if hash == prev:
 				return
 				
+			#secure_hash = hashlib.new("ripemd160", hash + "ACCOUNT_SALT").hexdigest() #use pdkbf2 #to prevent rainbow table attacks of known files and their hashes, will also cause decryption to fail if file name is changed
+			img_file_name = "%s.bmp"%hash
+			img_file_path = os.path.join(self.temp_dir, img_file_name)
+			image.save(img_file_path) #change to or compliment upload
+				
 			pmap = PixmapThumbnail(pmap)
 			image = pmap.thumbnail.toImage()
 			
@@ -113,11 +118,6 @@ class Main(QWidget, WebsocketWorkerMixin):
 				text=Binary(text), 
 				thumb = Binary(bytestring)  #Use BSON Binary to prevent UnicodeDecodeError: 'utf8' codec can't decode byte 0xeb in position 0: invalid continuation byte
 			)
-			
-			#secure_hash = hashlib.new("ripemd160", hash + "ACCOUNT_SALT").hexdigest() #use pdkbf2 #to prevent rainbow table attacks of known files and their hashes, will also cause decryption to fail if file name is changed
-			img_file_name = "%s.bmp"%hash
-			img_file_path = os.path.join(self.temp_dir, img_file_name)
-			image.save(img_file_path) #change to or compliment upload
 			
 			prepare = dict(
 				file_names = [img_file_name],
@@ -159,8 +159,28 @@ class Main(QWidget, WebsocketWorkerMixin):
 		self.previous_hash = hash
 		#image.destroy()
 		
-	def itemDoubleClickEvent(self, item):
-		print item.row()
+	def setClip(self):
+			
+		container_name = self.clip_meta["container_name"]
+		clip_type = self.clip_meta["clip_type"]
+		
+		with encompress.Encompress(password = "nigger", directory = self.temp_dir, container_name=container_name) as file_paths_decrypt:
+			#print file_paths_decrypt
+			
+			if clip_type == "text":
+			
+				clip_file_path = file_paths_decrypt[0]
+			
+				with open(clip_file_path, 'r') as clip_file:
+					clip_text = clip_file.read()
+					self.clipboard.setText(clip_text)
+			
+		
+	def itemDoubleClickEvent(self, clicked):
+		row =  clicked.row()
+		item = self.list_widget.item(row) 
+		self.clip_meta = item.data(QtCore.Qt.UserRole) #http://stackoverflow.com/questions/25452125/is-it-possible-to-add-a-hidden-value-to-every-item-of-qlistwidget
+		self.setClip()
 		
 	@staticmethod
 	def truncateTextLines(txt, max_lines=15):

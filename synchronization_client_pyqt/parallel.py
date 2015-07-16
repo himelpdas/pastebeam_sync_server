@@ -38,6 +38,12 @@ class WebsocketWorkerMixin(object):
 			itm.setIcon(QIcon("images/text.png"))
 			txt = emitted["clip_display"]
 			
+		itm.setData(QtCore.Qt.UserRole, dict(
+			id = emitted["_id"],
+			container_name = emitted["container_name"],
+			clip_type = emitted["clip_type"]
+		)) 
+			
 		#self.list_widget.addItem(itm) #or self.list_widget.addItem("some text") (different signature)
 		self.list_widget.insertItem(0,itm) #add to top #http://www.qtcentre.org/threads/44672-How-to-add-a-item-to-the-top-in-QListWidget
 		
