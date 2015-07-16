@@ -38,7 +38,8 @@ class WebsocketWorkerMixin(object):
 			itm.setIcon(QIcon("images/text.png"))
 			txt = emitted["clip_display"]
 			
-		self.list_widget.addItem(itm) #or self.list_widget.addItem("some text") (different signature)
+		#self.list_widget.addItem(itm) #or self.list_widget.addItem("some text") (different signature)
+		self.list_widget.insertItem(0,itm) #add to top #http://www.qtcentre.org/threads/44672-How-to-add-a-item-to-the-top-in-QListWidget
 		
 		space = "&nbsp;"*7
 		timestamp_human = '{dt:%I}:{dt:%M}:{dt:%S}{dt:%p}{space}<span style="color:grey">{dt.month}-{dt.day}-{dt.year}</span>'.format(space = space, dt=datetime.datetime.fromtimestamp(emitted["timestamp_server"] ) ) #http://stackoverflow.com/questions/904928/python-strftime-date-without-leading-0
@@ -47,7 +48,7 @@ class WebsocketWorkerMixin(object):
 		
 		self.list_widget.setItemWidget(itm, custom_label ) #add the label
 		itm.setSizeHint( custom_label.sizeHint() ) #resize
-			
+					
 class WebsocketWorker(QtCore.QThread):
 
 	#This is the signal that will be emitted during the processing.

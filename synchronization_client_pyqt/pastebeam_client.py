@@ -160,7 +160,7 @@ class Main(QWidget, WebsocketWorkerMixin):
 		#image.destroy()
 		
 	def itemDoubleClickEvent(self, item):
-		print item
+		print item.row()
 		
 	@staticmethod
 	def truncateTextLines(txt, max_lines=15):
