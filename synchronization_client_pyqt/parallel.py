@@ -39,11 +39,14 @@ class WebsocketWorkerMixin(object):
 			txt = emitted["clip_display"]
 			
 		self.list_widget.addItem(itm) #or self.list_widget.addItem("some text") (different signature)
-		space = "&nbsp;"*6
+		
+		space = "&nbsp;"*7
 		timestamp_human = '{dt:%I}:{dt:%M}:{dt:%S}{dt:%p}{space}<span style="color:grey">{dt.month}-{dt.day}-{dt.year}</span>'.format(space = space, dt=datetime.datetime.fromtimestamp(emitted["timestamp_server"] ) ) #http://stackoverflow.com/questions/904928/python-strftime-date-without-leading-0
-		custom_label = QLabel("<html><b>By {host_name}</b>{space}{timestamp}<pre>{text}</pre></html>".format(space = space, host_name = emitted["host_name"], timestamp = timestamp_human, text=txt ) )
-		self.list_widget.setItemWidget(itm, custom_label )
-		itm.setSizeHint( custom_label.sizeHint() )
+		custom_label = QLabel("<html><b>{host_name}</b>{space}{timestamp}<pre>{text}</pre></html>".format(space = space, host_name = emitted["host_name"], timestamp = timestamp_human, text=txt ) )
+		custom_label.setOpenExternalLinks(True) ##http://stackoverflow.com/questions/8427446/making-qlabel-behave-like-a-hyperlink
+		
+		self.list_widget.setItemWidget(itm, custom_label ) #add the label
+		itm.setSizeHint( custom_label.sizeHint() ) #resize
 			
 class WebsocketWorker(QtCore.QThread):
 
