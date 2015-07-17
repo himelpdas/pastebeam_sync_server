@@ -174,6 +174,14 @@ class Main(QWidget, WebsocketWorkerMixin):
 				with open(clip_file_path, 'r') as clip_file:
 					clip_text = clip_file.read()
 					self.clipboard.setText(clip_text)
+					
+			if clip_type == "screenshot":
+			
+				clip_file_path = file_paths_decrypt[0]
+				
+				pmap = QPixmap(clip_file_path)
+				
+				self.clipboard.setPixmap(pmap)
 			
 		
 	def itemDoubleClickEvent(self, clicked):
@@ -235,6 +243,8 @@ class PixmapThumbnail():
 				x = 0
 				y = shift
 			crop = self.original_pmap.copy(x, y, smallest_side, smallest_side) #PySide.QtGui.QPixmap.copy(x, y, width, height) #https://srinikom.github.io/pyside-docs/PySide/QtGui/QPixmap.html#PySide.QtGui.PySide.QtGui.QPixmap.copy
+		else:
+			crop = self.original_pmap
 		self.thumbnail = crop.scaled(48,48)
 		
 if __name__ == '__main__':

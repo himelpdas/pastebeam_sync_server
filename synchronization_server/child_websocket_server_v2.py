@@ -104,7 +104,7 @@ def outgoingGreenlet(wsock, timeout, OUTGOING_QUEUE):
 		
 			try:	
 				if server_latest_clips:
-					server_latest_row = server_latest_clips[0]
+					server_latest_row = server_latest_clips[-1]
 			
 				if server_latest_row.get('_id') != server_previous_row.get('_id'): #change to Reload if signature of last 50 clips changed
 					PRINT("sending new",server_latest_row.get('_id'))
@@ -114,10 +114,10 @@ def outgoingGreenlet(wsock, timeout, OUTGOING_QUEUE):
 					)))
 					server_previous_row = server_latest_row #reset prev
 					
-				server_latest_clips = [each for each in clips.find({"_id":{"$gt":server_latest_row["_id"]}}).sort('_id',pymongo.DESCENDING).limit( 50 )]
+				server_latest_clips = [each for each in clips.find({"_id":{"$gt":server_latest_row["_id"]}}).sort('_id',pymongo.ASCENDING).limit( 50 )]
 			except UnboundLocalError:
 				server_previous_row = {}
-				server_latest_clips = [each for each in clips.find().sort('_id',pymongo.DESCENDING).limit( 50 )]
+				server_latest_clips = [each for each in clips.find().sort('_id',pymongo.ASCENDING).limit( 50 )]
 				
 			
 		else:
