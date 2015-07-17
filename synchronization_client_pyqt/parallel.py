@@ -9,7 +9,8 @@ from functions import *
 
 import requests, datetime
 
-from ws4py.client.geventclient import WebSocketClient
+#from ws4py.client.geventclient import WebSocketClient
+from websocket import create_connection
 from PySide.QtGui import *
 from PySide import QtCore
 
@@ -105,8 +106,7 @@ class WebsocketWorker(QtCore.QThread):
 		self.INCOMMING_NEWEST_EVENT = AsyncResult()
 		self.INCOMMING_UPLOAD_EVENT = AsyncResult()
 	
-		self.wsock = WebSocketClient(URL("ws",DEFAULT_DOMAIN, DEFAULT_PORT, "ws", email="himeldas@live.com", password="faggotass", ) ) #The geventclient's websocket MUST be runned here, as running it in __init__ would put websocket in main thread
-		self.wsock.connect()
+		self.wsock = create_connection(URL("ws",DEFAULT_DOMAIN, DEFAULT_PORT, "ws", email="himeldas@live.com", password="faggotass", ) ) #The geventclient's websocket MUST be runned here, as running it in __init__ would put websocket in main thread
 	
 		self.greenlets = [
 			gevent.spawn(self.outgoingGreenlet),
@@ -121,7 +121,7 @@ class WebsocketWorker(QtCore.QThread):
 
 			PRINT("Begin Incomming Greenlet", "")
 		
-			dump = self.wsock.receive()
+			dump = self.wsock.recv()
 			#PRINT("received", dump)
 			received = json.loads(str(dump)) #blocks
 			

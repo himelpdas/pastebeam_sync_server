@@ -89,6 +89,9 @@ class Main(QWidget, WebsocketWorkerMixin):
 		
 	def onClipChange(self):
 		#test if identical
+		print self.clipboard.mimeData().hasUrls()
+		print self.clipboard.mimeData().urls()
+
 		pmap = self.clipboard.pixmap()
 		
 		if pmap:
