@@ -7,7 +7,7 @@ from gevent.event import AsyncResult
 
 from functions import *
 
-import requests, datetime
+import requests, datetime, socket
 
 #from ws4py.client.geventclient import WebSocketClient
 from websocket import create_connection
@@ -118,103 +118,109 @@ class WebsocketWorker(QtCore.QThread):
 		self.INCOMMING_UPDATE_EVENT = AsyncResult()
 		self.INCOMMING_NEWEST_EVENT = AsyncResult()
 		self.INCOMMING_UPLOAD_EVENT = AsyncResult()
-	
-		self.wsock = create_connection(URL("ws",DEFAULT_DOMAIN, DEFAULT_PORT, "ws", email="himeldas@live.com", password="faggotass", ) ) #The geventclient's websocket MUST be runned here, as running it in __init__ would put websocket in main thread
-	
+		
 		self.greenlets = [
 			gevent.spawn(self.outgoingGreenlet),
 			gevent.spawn(self.incommingGreenlet),
 		]
 		
 		self.green = gevent.joinall(self.greenlets)
-
+		
+	def workerLoopDecorator(workerGreenlet):
+		def closure(self):
+			while 1:
+				try:
+					workerGreenlet(self)
+				except (AttributeError, socket.error):
+					self.wsock = create_connection(URL("ws",DEFAULT_DOMAIN, DEFAULT_PORT, "ws", email="himeldas@live.com", password="faggotass", ) ) #The geventclient's websocket MUST be runned here, as running it in __init__ would put websocket in main thread
+				gevent.sleep(1)
+		return closure
+	
+	@workerLoopDecorator	
+	def keepAliveGreenlet(self):
+		pass
+	
+	@workerLoopDecorator
 	def incommingGreenlet(self):
 	
-		while 1:
-
-			PRINT("Begin Incomming Greenlet", "")
+		PRINT("Begin Incomming Greenlet", "")
+	
+		dump = self.wsock.recv()
+		#PRINT("received", dump)
+		received = json.loads(str(dump)) #blocks
 		
-			dump = self.wsock.recv()
-			#PRINT("received", dump)
-			received = json.loads(str(dump)) #blocks
-			
-			answer = received["answer"]
-			
-			data   = received["data"]
-			
-			if answer == "Upload!":
-			
-				self.INCOMMING_UPLOAD_EVENT.set(data) #true or false
-				
-			if answer == "Newest!":
-			
-				self.INCOMMING_NEWEST_EVENT.set(data) #clip
-				
-				for each in data:
-				
-					self.incommingSignalForMain.emit(each)
-					self.downloadContainerIfNotExist(each)
-											
-			if answer == "Update!":
-				
-				self.INCOMMING_UPDATE_EVENT.set(data) #clip			
-
-			gevent.sleep(1)
-
-	def outgoingGreenlet(self):
-
-		while 1:
+		answer = received["answer"]
 		
-			PRINT("Begin Outgoing Greenlet", "")
+		data   = received["data"]
+		
+		if answer == "Upload!":
+		
+			self.INCOMMING_UPLOAD_EVENT.set(data) #true or false
 			
-			gevent.sleep(1)
+		if answer == "Newest!":
+		
+			self.INCOMMING_NEWEST_EVENT.set(data) #clip
 			
-			try:
-				send = self.OUTGOING_QUEUE.pop()
-			except IndexError:
-				continue
-			else:
-				data = send.get("data")
-				question = send["question"]
-				
-			if question == "Update?":
+			for each in data:
 			
-				container_name = data["container_name"]
-				container_path = os.path.join(self.TEMP_DIR, container_name)
-								
-				while 1:
-					
-					self.wsock.send(json.dumps(dict(
-						question = "Upload?",
-						data = container_name
-					)))
-
-					container_exists = self.INCOMMING_UPLOAD_EVENT.wait(timeout=5)
-					
-					if container_exists != None:
-						self.INCOMMING_UPLOAD_EVENT = AsyncResult()	
-						break
-				
-				if container_exists == False:
-
-					try:
-						r = requests.post(URL("http", DEFAULT_DOMAIN, DEFAULT_PORT, "upload"), files={"upload": open(container_path, 'rb')})
-					except requests.exceptions.ConnectionError:
-						#connection error
-						#self.webSocketReconnect()
-						continue 
-				
-				while 1: #mimic do while to prevent waiting before send #TODO PREVENT DUPLICATE SENDS USING UUID
-				
-					self.wsock.send(json.dumps(send))
+				self.incommingSignalForMain.emit(each)
+				self.downloadContainerIfNotExist(each)
 										
-					data = self.INCOMMING_UPDATE_EVENT.wait(timeout=5) #AsyncResult.get will block until a result is set by another greenlet, after that get will not block anymore. NOTE- get will return exception! Use wait instead 
+		if answer == "Update!":
+			
+			self.INCOMMING_UPDATE_EVENT.set(data) #clip	
+
+	@workerLoopDecorator
+	def outgoingGreenlet(self):
+		
+		PRINT("Begin Outgoing Greenlet", "")
 					
-					if data != None:
-						self.INCOMMING_UDATE_EVENT = AsyncResult()	
-						break
-						
-					PRINT("update",data)
+		try:
+			send = self.OUTGOING_QUEUE.pop()
+		except IndexError:
+			return
+		else:
+			data = send.get("data")
+			question = send["question"]
+			
+		if question == "Update?":
+		
+			container_name = data["container_name"]
+			container_path = os.path.join(self.TEMP_DIR, container_name)
+							
+			while 1:
+				
+				self.wsock.send(json.dumps(dict(
+					question = "Upload?",
+					data = container_name
+				)))
+
+				container_exists = self.INCOMMING_UPLOAD_EVENT.wait(timeout=5)
+				
+				if container_exists != None:
+					self.INCOMMING_UPLOAD_EVENT = AsyncResult()	
+					break
+			
+			if container_exists == False:
+
+				try:
+					r = requests.post(URL("http", DEFAULT_DOMAIN, DEFAULT_PORT, "upload"), files={"upload": open(container_path, 'rb')})
+				except requests.exceptions.ConnectionError:
+					#connection error
+					#self.webSocketReconnect()
+					raise socket.error 
+			
+			while 1: #mimic do while to prevent waiting before send #TODO PREVENT DUPLICATE SENDS USING UUID
+			
+				self.wsock.send(json.dumps(send))
+									
+				data = self.INCOMMING_UPDATE_EVENT.wait(timeout=5) #AsyncResult.get will block until a result is set by another greenlet, after that get will not block anymore. NOTE- get will return exception! Use wait instead 
+				
+				if data != None:
+					self.INCOMMING_UDATE_EVENT = AsyncResult()	
+					break
+					
+				PRINT("update",data)
 				
 			
 	def downloadContainerIfNotExist(self, data):
