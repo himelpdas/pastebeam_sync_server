@@ -8,15 +8,21 @@ from PySide import QtCore
 
 from parallel import *
 
-import platform
+from functions import *
+
+import platform, distutils
 
 class Main(QWidget, WebsocketWorkerMixin):
 
-	temp_dir = tempfile.mkdtemp()
+	TEMP_DIR = tempfile.mkdtemp()
 
-	icon_html = "<html><img src='images/{name}.png' width={side} height={side}></html>"
+	ICON_HTML = "<html><img src='images/{name}.png' width={side} height={side}></html>"
 	
-	host_name = "{system} {release}".format(system = platform.system(), release = platform.release() ) #self.getLogin().get("device_name"),
+	HOST_NAME = "{system} {release}".format(system = platform.system(), release = platform.release() ) #self.getLogin().get("device_name"),
+	
+	FILE_IGNORE_LIST = map(lambda each: each.upper(), ["desktop.ini","thumbs.db",".ds_store","icon\r",".dropbox",".dropbox.attr"])
+
+	MAX_FILE_SIZE = 1024*1024*50
 	
 	def __init__(self, app):
 		super(Main, self).__init__()
@@ -39,8 +45,8 @@ class Main(QWidget, WebsocketWorkerMixin):
 		self.list_widget.setAlternatingRowColors(True) #http://stackoverflow.com/questions/23213929/qt-qlistwidget-item-with-alternating-colors
 		self.list_widget.doubleClicked.connect(self.itemDoubleClickEvent)
 		
-		search_icon = QLabel(self.icon_html.format(name="find",side=32)) #http://www.iconarchive.com/show/super-mono-3d-icons-by-double-j-design/search-icon.html
-		clipboard_icon = QLabel(self.icon_html.format(name="clipboard",side=32))
+		search_icon = QLabel(self.ICON_HTML.format(name="find",side=32)) #http://www.iconarchive.com/show/super-mono-3d-icons-by-double-j-design/search-icon.html
+		clipboard_icon = QLabel(self.ICON_HTML.format(name="clipboard",side=32))
 
 		grid =  QGridLayout(self) #passing QApplication instance will set the QGridLayout to it, or use #self.setLayout(grid)
 		grid.setSpacing(10)
@@ -62,7 +68,7 @@ class Main(QWidget, WebsocketWorkerMixin):
 		
 		self.clipboard = self.app.clipboard() #clipboard is in the QApplication class as a static (class) attribute. Therefore it is available to all instances as well, ie. the app instance.#http://doc.qt.io/qt-5/qclipboard.html#changed http://codeprogress.com/python/libraries/pyqt/showPyQTExample.php?index=374&key=PyQTQClipBoardDetectTextCopy https://www.youtube.com/watch?v=nixHrjsezac
 		self.clipboard.dataChanged.connect(self.onClipChange) #datachanged is signal, doclip is slot, so we are connecting slot to handle signal
-		
+	"""	
 	def _onClipChange(self):
 		#self.status.setText(self.clipboard.text() or str(self.clipboard.pixmap()) )
 		pmap = self.clipboard.pixmap()
@@ -86,17 +92,20 @@ class Main(QWidget, WebsocketWorkerMixin):
 		
 		self.outgoingSignalForWorker.emit(txt)
 		#self.status.setText(str(time.time()))
+	"""
 		
 	def onClipChange(self):
 		#test if identical
-		print self.clipboard.mimeData().hasUrls()
-		print self.clipboard.mimeData().urls()
-
-		pmap = self.clipboard.pixmap()
+		#pmap = self.clipboard.pixmap()
+		#text = self.clipboard.text()
 		
-		if pmap:
+		mimeData = self.clipboard.mimeData()
+		
+		if mimeData.hasImage():
+			#image = pmap.toImage() #just like wxpython do not allow this to del, or else .bits() will crash
+			image = mimeData.imageData()
+
 			prev = self.previous_hash
-			image = pmap.toImage() #just like wxpython do not allow this to del, or else .bits() will crash
 			hash = format(hash128(image.bits()), "x") ##http://stackoverflow.com/questions/16414559/trying-to-use-hex-without-0x #we want the large image out of memory asap, so just take a hash and gc collect the image
 			
 			PRINT("on clip change pmap", (hash,prev))
@@ -105,14 +114,14 @@ class Main(QWidget, WebsocketWorkerMixin):
 				
 			#secure_hash = hashlib.new("ripemd160", hash + "ACCOUNT_SALT").hexdigest() #use pdkbf2 #to prevent rainbow table attacks of known files and their hashes, will also cause decryption to fail if file name is changed
 			img_file_name = "%s.bmp"%hash
-			img_file_path = os.path.join(self.temp_dir, img_file_name)
+			img_file_path = os.path.join(self.TEMP_DIR, img_file_name)
 			image.save(img_file_path) #change to or compliment upload
 				
+			pmap = QPixmap(image) #change to pixmap for easier image editing than Qimage
 			pmap = PixmapThumbnail(pmap)
-			image = pmap.thumbnail.toImage()
 			
 			device= QtCore.QBuffer() #is an instance of QIODevice, which is accepted by image.save()
-			image.save(device, "PNG") # writes image into the in-memory container, rather than a file name
+			pmap.thumbnail.save(device, "PNG") # writes image into the in-memory container, rather than a file name
 			bytearray = device.data() #get the buffer itself
 			bytestring = bytearray.data() #copy the full string
 			
@@ -127,36 +136,160 @@ class Main(QWidget, WebsocketWorkerMixin):
 				clip_display = clip_display,
 				clip_type = "screenshot",
 			)
-			
-		else:
+		elif mimeData.hasHtml():
+			original = mimeData.html()
 			
 			prev = self.previous_hash
 			
-			original = self.clipboard.text()
-			
 			hash = format(hash128(original), "x")
 			
-			PRINT("on clip change txt", (hash,prev))
+			PRINT("on clip change html", (hash,prev))
 			if hash == prev:
 				return
 			
-			txt = cgi.escape(original)
-			txt = self.truncateTextLines(txt)
-			txt = self.anchorUrls(txt)
+			preview = cgi.escape(mimeData.text() or "Html document")
+			preview = self.truncateTextLines(preview)
+			preview = self.anchorUrls(preview)
 						
-			txt_file_name = "%s.txt"%hash
-			txt_file_path = os.path.join(self.temp_dir,txt_file_name)
+			html_file_name = "%s.html"%hash
+			html_file_path = os.path.join(self.TEMP_DIR,html_file_name)
 			
-			with open(txt_file_path, 'w') as txt_file:
-				txt_file.write(original)
+			with open(html_file_path, 'w') as html_file:
+				html_file.write(original)
 			
 			prepare = dict(
-				file_names = [txt_file_name],
-				clip_display = txt,
-				clip_type = "text",
+				file_names = [html_file_name],
+				clip_display = preview,
+				clip_type = "html",
 			)
 			
-		prepare['host_name'] = self.host_name
+		elif mimeData.hasText():
+		
+			original = mimeData.text()
+			
+			prev = self.previous_hash
+			
+			hash = format(hash128(original), "x")
+			
+			PRINT("on clip change text", (hash,prev))
+			if hash == prev:
+				return
+			
+			preview = cgi.escape(original)
+			preview = self.truncateTextLines(preview)
+			preview = self.anchorUrls(preview)
+						
+			text_file_name = "%s.preview"%hash
+			text_file_path = os.path.join(self.TEMP_DIR,text_file_name)
+			
+			with open(text_file_path, 'w') as text_file:
+				text_file.write(original)
+			
+			prepare = dict(
+				file_names = [text_file_name],
+				clip_display = preview,
+				clip_type = "text",
+			)
+
+		elif mimeData.hasUrls():
+			is_files = []
+			for each in self.clipboard.mimeData().urls():
+				is_files.append(each.isLocalFile())
+			if not (is_files and all(is_files) ):
+				return
+				
+			print PRINT("is files", True)
+
+			os_file_paths_new = []
+			
+			for each in self.clipboard.mimeData().urls():
+				PRINT("path", each.toString())
+				each_path = each.path()[(1 if os.name == "nt" else 0):] #urls() returns /c://...// in windows, [1:] removes the starting /, not sure how this will affect *NIXs
+				standardized_path = os.path.abspath(each_path) #abspath is needed to bypass symlinks in *NIX systems, also guarantees slashes are correct (C:\\...) for windows
+				os_file_paths_new.append(standardized_path)
+			
+			os_file_paths_new.sort()
+			
+			try:
+				os_file_sizes_new = map(lambda each_os_path: getFolderSize(each_os_path, max=self.MAX_FILE_SIZE) if os.path.isdir(each_os_path) else os.path.getsize(each_os_path), os_file_paths_new)
+			except:
+				PRINT("failure",213)
+				return
+			
+			if sum(os_file_sizes_new) > self.MAX_FILE_SIZE:
+				#self.sb.toggleStatusIcon(msg='Files not uploaded. Maximum files size is 50 megabytes.', icon="bad")
+				PRINT("failure",218)
+				return #upload error clip
+							
+			os_file_hashes_new = set([])
+			
+			os_file_names_new = []
+			display_file_names =[]
+			
+			for each_path in os_file_paths_new:
+			
+				each_file_name = os.path.split(each_path)[1]
+			
+				os_file_names_new.append(each_file_name)
+				
+				if os.path.isdir(each_path):
+				
+					display_file_names.append(each_file_name+" folder (%s inside)"%len(os.listdir(each_path))+"._folder")
+				
+					os_folder_hashes = []
+					for dirName, subdirList, fileList in os.walk(each_path, topdown=False):
+						#subdirList = filter(...) #filer out any temp or hidden folders
+						for fname in fileList:
+							if fname.upper() not in self.FILE_IGNORE_LIST: #DO NOT calculate hash for system files as they are always changing, and if a folder is in clipboard, a new upload may be initiated each time a system file is changed
+								each_sub_path = os.path.join(dirName, fname)
+								with open(each_sub_path, 'rb') as each_sub_file:
+									each_relative_path = each_sub_path.split(each_path)[1] #c:/python27/lib/ - c:/python27/lib/bin/abc.pyc = bin/abc.pyc
+									each_relative_hash = each_relative_path + hex(hash128( each_sub_file.read())) #WARNING- some files like thumbs.db constantly change, and therefore may cause an infinite upload loop. Need an ignore list.
+									os_folder_hashes.append(each_relative_hash) #use relative path+filename and hash so that set does not ignore two idenitcal files in different sub-directories. Why? let's say bin/abc.pyc and usr/abc.pyc are identical, without the aforementioned system, a folder with just bin/abc.pyc will yield same hash as bin/abc.pyc + usr/abc.pyc, not good.
+									
+					each_file_name = os.path.split(each_path)[1]
+					os_folder_hashes.sort()
+					each_data = "".join(os_folder_hashes) #whole folder hash
+				
+				else: #single file
+				
+					display_file_names.append(each_file_name)
+				
+					with open(each_path, 'rb') as each_file: 
+						each_file_name = os.path.split(each_path)[1]
+						each_data = each_file.read()
+				
+				name_and_data_hash = os_file_hashes_new.add( each_file_name + format(hash128( each_data ), "x") ) #append the hash for this file #use filename and hash so that set does not ignore copies of two idenitcal files (but different names) in different directories
+								
+			if self.previous_hash == os_file_hashes_new:  #checks to make sure if name and file are the same
+				PRINT("failure",262)
+				return
+							
+			#copy files to temp. this is needed 
+			for each_new_path in os_file_paths_new:
+				try:
+					if os.path.isdir(each_new_path):
+						distutils.dir_util.copy_tree(each_new_path, os.path.join(self.TEMP_DIR, os.path.split(each_new_path)[1] ) )
+					else:
+						distutils.file_util.copy_file(each_new_path, self.TEMP_DIR )
+				except distutils.errors.DistutilsFileError:
+					#show error
+					PRINT("failure",274)
+					pass #MUST PASS since file may already be there.
+			
+			prepare = dict(
+				file_names = os_file_names_new,
+				clip_display = display_file_names,
+				clip_type = "files",
+			)
+						
+			hash = os_file_hashes_new
+
+		else:
+			return
+			
+			
+		prepare['host_name'] = self.HOST_NAME
 					
 		self.outgoingSignalForWorker.emit(prepare)
 		self.previous_hash = hash
@@ -167,24 +300,61 @@ class Main(QWidget, WebsocketWorkerMixin):
 		container_name = self.clip_meta["container_name"]
 		clip_type = self.clip_meta["clip_type"]
 		
-		with encompress.Encompress(password = "nigger", directory = self.temp_dir, container_name=container_name) as file_paths_decrypt:
+		with encompress.Encompress(password = "nigger", directory = self.TEMP_DIR, container_name=container_name) as file_paths_decrypt:
 			#print file_paths_decrypt
 			
+			mimeData = QtCore.QMimeData()
+			
+			if clip_type == "html":
+			
+				clip_file_path = file_paths_decrypt[0]
+			
+				with open(clip_file_path, 'r') as clip_file:
+					
+					clip_text = clip_file.read()
+										
+					mimeData.setHtml(clip_text)
+			
+
 			if clip_type == "text":
 			
 				clip_file_path = file_paths_decrypt[0]
 			
 				with open(clip_file_path, 'r') as clip_file:
+					
 					clip_text = clip_file.read()
-					self.clipboard.setText(clip_text)
+										
+					mimeData.setText(clip_text)
+					
 					
 			if clip_type == "screenshot":
 			
 				clip_file_path = file_paths_decrypt[0]
 				
-				pmap = QPixmap(clip_file_path)
+				image = QImage(clip_file_path)
+								
+				mimeData.setImageData(image)
 				
-				self.clipboard.setPixmap(pmap)
+			self.clipboard.setMimeData(mimeData)
+			
+			if clip_type == "files":
+							
+				urls = []
+				
+				for each_path in file_paths_decrypt:
+					if os.name=="nt":
+						each_path = each_path.replace("\\","/").replace("c:","C:")
+					each_path = "file:///"+each_path
+					
+					QUrl = QtCore.QUrl()
+					QUrl.setUrl(each_path)
+					QUrl.toEncoded()
+					urls.append(QUrl)
+												
+				PRINT("SETTING URLS", urls)
+				mimeData.setUrls(urls)
+				
+			self.clipboard.setMimeData(mimeData)
 			
 		
 	def itemDoubleClickEvent(self, clicked):

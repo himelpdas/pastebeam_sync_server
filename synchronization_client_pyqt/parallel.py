@@ -35,9 +35,22 @@ class WebsocketWorkerMixin(object):
 			itm.setIcon(QIcon(QPixmap(image)))
 			txt = emitted["clip_display"]["text"]
 			
+		elif emitted["clip_type"] == "html":
+			itm.setIcon(QIcon("images/text.png"))
+			txt = emitted["clip_display"]		
+			
 		elif emitted["clip_type"] == "text":
 			itm.setIcon(QIcon("images/text.png"))
 			txt = emitted["clip_display"]
+			
+		elif emitted["clip_type"] == "files":
+			itm.setIcon(QIcon("images/files.png"))
+			display_html = "<ul>{li}</ul>"
+			unordered = []
+			for each_filename in emitted["clip_display"]:
+				unordered.append("<li>{file_name}</li>".format(file_name = each_filename) )
+			txt = display_html.format(li="".join(unordered))
+				
 			
 		itm.setData(QtCore.Qt.UserRole, dict(
 			id = emitted["_id"],
@@ -69,7 +82,7 @@ class WebsocketWorker(QtCore.QThread):
 		QtCore.QThread.__init__(self)
 				
 		self.main = main
-		self.temp_dir = self.main.temp_dir
+		self.TEMP_DIR = self.main.TEMP_DIR
 		self.main.outgoingSignalForWorker.connect(self.onOutgoingSlot) #we have to use slots as gevent cannot talk to separate threads that weren't monkey_patched (QThreads are not monkey_patched since they are not pure python)
 		
 		self.OUTGOING_QUEUE = deque() #must use alternative Queue for non standard library thread and greenlets
@@ -84,7 +97,7 @@ class WebsocketWorker(QtCore.QThread):
 		
 		if not data.get("container_name"): ##CHECK HERE IF CONTAINER EXISTS IN OTHER ITEMS
 		
-			with encompress.Encompress(password = "nigger", directory = self.temp_dir, file_names_encrypt = file_names) as container_name: 					
+			with encompress.Encompress(password = "nigger", directory = self.TEMP_DIR, file_names_encrypt = file_names) as container_name: 					
 				
 				data["container_name"] = container_name
 				
@@ -167,7 +180,7 @@ class WebsocketWorker(QtCore.QThread):
 			if question == "Update?":
 			
 				container_name = data["container_name"]
-				container_path = os.path.join(self.temp_dir, container_name)
+				container_path = os.path.join(self.TEMP_DIR, container_name)
 								
 				while 1:
 					
@@ -191,7 +204,7 @@ class WebsocketWorker(QtCore.QThread):
 						#self.webSocketReconnect()
 						continue 
 				
-				while 1: #mimic do while to prevent waiting before send
+				while 1: #mimic do while to prevent waiting before send #TODO PREVENT DUPLICATE SENDS USING UUID
 				
 					self.wsock.send(json.dumps(send))
 										
@@ -206,7 +219,7 @@ class WebsocketWorker(QtCore.QThread):
 			
 	def downloadContainerIfNotExist(self, data):
 		container_name = data["container_name"]
-		container_path = os.path.join(self.temp_dir, container_name)
+		container_path = os.path.join(self.TEMP_DIR, container_name)
 		print container_path
 		
 		if os.path.isfile(container_path):
