@@ -364,13 +364,13 @@ class Main(WebsocketWorkerMixin, UIMixin):
 				urls = []
 				
 				for each_path in file_paths_decrypt:
-					#if os.name=="nt":
-					#	each_path = each_path.replace("\\","/").replace("c:","C:")
-					#each_path = "file:///"+each_path
+					if os.name=="nt":
+						each_path = each_path.replace("\\","/").replace("c:","C:")
+					each_path = "file:///"+each_path
 					
 					QUrl = QtCore.QUrl()
-					#QUrl.setUrl(each_path)
-					QUrl.setPath(each_path)
+					QUrl.setUrl(each_path)
+					#QUrl.setPath(each_path)
 					QUrl.toEncoded()
 					urls.append(QUrl)
 												
