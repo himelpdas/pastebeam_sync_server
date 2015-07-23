@@ -6,7 +6,7 @@ from gevent.event import AsyncResult
 #from gevent.queue import Queue
 from collections import deque
 
-import uuid
+import uuid, time
 
 from bottle import Bottle, static_file
 app = Bottle()
@@ -49,7 +49,10 @@ def incommingGreenlet(wsock, timeout, OUTGOING_QUEUE): #these seem to run in ano
 		
 		if question == "Alive?":
 	
-			send_im_still_alive.set(1)
+			OUTGOING_QUEUE.append(dict(
+				answer = "Alive!",
+				data = time.time()
+			))
 			
 		if question == "Salt?":
 		

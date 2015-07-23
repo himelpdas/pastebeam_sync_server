@@ -58,7 +58,7 @@ class Main(QWidget, WebsocketWorkerMixin):
 		
 		#self.setLayout(grid)
 		
-		self.setGeometry(300, 300, 250, 150)
+		self.setGeometry(300, 300, 1024, 768)
 		self.setWindowTitle('PasteBeam 1.0.0')	
 		
 		self.show()
@@ -198,7 +198,7 @@ class Main(QWidget, WebsocketWorkerMixin):
 			if not (is_files and all(is_files) ):
 				return
 				
-			print PRINT("is files", True)
+			PRINT("is files", True)
 
 			os_file_paths_new = []
 			

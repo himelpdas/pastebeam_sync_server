@@ -21,6 +21,8 @@ DEFAULT_PORT = 8084
 
 class WebsocketWorkerMixin(object):
 
+	FILE_ICONS = map(lambda file_icon: file_icon.split()[-1].upper(), os.listdir(os.path.normpath("images/files") ) )
+
 	outgoingSignalForWorker = QtCore.Signal(dict)	
 	
 	def onIncommingSlot(self, emitted):
@@ -45,11 +47,17 @@ class WebsocketWorkerMixin(object):
 			
 		elif emitted["clip_type"] == "files":
 			itm.setIcon(QIcon("images/files.png"))
-			display_html = "<ul>{li}</ul>"
-			unordered = []
+			files = []
 			for each_filename in emitted["clip_display"]:
-				unordered.append("<li>{file_name}</li>".format(file_name = each_filename) )
-			txt = display_html.format(li="".join(unordered))
+				ext = each_filename.split(".")[-1]
+				file_icon = "files/%s"%ext
+				if not ext.upper() in self.FILE_ICONS:
+					pass#file_icon = os.path.normpath("files/_blank")
+				files.append("{icon} {file_name}".format(
+					file_name = each_filename,
+					icon = self.ICON_HTML.format(name=file_icon, side=32)
+				))
+			txt = "<br>".join(files)
 				
 			
 		itm.setData(QtCore.Qt.UserRole, dict(
@@ -118,10 +126,16 @@ class WebsocketWorker(QtCore.QThread):
 		self.INCOMMING_UPDATE_EVENT = AsyncResult()
 		self.INCOMMING_NEWEST_EVENT = AsyncResult()
 		self.INCOMMING_UPLOAD_EVENT = AsyncResult()
+		self.INCOMMING_LIVING_EVENT = AsyncResult()
+		
+		self.RECONNECT = lambda: create_connection(URL("ws",DEFAULT_DOMAIN, DEFAULT_PORT, "ws", email="himeldas@live.com", password="faggotass", ) ) #The geventclient's websocket MUST be runned here, as running it in __init__ would put websocket in main thread
+		
+		self.WSOCK = self.RECONNECT()
 		
 		self.greenlets = [
 			gevent.spawn(self.outgoingGreenlet),
 			gevent.spawn(self.incommingGreenlet),
+			#gevent.spawn(self.keepAliveGreenlet),
 		]
 		
 		self.green = gevent.joinall(self.greenlets)
@@ -129,30 +143,63 @@ class WebsocketWorker(QtCore.QThread):
 	def workerLoopDecorator(workerGreenlet):
 		def closure(self):
 			while 1:
+				gevent.sleep(1)
 				try:
 					workerGreenlet(self)
-				except (AttributeError, socket.error):
-					self.wsock = create_connection(URL("ws",DEFAULT_DOMAIN, DEFAULT_PORT, "ws", email="himeldas@live.com", password="faggotass", ) ) #The geventclient's websocket MUST be runned here, as running it in __init__ would put websocket in main thread
-				gevent.sleep(1)
+				except socket.error:
+					PRINT("failure in", workerGreenlet.__name__)
+					self.WSOCK.close() #close the WSOCK
+				else:
+					continue
+				try:
+					self.WSOCK = self.RECONNECT()
+				except socket.error:
+					pass #block until there is a connection
 		return closure
 	
-	@workerLoopDecorator	
-	def keepAliveGreenlet(self):
-		pass
+	def keepAlive(self):
+		"""
+		Checks to see if socket is still alive, if failure occurs workerLoopDecorator will fix
+		"""
 	
+		if time.time() - self.LAST_ALIVE > 30:
+						
+			while 1:
+				
+				self.WSOCK.send(json.dumps(dict(
+					question = "Alive?",
+					data = None
+				)))
+
+				alive = self.INCOMMING_LIVING_EVENT.wait(timeout=5) #yields to another greenlet for 5 seconds
+																
+				if alive != None:
+					self.LAST_ALIVE = alive
+					print "Alive!"
+					self.INCOMMING_LIVING_EVENT = AsyncResult()	
+					
+					break
+				
 	@workerLoopDecorator
 	def incommingGreenlet(self):
 	
 		PRINT("Begin Incomming Greenlet", "")
 	
-		dump = self.wsock.recv()
+		dump = self.WSOCK.recv()
 		#PRINT("received", dump)
-		received = json.loads(str(dump)) #blocks
-		
+		try:
+			received = json.loads(str(dump)) #blocks
+		except ValueError: #occurs when socket closes unexpectedly
+			raise socket.error
+	
 		answer = received["answer"]
 		
 		data   = received["data"]
 		
+		if answer == "Alive!":
+			PRINT("data", data)
+			self.INCOMMING_LIVING_EVENT.set(data)
+
 		if answer == "Upload!":
 		
 			self.INCOMMING_UPLOAD_EVENT.set(data) #true or false
@@ -173,7 +220,9 @@ class WebsocketWorker(QtCore.QThread):
 	@workerLoopDecorator
 	def outgoingGreenlet(self):
 		
-		PRINT("Begin Outgoing Greenlet", "")
+		#PRINT("Begin Outgoing Greenlet", "")
+					
+		#self.keepAlive()
 					
 		try:
 			send = self.OUTGOING_QUEUE.pop()
@@ -188,9 +237,9 @@ class WebsocketWorker(QtCore.QThread):
 			container_name = data["container_name"]
 			container_path = os.path.join(self.TEMP_DIR, container_name)
 							
-			while 1:
+			while 1: #this prevents the receiving of the data of later queues and causing a mixup
 				
-				self.wsock.send(json.dumps(dict(
+				self.WSOCK.send(json.dumps(dict(
 					question = "Upload?",
 					data = container_name
 				)))
@@ -212,7 +261,7 @@ class WebsocketWorker(QtCore.QThread):
 			
 			while 1: #mimic do while to prevent waiting before send #TODO PREVENT DUPLICATE SENDS USING UUID
 			
-				self.wsock.send(json.dumps(send))
+				self.WSOCK.send(json.dumps(send))
 									
 				data = self.INCOMMING_UPDATE_EVENT.wait(timeout=5) #AsyncResult.get will block until a result is set by another greenlet, after that get will not block anymore. NOTE- get will return exception! Use wait instead 
 				
