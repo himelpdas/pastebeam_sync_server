@@ -51,7 +51,7 @@ class UIMixin(QtGui.QMainWindow): #handles menubar and statusbar, which qwidget 
 		
 	def initMenuBar(self):
 	
-		exitAction = QtGui.QAction(QtGui.QIcon('exit.png'), '&Exit', self)		
+		exitAction = QtGui.QAction(QtGui.QIcon("images/exit.png"), '&Exit', self)	#http://ubuntuforums.org/archive/index.php/t-724672.htmls	
 		exitAction.setShortcut('Ctrl+Q')
 		exitAction.setStatusTip('Exit application')
 		exitAction.triggered.connect(self.close) #exitAction.triggered.connect(QtGui.qApp.quit) #does not trigger closeEvent()
