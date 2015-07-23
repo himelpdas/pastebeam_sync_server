@@ -4,7 +4,7 @@ from gevent import monkey; monkey.patch_all()
 
 #from PySide import QtGui, QtCore
 from PySide.QtGui import *
-from PySide import QtCore
+from PySide import QtCore, QtGui
 
 from parallel import *
 
@@ -12,7 +12,57 @@ from functions import *
 
 import platform, distutils
 
-class Main(QWidget, WebsocketWorkerMixin):
+class UIMixin(QtGui.QMainWindow): #handles menubar and statusbar, which qwidget did not do
+
+	def initUI(self):			   
+		
+		self.initPanel()
+		self.initMenuBar()
+		
+		self.setCentralWidget(self.main_widget)
+		self.setGeometry(300, 300, 1024, 768)
+		self.setWindowTitle('PasteBeam 1.0.0')	
+		
+		self.show()	
+		
+	def initPanel(self):
+		#self.setLayout(grid)
+		self.search = QLineEdit()
+		
+		self.list_widget  = QListWidget()
+		list_widget_icon_size = QtCore.QSize(48,48)
+		self.list_widget.setIconSize(list_widget_icon_size) #http://www.qtcentre.org/threads/8733-Size-of-an-Icon #http://nullege.com/codes/search/PySide.QtGui.QListWidget.setIconSize
+		self.list_widget.setAlternatingRowColors(True) #http://stackoverflow.com/questions/23213929/qt-qlistwidget-item-with-alternating-colors
+		self.list_widget.doubleClicked.connect(self.itemDoubleClickEvent)
+		
+		search_icon = QLabel(self.ICON_HTML.format(name="find",side=32)) #http://www.iconarchive.com/show/super-mono-3d-icons-by-double-j-design/search-icon.html
+		clipboard_icon = QLabel(self.ICON_HTML.format(name="clipboard",side=32))
+
+		grid = QGridLayout() #passing QApplication instance will set the QGridLayout to it, or use #self.setLayout(grid)
+		grid.setSpacing(10)
+		
+		grid.addWidget(self.search, 1 , 1)
+		grid.addWidget(search_icon, 1 , 2)
+		grid.addWidget(self.list_widget, 2 , 1)
+		grid.addWidget(clipboard_icon, 2 , 2)
+		
+		self.main_widget = QWidget() #used to be inherited by main, which will automatically display as a window, but now it is handled by setCentralWidget
+		self.main_widget.setLayout(grid) #http://www.qtcentre.org/threads/5648-How-do-I-add-a-QGridlayout-in-a-QMainwindow
+		
+	def initMenuBar(self):
+	
+		exitAction = QtGui.QAction(QtGui.QIcon('exit.png'), '&Exit', self)		
+		exitAction.setShortcut('Ctrl+Q')
+		exitAction.setStatusTip('Exit application')
+		exitAction.triggered.connect(self.close) #exitAction.triggered.connect(QtGui.qApp.quit) #does not trigger closeEvent()
+
+		self.statusBar()
+
+		menubar = self.menuBar()
+		fileMenu = menubar.addMenu('&File')
+		fileMenu.addAction(exitAction)
+
+class Main(WebsocketWorkerMixin, UIMixin):
 
 	TEMP_DIR = tempfile.mkdtemp()
 
@@ -34,34 +84,6 @@ class Main(QWidget, WebsocketWorkerMixin):
 		
 		self.initUI()
 		self.setupClip()
-		
-	def initUI(self):			   
-		
-		self.search = QLineEdit()
-		
-		self.list_widget  = QListWidget()
-		list_widget_icon_size = QtCore.QSize(48,48)
-		self.list_widget.setIconSize(list_widget_icon_size) #http://www.qtcentre.org/threads/8733-Size-of-an-Icon #http://nullege.com/codes/search/PySide.QtGui.QListWidget.setIconSize
-		self.list_widget.setAlternatingRowColors(True) #http://stackoverflow.com/questions/23213929/qt-qlistwidget-item-with-alternating-colors
-		self.list_widget.doubleClicked.connect(self.itemDoubleClickEvent)
-		
-		search_icon = QLabel(self.ICON_HTML.format(name="find",side=32)) #http://www.iconarchive.com/show/super-mono-3d-icons-by-double-j-design/search-icon.html
-		clipboard_icon = QLabel(self.ICON_HTML.format(name="clipboard",side=32))
-
-		grid =  QGridLayout(self) #passing QApplication instance will set the QGridLayout to it, or use #self.setLayout(grid)
-		grid.setSpacing(10)
-		
-		grid.addWidget(self.search, 1 , 1)
-		grid.addWidget(search_icon, 1 , 2)
-		grid.addWidget(self.list_widget, 2 , 1)
-		grid.addWidget(clipboard_icon, 2 , 2)
-		
-		#self.setLayout(grid)
-		
-		self.setGeometry(300, 300, 1024, 768)
-		self.setWindowTitle('PasteBeam 1.0.0')	
-		
-		self.show()
 	
 	def setupClip(self):
 		self.previous_hash = {}
@@ -147,7 +169,7 @@ class Main(QWidget, WebsocketWorkerMixin):
 			if hash == prev:
 				return
 			
-			preview = cgi.escape(mimeData.text() or "Html document")
+			preview = cgi.escape(mimeData.text() or "<HTML Data>")
 			preview = self.truncateTextLines(preview)
 			preview = self.anchorUrls(preview)
 						
