@@ -156,7 +156,8 @@ class WebsocketWorker(QtCore.QThread):
 				except socket.error:
 					pass #block until there is a connection
 		return closure
-	
+
+	'''
 	def keepAlive(self):
 		"""
 		Checks to see if socket is still alive, if failure occurs workerLoopDecorator will fix
@@ -179,6 +180,7 @@ class WebsocketWorker(QtCore.QThread):
 					self.INCOMMING_LIVING_EVENT = AsyncResult()	
 					
 					break
+		'''
 				
 	@workerLoopDecorator
 	def incommingGreenlet(self):
