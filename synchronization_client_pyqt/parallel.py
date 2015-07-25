@@ -19,7 +19,7 @@ import encompress
 DEFAULT_DOMAIN = "192.168.0.191"
 DEFAULT_PORT = 8084
 
-class WebsocketWorkerMixin(object):
+class WebsocketWorkerMixinForMain(object):
 
 	FILE_ICONS = map(lambda file_icon: file_icon.split()[-1].upper(), os.listdir(os.path.normpath("images/files") ) )
 
@@ -83,6 +83,7 @@ class WebsocketWorker(QtCore.QThread):
 	#By including int as an argument, it lets the signal know to expect
 	#an integer argument when emitting.
 	incommingSignalForMain = QtCore.Signal(dict)
+	statusSignalForMain = QtCore.Signal(tuple)
 
 	#You can do any extra things in this init you need, but for this example
 	#nothing else needs to be done expect call the super's init
@@ -104,7 +105,7 @@ class WebsocketWorker(QtCore.QThread):
 		file_names = data["file_names"]
 		
 		if not data.get("container_name"): ##CHECK HERE IF CONTAINER EXISTS IN OTHER ITEMS
-		
+			self.statusSignalForMain.emit(("encrypting", "lock"))
 			with encompress.Encompress(password = "nigger", directory = self.TEMP_DIR, file_names_encrypt = file_names) as container_name: 					
 				
 				data["container_name"] = container_name
@@ -202,22 +203,23 @@ class WebsocketWorker(QtCore.QThread):
 			PRINT("data", data)
 			self.INCOMMING_LIVING_EVENT.set(data)
 
-		if answer == "Upload!":
-		
+		elif answer == "Upload!":
 			self.INCOMMING_UPLOAD_EVENT.set(data) #true or false
 			
-		if answer == "Newest!":
-		
+		elif answer == "Newest!":
 			self.INCOMMING_NEWEST_EVENT.set(data) #clip
-			
+						
+			self.statusSignalForMain.emit(("downloading", "download"))
 			for each in data:
 			
 				self.incommingSignalForMain.emit(each)
 				self.downloadContainerIfNotExist(each)
 										
-		if answer == "Update!":
-			
+		elif answer == "Update!":
 			self.INCOMMING_UPDATE_EVENT.set(data) #clip	
+			
+		#all responses were received, now just wait and listen
+		self.statusSignalForMain.emit(("listening", "sync"))
 
 	@workerLoopDecorator
 	def outgoingGreenlet(self):
@@ -235,10 +237,11 @@ class WebsocketWorker(QtCore.QThread):
 			question = send["question"]
 			
 		if question == "Update?":
-		
+					
 			container_name = data["container_name"]
 			container_path = os.path.join(self.TEMP_DIR, container_name)
 							
+			self.statusSignalForMain.emit(("uploading", "sync"))
 			while 1: #this prevents the receiving of the data of later queues and causing a mixup
 				
 				self.WSOCK.send(json.dumps(dict(
@@ -261,6 +264,7 @@ class WebsocketWorker(QtCore.QThread):
 					#self.webSocketReconnect()
 					raise socket.error 
 			
+			self.statusSignalForMain.emit(("uploading", "upload"))
 			while 1: #mimic do while to prevent waiting before send #TODO PREVENT DUPLICATE SENDS USING UUID
 			
 				self.WSOCK.send(json.dumps(send))

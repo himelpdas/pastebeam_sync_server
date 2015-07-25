@@ -18,6 +18,7 @@ class UIMixin(QtGui.QMainWindow): #handles menubar and statusbar, which qwidget 
 		
 		self.initPanel()
 		self.initMenuBar()
+		self.initStatusBar()
 		
 		self.setCentralWidget(self.main_widget)
 		self.setGeometry(300, 300, 1024, 768)
@@ -55,18 +56,39 @@ class UIMixin(QtGui.QMainWindow): #handles menubar and statusbar, which qwidget 
 		exitAction.setShortcut('Ctrl+Q')
 		exitAction.setStatusTip('Exit application')
 		exitAction.triggered.connect(self.close) #exitAction.triggered.connect(QtGui.qApp.quit) #does not trigger closeEvent()
-
-		self.statusBar()
-
+		
 		menubar = self.menuBar()
 		fileMenu = menubar.addMenu('&File')
 		fileMenu.addAction(exitAction)
+		
+	def initStatusBar(self):
+		
+		sb = self.statusBar()
+		
+		self.status_lbl = lbl = QLabel("")
+		
+		sb.addPermanentWidget(lbl)
+		
+		self.status_icn = icn = QLabel("")
+		
+		sb.addPermanentWidget(icn)
+		
+		self.onSetStatus(("initializing", "bulb"))
+				
+	def onSetStatus(self, msg_icn):
+		msg,icn = msg_icn
+		self.status_lbl.setText("%s..."%msg.capitalize())
+		
+		pmap = QPixmap("images/{icn}".format(icn=icn))
+		pmap = pmap.scaledToWidth(32)
+		self.status_icn.setPixmap(pmap)
+		
 
-class Main(WebsocketWorkerMixin, UIMixin):
+class Main(WebsocketWorkerMixinForMain, UIMixin):
 
 	TEMP_DIR = tempfile.mkdtemp()
 
-	ICON_HTML = "<html><img src='images/{name}.png' width={side} height={side}></html>"
+	ICON_HTML = "<html><img src='images/{name}.png' width={side} height={side} style='vertical-align:middle'></html>"
 	
 	HOST_NAME = "{system} {release}".format(system = platform.system(), release = platform.release() ) #self.getLogin().get("device_name"),
 	
@@ -80,6 +102,7 @@ class Main(WebsocketWorkerMixin, UIMixin):
 		self.app = app
 		self.ws_worker = WebsocketWorker(self)
 		self.ws_worker.incommingSignalForMain.connect(self.onIncommingSlot)
+		self.ws_worker.statusSignalForMain.connect(self.onSetStatus)
 		self.ws_worker.start()
 		
 		self.initUI()
@@ -132,6 +155,7 @@ class Main(WebsocketWorkerMixin, UIMixin):
 			
 			PRINT("on clip change pmap", (hash,prev))
 			if hash == prev:
+				
 				return
 				
 			#secure_hash = hashlib.new("ripemd160", hash + "ACCOUNT_SALT").hexdigest() #use pdkbf2 #to prevent rainbow table attacks of known files and their hashes, will also cause decryption to fail if file name is changed
@@ -318,10 +342,12 @@ class Main(WebsocketWorkerMixin, UIMixin):
 		#image.destroy()
 		
 	def setClip(self):
+		#only needed when user double clicks an item
 			
 		container_name = self.clip_meta["container_name"]
 		clip_type = self.clip_meta["clip_type"]
 		
+		self.onSetStatus(("decrypting", "unlock"))
 		with encompress.Encompress(password = "nigger", directory = self.TEMP_DIR, container_name=container_name) as file_paths_decrypt:
 			#print file_paths_decrypt
 			
