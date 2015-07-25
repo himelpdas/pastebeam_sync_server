@@ -144,8 +144,10 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 		#pmap = self.clipboard.pixmap()
 		#text = self.clipboard.text()
 		
-		mimeData = self.clipboard.mimeData()
+		self.onSetStatus(("scanning", "scan"))
 		
+		mimeData = self.clipboard.mimeData()
+				
 		if mimeData.hasImage():
 			#image = pmap.toImage() #just like wxpython do not allow this to del, or else .bits() will crash
 			image = mimeData.imageData()
@@ -303,7 +305,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 				
 					with open(each_path, 'rb') as each_file: 
 						each_file_name = os.path.split(each_path)[1]
-						each_data = each_file.read()
+						each_data = each_file.read() #update status
 				
 				name_and_data_hash = os_file_hashes_new.add( each_file_name + format(hash128( each_data ), "x") ) #append the hash for this file #use filename and hash so that set does not ignore copies of two idenitcal files (but different names) in different directories
 								

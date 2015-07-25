@@ -241,7 +241,7 @@ class WebsocketWorker(QtCore.QThread):
 			container_name = data["container_name"]
 			container_path = os.path.join(self.TEMP_DIR, container_name)
 							
-			self.statusSignalForMain.emit(("uploading", "sync"))
+			self.statusSignalForMain.emit(("uploading", "upload"))
 			while 1: #this prevents the receiving of the data of later queues and causing a mixup
 				
 				self.WSOCK.send(json.dumps(dict(
@@ -264,7 +264,7 @@ class WebsocketWorker(QtCore.QThread):
 					#self.webSocketReconnect()
 					raise socket.error 
 			
-			self.statusSignalForMain.emit(("uploading", "upload"))
+			self.statusSignalForMain.emit(("updating", "upload"))
 			while 1: #mimic do while to prevent waiting before send #TODO PREVENT DUPLICATE SENDS USING UUID
 			
 				self.WSOCK.send(json.dumps(send))
