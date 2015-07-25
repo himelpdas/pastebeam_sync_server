@@ -36,19 +36,34 @@ class UIMixin(QtGui.QMainWindow): #handles menubar and statusbar, which qwidget 
 		self.list_widget.setAlternatingRowColors(True) #http://stackoverflow.com/questions/23213929/qt-qlistwidget-item-with-alternating-colors
 		self.list_widget.doubleClicked.connect(self.itemDoubleClickEvent)
 		
-		search_icon = QLabel(self.ICON_HTML.format(name="find",side=32)) #http://www.iconarchive.com/show/super-mono-3d-icons-by-double-j-design/search-icon.html
-		clipboard_icon = QLabel(self.ICON_HTML.format(name="clipboard",side=32))
-
-		grid = QGridLayout() #passing QApplication instance will set the QGridLayout to it, or use #self.setLayout(grid)
-		grid.setSpacing(10)
+		search_icon = QLabel() #http://www.iconarchive.com/show/super-mono-3d-icons-by-double-j-design/search-icon.html
+		pmap = QPixmap("images/find.png")
+		pmap = pmap.scaledToWidth(32, QtCore.Qt.SmoothTransformation)
+		search_icon.setPixmap(pmap)
 		
-		grid.addWidget(self.search, 1 , 1)
-		grid.addWidget(search_icon, 1 , 2)
-		grid.addWidget(self.list_widget, 2 , 1)
-		grid.addWidget(clipboard_icon, 2 , 2)
+		#clipboard_icon = QLabel(self.ICON_HTML.format(name="clipboard",side=32))
+		#grid = QGridLayout() #passing QApplication instance will set the QGridLayout to it, or use #self.setLayout(grid)
+		#grid.setSpacing(10)
+		
+		vbox = QVBoxLayout()
+		hbox_tool = QHBoxLayout()
+		hbox_list = QHBoxLayout()
+		
+		btn1 = QPushButton("Up")
+		btn2 = QPushButton("Down")
+		hbox_tool.addWidget(btn1)
+		hbox_tool.addWidget(btn2)
+		
+		hbox_tool.addStretch(1) #pushes widgets to the side, kind of like pull-right
+		hbox_tool.addWidget(search_icon)
+		hbox_tool.addWidget(self.search)
+		
+		hbox_list.addWidget(self.list_widget)
+		vbox.addLayout(hbox_tool)
+		vbox.addLayout(hbox_list)
 		
 		self.main_widget = QWidget() #used to be inherited by main, which will automatically display as a window, but now it is handled by setCentralWidget
-		self.main_widget.setLayout(grid) #http://www.qtcentre.org/threads/5648-How-do-I-add-a-QGridlayout-in-a-QMainwindow
+		self.main_widget.setLayout(vbox) #http://www.qtcentre.org/threads/5648-How-do-I-add-a-QGridlayout-in-a-QMainwindow
 		
 	def initMenuBar(self):
 	
