@@ -63,7 +63,7 @@ class UIMixin(QtGui.QMainWindow): #handles menubar and statusbar, which qwidget 
 		
 	def initStatusBar(self):
 		
-		sb = self.statusBar()
+		self.sbar = sb = self.statusBar()
 		
 		self.status_lbl = lbl = QLabel("")
 		
@@ -80,9 +80,11 @@ class UIMixin(QtGui.QMainWindow): #handles menubar and statusbar, which qwidget 
 		self.status_lbl.setText("%s..."%msg.capitalize())
 		
 		pmap = QPixmap("images/{icn}".format(icn=icn))
-		pmap = pmap.scaledToWidth(32)
+		pmap = pmap.scaledToWidth(32, QtCore.Qt.SmoothTransformation) #antialiasing http://stackoverflow.com/questions/7623631/qt-antialiasing-png-resize
 		self.status_icn.setPixmap(pmap)
 		
+		#events process once every x milliseconds, this forces them to process... or we can use repaint isntead
+		qApp.processEvents() #http://stackoverflow.com/questions/4510712/qlabel-settext-not-displaying-text-immediately-before-running-other-method #the gui gets blocked, especially with file operations. DOCS: Processes all pending events for the calling thread according to the specified flags until there are no more events to process. You can call this function occasionally when your program is busy performing a long operation (e.g. copying a file).
 
 class Main(WebsocketWorkerMixinForMain, UIMixin):
 
