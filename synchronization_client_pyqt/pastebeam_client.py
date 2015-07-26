@@ -49,8 +49,16 @@ class UIMixin(QtGui.QMainWindow): #handles menubar and statusbar, which qwidget 
 		hbox_tool = QHBoxLayout()
 		hbox_list = QHBoxLayout()
 		
+		pmap = QPixmap("images/up.png");
+		icn = QIcon(pmap);
 		btn1 = QPushButton("Up")
+		btn1.setIcon(icn)
+		
+		pmap = QPixmap("images/down.png");
+		icn = QIcon(pmap);
 		btn2 = QPushButton("Down")
+		btn1.setIcon(icn)
+		
 		hbox_tool.addWidget(btn1)
 		hbox_tool.addWidget(btn2)
 		
