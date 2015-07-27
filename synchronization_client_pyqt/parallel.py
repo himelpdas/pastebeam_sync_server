@@ -151,11 +151,13 @@ class WebsocketWorker(QtCore.QThread):
 						workerGreenlet(self)
 					except (socket.error, _exceptions.WebSocketConnectionClosedException):
 						PRINT("failure in", workerGreenlet.__name__)
+						self.statusSignalForMain.emit(("Reconnecting", "bad"))
 						self.WSOCK.close() #close the WSOCK
 					else:
 						continue
 				try:
 					self.WSOCK = self.RECONNECT()
+					self.statusSignalForMain.emit(("connected", "connected"))
 				except: #previous try will handle later
 					pass #block thread until there is a connection
 		return closure

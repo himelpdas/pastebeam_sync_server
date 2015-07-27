@@ -34,7 +34,7 @@ class UIMixin(QtGui.QMainWindow): #handles menubar and statusbar, which qwidget 
 		list_widget_icon_size = QtCore.QSize(48,48)
 		self.list_widget.setIconSize(list_widget_icon_size) #http://www.qtcentre.org/threads/8733-Size-of-an-Icon #http://nullege.com/codes/search/PySide.QtGui.QListWidget.setIconSize
 		self.list_widget.setAlternatingRowColors(True) #http://stackoverflow.com/questions/23213929/qt-qlistwidget-item-with-alternating-colors
-		self.list_widget.doubleClicked.connect(self.itemDoubleClickEvent)
+		self.list_widget.doubleClicked.connect(self.onItemDoubleClickSlot)
 		
 		search_icon = QLabel() #http://www.iconarchive.com/show/super-mono-3d-icons-by-double-j-design/search-icon.html
 		pmap = QPixmap("images/find.png")
@@ -96,7 +96,7 @@ class UIMixin(QtGui.QMainWindow): #handles menubar and statusbar, which qwidget 
 		
 		sb.addPermanentWidget(icn)
 		
-		self.onSetStatus(("initializing", "bulb"))
+		self.onSetStatus(("Connecting", "bulb"))
 				
 	def onSetStatus(self, msg_icn):
 		msg,icn = msg_icn
@@ -182,7 +182,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 			
 			PRINT("on clip change pmap", (hash,prev))
 			if hash == prev:
-				self.onSetStatus(("Image already in clipboard!","error"))
+				self.onSetStatus(("image copied","good"))
 				return
 				
 			#secure_hash = hashlib.new("ripemd160", hash + "ACCOUNT_SALT").hexdigest() #use pdkbf2 #to prevent rainbow table attacks of known files and their hashes, will also cause decryption to fail if file name is changed
@@ -218,7 +218,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 			
 			PRINT("on clip change html", (hash,prev))
 			if hash == prev:
-				self.onSetStatus(("Text already in clipboard","error"))
+				self.onSetStatus(("data copied","good"))
 				return
 			
 			preview = cgi.escape(mimeData.text() or "<HTML Data>")
@@ -247,7 +247,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 			
 			PRINT("on clip change text", (hash,prev))
 			if hash == prev:
-				self.onSetStatus(("Text already in clipboard","error"))
+				self.onSetStatus(("text copied","good"))
 				return
 			
 			preview = cgi.escape(original)
@@ -268,7 +268,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 
 		elif mimeData.hasUrls():
 			is_files = []
-			for each in self.clipboard.mimeData().urls():
+			for each in mimeData.urls():
 				is_files.append(each.isLocalFile())
 			if not (is_files and all(is_files) ):
 				return
@@ -293,7 +293,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 			
 			if sum(os_file_sizes_new) > self.MAX_FILE_SIZE:
 				#self.sb.toggleStatusIcon(msg='Files not uploaded. Maximum files size is 50 megabytes.', icon="bad")
-				self.onSetStatus(("Files bigger than 50mb","error"))
+				self.onSetStatus(("Files bigger than 50MB","warn"))
 				PRINT("failure",218)
 				return #upload error clip
 							
@@ -339,7 +339,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 								
 			if self.previous_hash == os_file_hashes_new:  #checks to make sure if name and file are the same
 				PRINT("failure",262)
-				self.onSetStatus(("File already in clipboard","error"))
+				self.onSetStatus(("File%s copied" % ("s" if len(os_file_names_new) > 1 else "") , "good"))
 				return
 							
 			#copy files to temp. this is needed 
@@ -363,7 +363,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 			hash = os_file_hashes_new
 
 		else:
-			self.onSetStatus(("Previous copy is incompatible","error"))
+			self.onSetStatus(("Clipping is incompatible","warn"))
 			return
 			
 			
@@ -438,7 +438,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 			self.clipboard.setMimeData(mimeData)
 			
 		
-	def itemDoubleClickEvent(self, clicked):
+	def onItemDoubleClickSlot(self, clicked):
 		row =  clicked.row()
 		item = self.list_widget.item(row) 
 		self.clip_meta = item.data(QtCore.Qt.UserRole) #http://stackoverflow.com/questions/25452125/is-it-possible-to-add-a-hidden-value-to-every-item-of-qlistwidget
@@ -499,7 +499,7 @@ class PixmapThumbnail():
 			crop = self.original_pmap.copy(x, y, smallest_side, smallest_side) #PySide.QtGui.QPixmap.copy(x, y, width, height) #https://srinikom.github.io/pyside-docs/PySide/QtGui/QPixmap.html#PySide.QtGui.PySide.QtGui.QPixmap.copy
 		else:
 			crop = self.original_pmap
-		self.thumbnail = crop.scaled(48,48)
+		self.thumbnail = crop.scaled(48,48, TransformationMode=QtCore.Qt.SmoothTransformation)
 		
 if __name__ == '__main__':
 	
