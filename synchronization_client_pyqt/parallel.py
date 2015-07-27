@@ -11,6 +11,7 @@ import requests, datetime, socket
 
 #from ws4py.client.geventclient import WebSocketClient
 from websocket import create_connection
+from websocket import _exceptions
 from PySide.QtGui import *
 from PySide import QtCore
 
@@ -147,14 +148,14 @@ class WebsocketWorker(QtCore.QThread):
 				gevent.sleep(1)
 				try:
 					workerGreenlet(self)
-				except socket.error:
+				except (socket.error, websocket._exceptions.WebSocketConnectionClosedException):
 					PRINT("failure in", workerGreenlet.__name__)
 					self.WSOCK.close() #close the WSOCK
 				else:
 					continue
 				try:
 					self.WSOCK = self.RECONNECT()
-				except socket.error:
+				except: #previous try will handle later
 					pass #block until there is a connection
 		return closure
 
@@ -219,7 +220,7 @@ class WebsocketWorker(QtCore.QThread):
 			self.INCOMMING_UPDATE_EVENT.set(data) #clip	
 			
 		#all responses were received, now just wait and listen
-		self.statusSignalForMain.emit(("listening", "sync"))
+		self.statusSignalForMain.emit(("monitoring", "monitor"))
 
 	@workerLoopDecorator
 	def outgoingGreenlet(self):
@@ -264,7 +265,7 @@ class WebsocketWorker(QtCore.QThread):
 					#self.webSocketReconnect()
 					raise socket.error 
 			
-			self.statusSignalForMain.emit(("updating", "upload"))
+			self.statusSignalForMain.emit(("updating", "sync"))
 			while 1: #mimic do while to prevent waiting before send #TODO PREVENT DUPLICATE SENDS USING UUID
 			
 				self.WSOCK.send(json.dumps(send))

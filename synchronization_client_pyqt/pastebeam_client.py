@@ -177,7 +177,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 			#image = pmap.toImage() #just like wxpython do not allow this to del, or else .bits() will crash
 			image = mimeData.imageData()
 
-			prev = self.previous_hash
+			prev = self.previous_hash #image.bits() crashes with OneNote large image copy
 			hash = format(hash128(image.bits()), "x") ##http://stackoverflow.com/questions/16414559/trying-to-use-hex-without-0x #we want the large image out of memory asap, so just take a hash and gc collect the image
 			
 			PRINT("on clip change pmap", (hash,prev))
