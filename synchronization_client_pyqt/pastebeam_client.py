@@ -182,7 +182,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 			
 			PRINT("on clip change pmap", (hash,prev))
 			if hash == prev:
-				
+				self.onSetStatus(("Image already in clipboard!","error"))
 				return
 				
 			#secure_hash = hashlib.new("ripemd160", hash + "ACCOUNT_SALT").hexdigest() #use pdkbf2 #to prevent rainbow table attacks of known files and their hashes, will also cause decryption to fail if file name is changed
@@ -218,6 +218,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 			
 			PRINT("on clip change html", (hash,prev))
 			if hash == prev:
+				self.onSetStatus(("Text already in clipboard","error"))
 				return
 			
 			preview = cgi.escape(mimeData.text() or "<HTML Data>")
@@ -246,6 +247,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 			
 			PRINT("on clip change text", (hash,prev))
 			if hash == prev:
+				self.onSetStatus(("Text already in clipboard","error"))
 				return
 			
 			preview = cgi.escape(original)
@@ -291,6 +293,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 			
 			if sum(os_file_sizes_new) > self.MAX_FILE_SIZE:
 				#self.sb.toggleStatusIcon(msg='Files not uploaded. Maximum files size is 50 megabytes.', icon="bad")
+				self.onSetStatus(("Files bigger than 50mb","error"))
 				PRINT("failure",218)
 				return #upload error clip
 							
@@ -336,6 +339,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 								
 			if self.previous_hash == os_file_hashes_new:  #checks to make sure if name and file are the same
 				PRINT("failure",262)
+				self.onSetStatus(("File already in clipboard","error"))
 				return
 							
 			#copy files to temp. this is needed 
@@ -359,6 +363,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 			hash = os_file_hashes_new
 
 		else:
+			self.onSetStatus(("Previous copy is incompatible","error"))
 			return
 			
 			

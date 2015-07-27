@@ -132,7 +132,7 @@ class WebsocketWorker(QtCore.QThread):
 		
 		self.RECONNECT = lambda: create_connection(URL("ws",DEFAULT_DOMAIN, DEFAULT_PORT, "ws", email="himeldas@live.com", password="faggotass", ) ) #The geventclient's websocket MUST be runned here, as running it in __init__ would put websocket in main thread
 		
-		self.WSOCK = self.RECONNECT()
+		self.WSOCK = None
 		
 		self.greenlets = [
 			gevent.spawn(self.outgoingGreenlet),
@@ -146,17 +146,18 @@ class WebsocketWorker(QtCore.QThread):
 		def closure(self):
 			while 1:
 				gevent.sleep(1)
-				try:
-					workerGreenlet(self)
-				except (socket.error, websocket._exceptions.WebSocketConnectionClosedException):
-					PRINT("failure in", workerGreenlet.__name__)
-					self.WSOCK.close() #close the WSOCK
-				else:
-					continue
+				if self.WSOCK:
+					try:
+						workerGreenlet(self)
+					except (socket.error, _exceptions.WebSocketConnectionClosedException):
+						PRINT("failure in", workerGreenlet.__name__)
+						self.WSOCK.close() #close the WSOCK
+					else:
+						continue
 				try:
 					self.WSOCK = self.RECONNECT()
 				except: #previous try will handle later
-					pass #block until there is a connection
+					pass #block thread until there is a connection
 		return closure
 
 	'''
