@@ -129,7 +129,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 		self.app = app
 		self.ws_worker = WebsocketWorker(self)
 		self.ws_worker.incommingSignalForMain.connect(self.onIncommingSlot)
-		self.ws_worker.newClipSignalForMain.connect(self.onSetClipSlot)
+		self.ws_worker.newClipSignalForMain.connect(self.onSetNewClipSlot)
 		self.ws_worker.statusSignalForMain.connect(self.onSetStatusSlot)
 		self.ws_worker.start()
 		
@@ -375,7 +375,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 		self.previous_hash = hash
 		#image.destroy()
 		
-	def onSetClipSlot(self, new_clip):
+	def onSetNewClipSlot(self, new_clip):
 		#only needed when user double clicks an item
 			
 		container_name = new_clip["container_name"]
@@ -457,7 +457,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 		del selected_clip['_id'] #this is an id from an old clip from server. must remove or else key error will occur on server when trying to insert new clip 
 		self.outgoingSignalForWorker.emit(selected_clip)
 		
-		self.previous_hash = selected_clip["hash"] #or else onClipChangeSlot will react and a duplicate new list item will occur.
+		self.previous_hash = hash #or else onClipChangeSlot will react and a duplicate new list item will occur.
 		#PRINT("thumb on item.data", selected_clip["clip_display"])
 		#self.setClip()
 		

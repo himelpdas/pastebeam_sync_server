@@ -79,7 +79,15 @@ def incommingGreenlet(wsock, timeout, OUTGOING_QUEUE): #these seem to run in ano
 				
 			data['timestamp_server'] = time.time()
 			
-			new_clip_id = clips.insert_one(data).inserted_id
+			prev = (list(clips.find().sort('_id',pymongo.DESCENDING).limit( 1 ) ) or [{}]).pop() #cannot bool iterators, so must convert to list, and then pop the row
+			
+			if prev.get("hash") != data.get("hash"):
+			
+				new_clip_id = clips.insert_one(data).inserted_id
+				
+			else:
+				
+				new_clip_id = False #DO NOT SEND NONE as this NONE indicates bad connection to client (remember AsyncResult.wait() )
 															
 			OUTGOING_QUEUE.append(dict(
 				answer = "Update!",
@@ -87,6 +95,8 @@ def incommingGreenlet(wsock, timeout, OUTGOING_QUEUE): #these seem to run in ano
 			))
 			
 			PRINT("update", new_clip_id)
+			
+			#prev = hash
 			
 		PRINT("incomming", "wait...")
 		sleep(0.1)
@@ -97,7 +107,7 @@ def outgoingGreenlet(wsock, timeout, OUTGOING_QUEUE):
 	
 	for second in xrange(timeout):
 	
-		sleep(0.1)
+		sleep(1)
 	
 		try:
 				
@@ -120,7 +130,7 @@ def outgoingGreenlet(wsock, timeout, OUTGOING_QUEUE):
 				server_latest_clips = [each for each in clips.find({"_id":{"$gt":server_latest_row["_id"]}}).sort('_id',pymongo.ASCENDING).limit( 50 )]
 			except UnboundLocalError:
 				server_previous_row = {}
-				server_latest_clips = [each for each in clips.find().sort('_id',pymongo.ASCENDING).limit( 50 )]
+				server_latest_clips = [each for each in clips.find().sort('_id',pymongo.ASCENDING).limit( 50 )] #returns an iterator but we want a list
 				
 			
 		else:
@@ -131,7 +141,7 @@ def outgoingGreenlet(wsock, timeout, OUTGOING_QUEUE):
 @app.route('/ws')
 def handle_websocket():
 	
-	gevent.sleep(1) #prevent many connections
+	gevent.sleep(0.1) #prevent many connections
 	
 	websocket_id = uuid.uuid4()
 
