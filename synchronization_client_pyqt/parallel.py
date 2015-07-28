@@ -28,28 +28,34 @@ class WebsocketWorkerMixinForMain(object):
 	
 	def onIncommingSlot(self, emitted):
 		#print emitted #display clips here
+		
+		new_clip = emitted
+		
+		#if not new_clip["sender_uuid"] == self.SENDER_UUID: #DO NOT set clipboard if new_clip with same sender ID as this will result in double, and possibly infinite list items. 
+		#self.setClip()
+		
 		itm =  QListWidgetItem()
 		
-		if emitted["clip_type"] == "screenshot":
+		if new_clip["clip_type"] == "screenshot":
 			#crop and reduce pmap size to fit square icon
 			image = QImage()
 			#print "\n\n\n"
-			print image.loadFromData(emitted["clip_display"]["thumb"])
+			print image.loadFromData(new_clip["clip_display"]["thumb"])
 			itm.setIcon(QIcon(QPixmap(image)))
-			txt = emitted["clip_display"]["text"]
+			txt = new_clip["clip_display"]["text"]
 			
-		elif emitted["clip_type"] == "html":
+		elif new_clip["clip_type"] == "html":
 			itm.setIcon(QIcon("images/text.png"))
-			txt = emitted["clip_display"]		
+			txt = new_clip["clip_display"]		
 			
-		elif emitted["clip_type"] == "text":
+		elif new_clip["clip_type"] == "text":
 			itm.setIcon(QIcon("images/text.png"))
-			txt = emitted["clip_display"]
+			txt = new_clip["clip_display"]
 			
-		elif emitted["clip_type"] == "files":
+		elif new_clip["clip_type"] == "files":
 			itm.setIcon(QIcon("images/files.png"))
 			files = []
-			for each_filename in emitted["clip_display"]:
+			for each_filename in new_clip["clip_display"]:
 				ext = each_filename.split(".")[-1]
 				file_icon = "files/%s"%ext
 				if not ext.upper() in self.FILE_ICONS:
@@ -60,19 +66,15 @@ class WebsocketWorkerMixinForMain(object):
 				))
 			txt = "<br>".join(files)
 				
-			
-		itm.setData(QtCore.Qt.UserRole, dict(
-			id = emitted["_id"],
-			container_name = emitted["container_name"],
-			clip_type = emitted["clip_type"]
-		)) 
+		#PRINT("thumb on new_clip.data", new_clip["clip_display"])
+		itm.setData(QtCore.Qt.UserRole, json.dumps(new_clip)) #json.dumps or else clip data (especially BSON's Binary)will be truncated by setData 
 			
 		#self.list_widget.addItem(itm) #or self.list_widget.addItem("some text") (different signature)
 		self.list_widget.insertItem(0,itm) #add to top #http://www.qtcentre.org/threads/44672-How-to-add-a-item-to-the-top-in-QListWidget
 		
 		space = "&nbsp;"*7
-		timestamp_human = '{dt:%I}:{dt:%M}:{dt:%S}{dt:%p}{space}<span style="color:grey">{dt.month}-{dt.day}-{dt.year}</span>'.format(space = space, dt=datetime.datetime.fromtimestamp(emitted["timestamp_server"] ) ) #http://stackoverflow.com/questions/904928/python-strftime-date-without-leading-0
-		custom_label = QLabel("<html><b>{host_name}</b>{space}{timestamp}<pre>{text}</pre></html>".format(space = space, host_name = emitted["host_name"], timestamp = timestamp_human, text=txt ) )
+		timestamp_human = '{dt:%I}:{dt:%M}:{dt:%S}{dt:%p}{space}<span style="color:grey">{dt.month}-{dt.day}-{dt.year}</span>'.format(space = space, dt=datetime.datetime.fromtimestamp(new_clip["timestamp_server"] ) ) #http://stackoverflow.com/questions/904928/python-strftime-date-without-leading-0
+		custom_label = QLabel("<html><b>{host_name}</b>{space}{timestamp}<pre>{text}</pre></html>".format(space = space, host_name = new_clip["host_name"], timestamp = timestamp_human, text=txt ) )
 		custom_label.setOpenExternalLinks(True) ##http://stackoverflow.com/questions/8427446/making-qlabel-behave-like-a-hyperlink
 		
 		self.list_widget.setItemWidget(itm, custom_label ) #add the label
@@ -84,6 +86,7 @@ class WebsocketWorker(QtCore.QThread):
 	#By including int as an argument, it lets the signal know to expect
 	#an integer argument when emitting.
 	incommingSignalForMain = QtCore.Signal(dict)
+	newClipSignalForMain = QtCore.Signal(dict)
 	statusSignalForMain = QtCore.Signal(tuple)
 
 	#You can do any extra things in this init you need, but for this example
@@ -102,18 +105,20 @@ class WebsocketWorker(QtCore.QThread):
 	
 	def onOutgoingSlot(self, data):
 		#PRINT("onOutgoingSlot", prepare)
-
-		file_names = data["file_names"]
 		
 		if not data.get("container_name"): ##CHECK HERE IF CONTAINER EXISTS IN OTHER ITEMS
+			file_names = data["file_names"]
 			self.statusSignalForMain.emit(("encrypting", "lock"))
 			with encompress.Encompress(password = "nigger", directory = self.TEMP_DIR, file_names_encrypt = file_names) as container_name: 					
 				
 				data["container_name"] = container_name
-				
-		PRINT("encompress", container_name)
-			
+				PRINT("encompress", container_name)
+							
+		data['host_name'] = self.main.HOST_NAME
+
 		data["timestamp_client"] = time.time()	
+		
+		#data["send_uuid"] = uuid.uu
 		
 		send = dict(
 			question = "Update?",
@@ -216,14 +221,17 @@ class WebsocketWorker(QtCore.QThread):
 			self.statusSignalForMain.emit(("downloading", "download"))
 			for each in data:
 			
+				self.downloadContainerIfNotExist(each) #MUST download container first, as it may not exist locally if new clip is from anothe device
 				self.incommingSignalForMain.emit(each)
-				self.downloadContainerIfNotExist(each)
+				
+			#PRINT("new_clip", each)
+			self.newClipSignalForMain.emit(each) #this will set the newest clip only, thanks to self.main.new_clip!!!
 										
 		elif answer == "Update!":
 			self.INCOMMING_UPDATE_EVENT.set(data) #clip	
 			
 		#all responses were received, now just wait and listen
-		self.statusSignalForMain.emit(("monitoring", "monitor"))
+		#self.statusSignalForMain.emit(("monitoring", "monitor"))
 
 	@workerLoopDecorator
 	def outgoingGreenlet(self):

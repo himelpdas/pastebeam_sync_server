@@ -96,9 +96,9 @@ class UIMixin(QtGui.QMainWindow): #handles menubar and statusbar, which qwidget 
 		
 		sb.addPermanentWidget(icn)
 		
-		self.onSetStatus(("Connecting", "bulb"))
+		self.onSetStatusSlot(("Connecting", "bulb"))
 				
-	def onSetStatus(self, msg_icn):
+	def onSetStatusSlot(self, msg_icn):
 		msg,icn = msg_icn
 		self.status_lbl.setText("%s..."%msg.capitalize())
 		
@@ -121,13 +121,16 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 
 	MAX_FILE_SIZE = 1024*1024*50
 	
+	SENDER_UUID = uuid.uuid4()
+	
 	def __init__(self, app):
 		super(Main, self).__init__()
 		
 		self.app = app
 		self.ws_worker = WebsocketWorker(self)
 		self.ws_worker.incommingSignalForMain.connect(self.onIncommingSlot)
-		self.ws_worker.statusSignalForMain.connect(self.onSetStatus)
+		self.ws_worker.newClipSignalForMain.connect(self.onSetClipSlot)
+		self.ws_worker.statusSignalForMain.connect(self.onSetStatusSlot)
 		self.ws_worker.start()
 		
 		self.initUI()
@@ -169,7 +172,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 		#pmap = self.clipboard.pixmap()
 		#text = self.clipboard.text()
 		
-		self.onSetStatus(("scanning", "scan"))
+		self.onSetStatusSlot(("scanning", "scan"))
 		
 		mimeData = self.clipboard.mimeData()
 				
@@ -182,7 +185,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 			
 			PRINT("on clip change pmap", (hash,prev))
 			if hash == prev:
-				self.onSetStatus(("image copied","good"))
+				self.onSetStatusSlot(("image copied","good"))
 				return
 				
 			#secure_hash = hashlib.new("ripemd160", hash + "ACCOUNT_SALT").hexdigest() #use pdkbf2 #to prevent rainbow table attacks of known files and their hashes, will also cause decryption to fail if file name is changed
@@ -218,7 +221,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 			
 			PRINT("on clip change html", (hash,prev))
 			if hash == prev:
-				self.onSetStatus(("data copied","good"))
+				self.onSetStatusSlot(("data copied","good"))
 				return
 			
 			preview = cgi.escape(mimeData.text() or "<HTML Data>")
@@ -247,7 +250,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 			
 			PRINT("on clip change text", (hash,prev))
 			if hash == prev:
-				self.onSetStatus(("text copied","good"))
+				self.onSetStatusSlot(("text copied","good"))
 				return
 			
 			preview = cgi.escape(original)
@@ -293,7 +296,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 			
 			if sum(os_file_sizes_new) > self.MAX_FILE_SIZE:
 				#self.sb.toggleStatusIcon(msg='Files not uploaded. Maximum files size is 50 megabytes.', icon="bad")
-				self.onSetStatus(("Files bigger than 50MB","warn"))
+				self.onSetStatusSlot(("Files bigger than 50MB","warn"))
 				PRINT("failure",218)
 				return #upload error clip
 							
@@ -339,7 +342,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 								
 			if self.previous_hash == os_file_hashes_new:  #checks to make sure if name and file are the same
 				PRINT("failure",262)
-				self.onSetStatus(("File%s copied" % ("s" if len(os_file_names_new) > 1 else "") , "good"))
+				self.onSetStatusSlot(("File%s copied" % ("s" if len(os_file_names_new) > 1 else "") , "good"))
 				return
 							
 			#copy files to temp. this is needed 
@@ -353,33 +356,32 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 					#show error
 					PRINT("failure",274)
 					pass #MUST PASS since file may already be there.
+						
+			hash = os_file_hashes_new
 			
 			prepare = dict(
 				file_names = os_file_names_new,
 				clip_display = display_file_names,
 				clip_type = "files",
 			)
-						
-			hash = os_file_hashes_new
 
 		else:
-			self.onSetStatus(("Clipping is incompatible","warn"))
-			return
-			
-			
-		prepare['host_name'] = self.HOST_NAME
-					
+			self.onSetStatusSlot(("Clipping is incompatible","warn"))
+			return	
+		
+		prepare["hash"]= hash
 		self.outgoingSignalForWorker.emit(prepare)
+		
 		self.previous_hash = hash
 		#image.destroy()
 		
-	def setClip(self):
+	def onSetClipSlot(self, new_clip):
 		#only needed when user double clicks an item
 			
-		container_name = self.clip_meta["container_name"]
-		clip_type = self.clip_meta["clip_type"]
+		container_name = new_clip["container_name"]
+		clip_type = new_clip["clip_type"]
 		
-		self.onSetStatus(("decrypting", "unlock"))
+		self.onSetStatusSlot(("decrypting", "unlock"))
 		with encompress.Encompress(password = "nigger", directory = self.TEMP_DIR, container_name=container_name) as file_paths_decrypt:
 			#print file_paths_decrypt
 			
@@ -439,10 +441,25 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 			
 		
 	def onItemDoubleClickSlot(self, clicked):
-		row =  clicked.row()
-		item = self.list_widget.item(row) 
-		self.clip_meta = item.data(QtCore.Qt.UserRole) #http://stackoverflow.com/questions/25452125/is-it-possible-to-add-a-hidden-value-to-every-item-of-qlistwidget
-		self.setClip()
+		selected_row =  clicked.row()
+		selected_item = self.list_widget.item(selected_row)
+		
+		current_item = self.list_widget.item(0)
+		current_clip = json.loads(current_item.data(QtCore.Qt.UserRole))
+		
+		selected_clip = json.loads(selected_item.data(QtCore.Qt.UserRole)) #http://stackoverflow.com/questions/25452125/is-it-possible-to-add-a-hidden-value-to-every-item-of-qlistwidget
+		
+		hash, prev = selected_clip["hash"], self.previous_hash
+		
+		if hash == prev:
+			return
+			
+		del selected_clip['_id'] #this is an id from an old clip from server. must remove or else key error will occur on server when trying to insert new clip 
+		self.outgoingSignalForWorker.emit(selected_clip)
+		
+		self.previous_hash = selected_clip["hash"] #or else onClipChangeSlot will react and a duplicate new list item will occur.
+		#PRINT("thumb on item.data", selected_clip["clip_display"])
+		#self.setClip()
 		
 	@staticmethod
 	def truncateTextLines(txt, max_lines=15):
