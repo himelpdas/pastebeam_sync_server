@@ -162,7 +162,7 @@ class WebsocketWorker(QtCore.QThread):
 						continue
 				try:
 					self.WSOCK = self.RECONNECT()
-					self.statusSignalForMain.emit(("connected", "connected"))
+					self.statusSignalForMain.emit(("connected", "good"))
 				except: #previous try will handle later
 					pass #block thread until there is a connection
 		return closure
@@ -229,6 +229,7 @@ class WebsocketWorker(QtCore.QThread):
 										
 		elif answer == "Update!":
 			self.INCOMMING_UPDATE_EVENT.set(data) #clip	
+			self.statusSignalForMain.emit(("updated", "good"))
 			
 		#all responses were received, now just wait and listen
 		#self.statusSignalForMain.emit(("monitoring", "monitor"))

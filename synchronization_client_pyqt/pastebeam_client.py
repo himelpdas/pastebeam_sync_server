@@ -13,7 +13,7 @@ from functions import *
 import platform, distutils
 
 class UIMixin(QtGui.QMainWindow): #handles menubar and statusbar, which qwidget did not do
-
+	#SLOT IS A QT TERM MEANING EVENT
 	def initUI(self):			   
 		
 		self.initPanel()
@@ -96,7 +96,7 @@ class UIMixin(QtGui.QMainWindow): #handles menubar and statusbar, which qwidget 
 		
 		sb.addPermanentWidget(icn)
 		
-		self.onSetStatusSlot(("Connecting", "bulb"))
+		self.onSetStatusSlot(("Connecting", "connect"))
 				
 	def onSetStatusSlot(self, msg_icn):
 		msg,icn = msg_icn
@@ -135,14 +135,14 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 		
 		self.initUI()
 		self.setupClip()
-	
+			
 	def setupClip(self):
 		self.previous_hash = {}
 		
 		self.clipboard = self.app.clipboard() #clipboard is in the QApplication class as a static (class) attribute. Therefore it is available to all instances as well, ie. the app instance.#http://doc.qt.io/qt-5/qclipboard.html#changed http://codeprogress.com/python/libraries/pyqt/showPyQTExample.php?index=374&key=PyQTQClipBoardDetectTextCopy https://www.youtube.com/watch?v=nixHrjsezac
-		self.clipboard.dataChanged.connect(self.onClipChange) #datachanged is signal, doclip is slot, so we are connecting slot to handle signal
+		self.clipboard.dataChanged.connect(self.onClipChangeSlot) #datachanged is signal, doclip is slot, so we are connecting slot to handle signal
 	"""	
-	def _onClipChange(self):
+	def _onClipChangeSlot(self):
 		#self.status.setText(self.clipboard.text() or str(self.clipboard.pixmap()) )
 		pmap = self.clipboard.pixmap()
 		if pmap:
@@ -167,7 +167,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 		#self.status.setText(str(time.time()))
 	"""
 		
-	def onClipChange(self):
+	def onClipChangeSlot(self):
 		#test if identical
 		#pmap = self.clipboard.pixmap()
 		#text = self.clipboard.text()
