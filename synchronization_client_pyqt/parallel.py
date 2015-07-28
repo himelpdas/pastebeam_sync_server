@@ -160,7 +160,7 @@ class WebsocketWorker(QtCore.QThread):
 						self.WSOCK.close() #close the WSOCK
 					else:
 						continue
-				try:
+				try: #TODO INVOKE CLIP READING ON STARTUP! AFTER CONNECTION
 					self.WSOCK = self.RECONNECT()
 					self.statusSignalForMain.emit(("connected", "good"))
 				except: #previous try will handle later
