@@ -1,4 +1,4 @@
-# coding=utf8
+#--coding: utf-8 --
 
 import gevent
 from gevent.event import AsyncResult
@@ -46,11 +46,11 @@ class WebsocketWorkerMixinForMain(object):
 			
 		elif new_clip["clip_type"] == "html":
 			itm.setIcon(QIcon("images/text.png"))
-			txt = new_clip["clip_display"]		
+			txt = new_clip["clip_display"].encode("utf8") #might be decode?
 			
 		elif new_clip["clip_type"] == "text":
 			itm.setIcon(QIcon("images/text.png"))
-			txt = new_clip["clip_display"]
+			txt = new_clip["clip_display"].encode("utf8")
 			
 		elif new_clip["clip_type"] == "files":
 			itm.setIcon(QIcon("images/files.png"))

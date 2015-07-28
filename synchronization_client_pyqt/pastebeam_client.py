@@ -1,4 +1,4 @@
-# coding=utf8
+#--coding: utf-8 --
 
 from gevent import monkey; monkey.patch_all()
 
@@ -213,7 +213,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 				clip_type = "screenshot",
 			)
 		elif mimeData.hasHtml():
-			original = mimeData.html()
+			original = mimeData.html().encode("utf8")
 			
 			prev = self.previous_hash
 			
@@ -242,7 +242,9 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 			
 		elif mimeData.hasText():
 		
-			original = mimeData.text()
+			original = mimeData.text().encode("utf8")
+			
+			print original
 			
 			prev = self.previous_hash
 			
@@ -393,7 +395,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 			
 				with open(clip_file_path, 'r') as clip_file:
 					
-					clip_text = clip_file.read()
+					clip_text = clip_file.read().decode("utf8") #http://stackoverflow.com/questions/6048085/python-write-unicode-text-to-a-text-file #needed to keep conistant hash, or else inifnite upload/update loop will occur
 										
 					mimeData.setHtml(clip_text)
 			
@@ -404,7 +406,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 			
 				with open(clip_file_path, 'r') as clip_file:
 					
-					clip_text = clip_file.read()
+					clip_text = clip_file.read().decode("utf8")
 										
 					mimeData.setText(clip_text)
 					
