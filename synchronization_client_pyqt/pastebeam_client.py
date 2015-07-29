@@ -213,27 +213,31 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 				clip_type = "screenshot",
 			)
 		elif mimeData.hasHtml():
-			original = mimeData.html().encode("utf8")
-			preview = (mimeData.text() or "<HTML Data>").encode("utf8")
+			html = mimeData.html().encode("utf8")
+			text = (mimeData.text() or "<Rich Text Data>").encode("utf8")
 			
 			prev = self.previous_hash
 			
-			hash = format(hash128(original), "x")
+			hash = format(hash128(html), "x")
 			
 			PRINT("on clip change html", (hash,prev))
 			if hash == prev:
 				self.onSetStatusSlot(("data copied","good"))
 				return
 			
-			preview = cgi.escape(preview)
+			preview = cgi.escape(text) #crashes with big data
 			preview = self.truncateTextLines(preview)
 			preview = self.anchorUrls(preview)
 						
-			html_file_name = "%s.html"%hash
+			html_file_name = "%s.json"%hash
 			html_file_path = os.path.join(self.TEMP_DIR,html_file_name)
 			
 			with open(html_file_path, 'w') as html_file:
-				html_file.write(original)
+				html_and_text = json.dumps({"html_and_text":{
+					"html":html,
+					"text":text
+				}})
+				html_file.write(html_and_text)
 			
 			prepare = dict(
 				file_names = [html_file_name],
@@ -256,7 +260,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 				self.onSetStatusSlot(("text copied","good"))
 				return
 			
-			preview = cgi.escape(original)
+			preview = cgi.escape(original) #prevent html from styling in qlabel
 			preview = self.truncateTextLines(preview)
 			preview = self.anchorUrls(preview)
 						
@@ -396,9 +400,13 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 			
 				with open(clip_file_path, 'r') as clip_file:
 					
-					clip_text = clip_file.read().decode("utf8") #http://stackoverflow.com/questions/6048085/python-write-unicode-text-to-a-text-file #needed to keep conistant hash, or else inifnite upload/update loop will occur
-										
-					mimeData.setHtml(clip_text)
+					clip_json = json.loads(clip_file.read()) #json handles encode and decode of UTF8
+					
+					clip_text = clip_json["html_and_text"]["text"] 
+					clip_html = clip_json["html_and_text"]["html"]
+					
+					mimeData.setText(clip_text) #set text cannot automatically truncate html (or rich text tags) like with getText. So I decided to store getText on json file and setText here.
+					mimeData.setHtml(clip_html)
 			
 
 			if clip_type == "text":
@@ -407,7 +415,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 			
 				with open(clip_file_path, 'r') as clip_file:
 					
-					clip_text = clip_file.read().decode("utf8")
+					clip_text = clip_file.read().decode("utf8") #http://stackoverflow.com/questions/6048085/python-write-unicode-text-to-a-text-file #needed to keep conistant hash, or else inifnite upload/update loop will occur
 										
 					mimeData.setText(clip_text)
 					
@@ -422,6 +430,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 				
 			self.clipboard.setMimeData(mimeData)
 			
+
 			if clip_type == "files":
 							
 				urls = []
@@ -439,6 +448,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 												
 				PRINT("SETTING URLS", urls)
 				mimeData.setUrls(urls)
+
 				
 			self.clipboard.setMimeData(mimeData)
 			
