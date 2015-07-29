@@ -405,7 +405,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 					clip_text = clip_json["html_and_text"]["text"] 
 					clip_html = clip_json["html_and_text"]["html"]
 					
-					mimeData.setText(clip_text) #set text cannot automatically truncate html (or rich text tags) like with getText. So I decided to store getText on json file and setText here.
+					mimeData.setText(clip_text) #set text cannot automatically truncate html (or rich text tags) like with mimeData.text(). This is probably due to the operating system providing both text and html, and it's not Qt's concern. So I decided to store getText on json file and setText here.
 					mimeData.setHtml(clip_html)
 			
 
