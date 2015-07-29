@@ -46,11 +46,11 @@ class WebsocketWorkerMixinForMain(object):
 			
 		elif new_clip["clip_type"] == "html":
 			itm.setIcon(QIcon("images/text.png"))
-			txt = new_clip["clip_display"].encode("utf8") #might be decode?
+			txt = new_clip["clip_display"]
 			
 		elif new_clip["clip_type"] == "text":
 			itm.setIcon(QIcon("images/text.png"))
-			txt = new_clip["clip_display"].encode("utf8")
+			txt = new_clip["clip_display"]
 			
 		elif new_clip["clip_type"] == "files":
 			itm.setIcon(QIcon("images/files.png"))
@@ -74,7 +74,7 @@ class WebsocketWorkerMixinForMain(object):
 		
 		space = "&nbsp;"*7
 		timestamp_human = '{dt:%I}:{dt:%M}:{dt:%S}{dt:%p}{space}<span style="color:grey">{dt.month}-{dt.day}-{dt.year}</span>'.format(space = space, dt=datetime.datetime.fromtimestamp(new_clip["timestamp_server"] ) ) #http://stackoverflow.com/questions/904928/python-strftime-date-without-leading-0
-		custom_label = QLabel("<html><b>{host_name}</b>{space}{timestamp}<pre>{text}</pre></html>".format(space = space, host_name = new_clip["host_name"], timestamp = timestamp_human, text=txt ) )
+		custom_label = QLabel(u"<html><b>{host_name}</b>{space}{timestamp}<pre>{text}</pre></html>".format(space = space, host_name = new_clip["host_name"], timestamp = timestamp_human, text=txt ) )
 		custom_label.setOpenExternalLinks(True) ##http://stackoverflow.com/questions/8427446/making-qlabel-behave-like-a-hyperlink
 		
 		self.list_widget.setItemWidget(itm, custom_label ) #add the label

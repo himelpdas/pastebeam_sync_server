@@ -214,6 +214,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 			)
 		elif mimeData.hasHtml():
 			original = mimeData.html().encode("utf8")
+			preview = (mimeData.text() or "<HTML Data>").encode("utf8")
 			
 			prev = self.previous_hash
 			
@@ -224,7 +225,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 				self.onSetStatusSlot(("data copied","good"))
 				return
 			
-			preview = cgi.escape(mimeData.text() or "<HTML Data>")
+			preview = cgi.escape(preview)
 			preview = self.truncateTextLines(preview)
 			preview = self.anchorUrls(preview)
 						
