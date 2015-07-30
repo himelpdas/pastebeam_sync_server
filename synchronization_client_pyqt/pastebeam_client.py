@@ -264,7 +264,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 			preview = self.truncateTextLines(preview)
 			preview = self.anchorUrls(preview)
 						
-			text_file_name = "%s.preview"%hash
+			text_file_name = "%s.txt"%hash
 			text_file_path = os.path.join(self.TEMP_DIR,text_file_name)
 			
 			with open(text_file_path, 'w') as text_file:
