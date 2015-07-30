@@ -72,13 +72,18 @@ class WebsocketWorkerMixinForMain(object):
 		#self.list_widget.addItem(itm) #or self.list_widget.addItem("some text") (different signature)
 		self.list_widget.insertItem(0,itm) #add to top #http://www.qtcentre.org/threads/44672-How-to-add-a-item-to-the-top-in-QListWidget
 		
-		space = "&nbsp;"*7
+		space = "&nbsp;"*8
 		timestamp_human = '{dt:%I}:{dt:%M}:{dt:%S}{dt:%p}{space}<span style="color:grey">{dt.month}-{dt.day}-{dt.year}</span>'.format(space = space, dt=datetime.datetime.fromtimestamp(new_clip["timestamp_server"] ) ) #http://stackoverflow.com/questions/904928/python-strftime-date-without-leading-0
 		custom_label = QLabel(u"<html><b>{host_name}</b>{space}{timestamp}<pre>{text}</pre></html>".format(space = space, host_name = new_clip["host_name"], timestamp = timestamp_human, text=txt ) )
 		custom_label.setOpenExternalLinks(True) ##http://stackoverflow.com/questions/8427446/making-qlabel-behave-like-a-hyperlink
 		
+		#resize the listwidget item to fit the html Qlabel, using Qlabel's sizehint
 		self.list_widget.setItemWidget(itm, custom_label ) #add the label
 		itm.setSizeHint( custom_label.sizeHint() ) #resize
+		
+		#move the scrollbar to top
+		list_widget_scrollbar = self.list_widget.verticalScrollBar() #http://stackoverflow.com/questions/8698174/how-to-control-the-scroll-bar-with-qlistwidget
+		list_widget_scrollbar.setValue(0)
 					
 class WebsocketWorker(QtCore.QThread):
 
@@ -233,6 +238,14 @@ class WebsocketWorker(QtCore.QThread):
 			
 		#all responses were received, now just wait and listen
 		#self.statusSignalForMain.emit(("monitoring", "monitor"))
+		
+	def secureSend(question, data):
+		string = json.dumps(dict(
+			question = "Upload?",
+			data = container_name
+		))
+		string = string.encode("zlib").encrypt()
+		self.WSOCK.send(string)
 
 	@workerLoopDecorator
 	def outgoingGreenlet(self):
@@ -262,7 +275,7 @@ class WebsocketWorker(QtCore.QThread):
 					data = container_name
 				)))
 
-				container_exists = self.INCOMMING_UPLOAD_EVENT.wait(timeout=5)
+				container_exists = self.INCOMMING_UPLOAD_EVENT.wait(timeout=5) #perhaps change to a single AsyncResult as TCP/IP guarantees packets are sent and recieved in the same order
 				
 				if container_exists != None:
 					self.INCOMMING_UPLOAD_EVENT = AsyncResult()	

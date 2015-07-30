@@ -31,7 +31,7 @@ class UIMixin(QtGui.QMainWindow): #handles menubar and statusbar, which qwidget 
 		self.search = QLineEdit()
 		
 		self.list_widget  = QListWidget()
-		list_widget_icon_size = QtCore.QSize(48,48)
+		list_widget_icon_size = QtCore.QSize(PixmapThumbnail.Px,PixmapThumbnail.Px)
 		self.list_widget.setIconSize(list_widget_icon_size) #http://www.qtcentre.org/threads/8733-Size-of-an-Icon #http://nullege.com/codes/search/PySide.QtGui.QListWidget.setIconSize
 		self.list_widget.setAlternatingRowColors(True) #http://stackoverflow.com/questions/23213929/qt-qlistwidget-item-with-alternating-colors
 		self.list_widget.doubleClicked.connect(self.onItemDoubleClickSlot)
@@ -506,6 +506,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 		event.accept() #event.ignore() #stops from exiting
 		
 class PixmapThumbnail():
+	Px = 56
 	def __init__(self, original_pmap):
 		self.original_pmap = original_pmap
 		self.original_w = self.original_h = self.thumbnail = self.is_landscape = None
@@ -529,7 +530,7 @@ class PixmapThumbnail():
 			crop = self.original_pmap.copy(x, y, smallest_side, smallest_side) #PySide.QtGui.QPixmap.copy(x, y, width, height) #https://srinikom.github.io/pyside-docs/PySide/QtGui/QPixmap.html#PySide.QtGui.PySide.QtGui.QPixmap.copy
 		else:
 			crop = self.original_pmap
-		self.thumbnail = crop.scaled(48,48, TransformationMode=QtCore.Qt.SmoothTransformation)
+		self.thumbnail = crop.scaled(self.Px,self.Px, TransformationMode=QtCore.Qt.SmoothTransformation)
 		
 if __name__ == '__main__':
 	
