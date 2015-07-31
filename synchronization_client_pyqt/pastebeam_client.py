@@ -201,7 +201,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 			bytearray = device.data() #get the buffer itself
 			bytestring = bytearray.data() #copy the full string
 			
-			text = "Copied Image or Screenshot\n\n{w} x {h} Pixels\n{mp} Megapixels".format(w=pmap.original_w, h=pmap.original_h, mp="%d.02"%(pmap.original_w*pmap.original_h/1000000.0) )
+			text = "Copied Image or Screenshot\n\n{w} x {h} Pixels\n{mp} Megapixels\n{mb} Megabytes".format(w=pmap.original_w, h=pmap.original_h, mp="%d.02"%(pmap.original_w*pmap.original_h/1000000.0), mb="%d.1"%(pmap.original_w*pmap.original_h*3/1024**2) )
 			clip_display = dict(
 				text=Binary(text), 
 				thumb = Binary(bytestring)  #Use BSON Binary to prevent UnicodeDecodeError: 'utf8' codec can't decode byte 0xeb in position 0: invalid continuation byte
