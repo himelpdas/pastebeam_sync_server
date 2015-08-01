@@ -288,8 +288,10 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 			os_file_paths_new = []
 			
 			for each in self.clipboard.mimeData().urls():
-				PRINT("path", each.toString())
+				#PRINT("path", each.toString().encode())
 				each_path = each.path()[(1 if os.name == "nt" else 0):] #urls() returns /c://...// in windows, [1:] removes the starting /, not sure how this will affect *NIXs
+				if os.name=="nt":
+					each_path = each_path.encode(sys.getfilesystemencoding()) #windows uses mbcs encoding, not utf8 like *nix, so something like a chinese character will result in file operations raising WindowsErrors #http://stackoverflow.com/questions/10180765/open-file-with-a-unicode-filename
 				standardized_path = os.path.abspath(each_path) #abspath is needed to bypass symlinks in *NIX systems, also guarantees slashes are correct (C:\\...) for windows
 				os_file_paths_new.append(standardized_path)
 			
@@ -297,7 +299,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 			
 			try:
 				os_file_sizes_new = map(lambda each_os_path: getFolderSize(each_os_path, max=self.MAX_FILE_SIZE) if os.path.isdir(each_os_path) else os.path.getsize(each_os_path), os_file_paths_new)
-			except:
+			except ZeroDivisionError:
 				PRINT("failure",213)
 				return
 			
@@ -345,12 +347,15 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 						each_file_name = os.path.split(each_path)[1]
 						each_data = each_file.read() #update status
 				
-				name_and_data_hash = os_file_hashes_new.add( each_file_name + format(hash128( each_data ), "x") ) #append the hash for this file #use filename and hash so that set does not ignore copies of two idenitcal files (but different names) in different directories
-								
-			if self.previous_hash == os_file_hashes_new:  #checks to make sure if name and file are the same
+				os_file_hashes_new.add(hash128(each_file_name) + hash128(each_data) ) #append the hash for this file #use filename and hash so that set does not ignore copies of two idenitcal files (but different names) in different directories #also hash filename as this can be a security issue when stored serverside
+			
+			checksum = format(sum(os_file_hashes_new), "x")					
+			if self.previous_hash == checksum:  #checks to make sure if name and file are the same
 				PRINT("failure",262)
 				self.onSetStatusSlot(("File%s copied" % ("s" if len(os_file_names_new) > 1 else "") , "good"))
 				return
+			else:
+				hash = checksum
 							
 			#copy files to temp. this is needed 
 			for each_new_path in os_file_paths_new:
@@ -363,8 +368,6 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 					#show error
 					PRINT("failure",274)
 					pass #MUST PASS since file may already be there.
-						
-			hash = os_file_hashes_new
 			
 			prepare = dict(
 				file_names = os_file_names_new,
@@ -438,6 +441,8 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 				for each_path in file_paths_decrypt:
 					if os.name=="nt":
 						each_path = each_path.replace("\\","/").replace("c:","C:")
+						each_path = each_path.decode(sys.getfilesystemencoding()) #windows uses mbcs encoding, not utf8 like *nix, so something like a chinese character will result in file operations raising WindowsErrors #http://stackoverflow.com/questions/10180765/open-file-with-a-unicode-filename
+
 					each_path = "file:///"+each_path
 					
 					QUrl = QtCore.QUrl()
