@@ -60,7 +60,7 @@ class WebsocketWorkerMixinForMain(object):
 				file_icon = "files/%s"%ext
 				if not ext.upper() in self.FILE_ICONS:
 					pass#file_icon = os.path.normpath("files/_blank")
-				files.append(u"{icon} {file_name}".format(
+				files.append(u"{icon} {file_name}".format( #do NOT do "string {thing}".format(thing = u"unicode), or else unicode decode error will occur, the first string must be u"string {thing}"
 					file_name = each_filename,
 					icon = self.ICON_HTML.format(name=file_icon, side=32)
 				))

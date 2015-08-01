@@ -463,7 +463,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 		selected_item = self.list_widget.item(selected_row)
 		
 		current_item = self.list_widget.item(0)
-		current_clip = json.loads(current_item.data(QtCore.Qt.UserRole))
+		#current_clip = json.loads(current_item.data(QtCore.Qt.UserRole))
 		
 		selected_clip = json.loads(selected_item.data(QtCore.Qt.UserRole)) #http://stackoverflow.com/questions/25452125/is-it-possible-to-add-a-hidden-value-to-every-item-of-qlistwidget
 		
@@ -473,6 +473,9 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 			return
 			
 		del selected_clip['_id'] #this is an id from an old clip from server. must remove or else key error will occur on server when trying to insert new clip 
+		if os.name=="nt" and selected_clip["clip_type"] == "files":
+			selected_clip["file_names"] = map(lambda each_name: each_name.encode(sys.getfilesystemencoding()), selected_clip["file_names"]) #undo ms filename encoding back to ascii #http://stackoverflow.com/questions/10180765/open-file-with-a-unicode-filename
+			selected_clip["clip_display"] = map(lambda each_name: each_name.encode(sys.getfilesystemencoding()), selected_clip["clip_display"])
 		self.outgoingSignalForWorker.emit(selected_clip)
 		
 		self.previous_hash = hash #or else onClipChangeSlot will react and a duplicate new list item will occur.
