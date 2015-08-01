@@ -113,9 +113,9 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 
 	TEMP_DIR = tempfile.mkdtemp()
 
-	ICON_HTML = "<html><img src='images/{name}.png' width={side} height={side} style='vertical-align:middle'></html>"
+	ICON_HTML = u"<html><img src='images/{name}.png' width={side} height={side} style='vertical-align:middle'></html>"
 	
-	HOST_NAME = "{system} {release}".format(system = platform.system(), release = platform.release() ) #self.getLogin().get("device_name"),
+	HOST_NAME = u"{system} {release}".format(system = platform.system(), release = platform.release() ) #self.getLogin().get("device_name"),
 	
 	FILE_IGNORE_LIST = map(lambda each: each.upper(), ["desktop.ini","thumbs.db",".ds_store","icon\r",".dropbox",".dropbox.attr"])
 

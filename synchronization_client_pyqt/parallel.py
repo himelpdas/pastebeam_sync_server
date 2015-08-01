@@ -60,7 +60,7 @@ class WebsocketWorkerMixinForMain(object):
 				file_icon = "files/%s"%ext
 				if not ext.upper() in self.FILE_ICONS:
 					pass#file_icon = os.path.normpath("files/_blank")
-				files.append("{icon} {file_name}".format(
+				files.append(u"{icon} {file_name}".format(
 					file_name = each_filename,
 					icon = self.ICON_HTML.format(name=file_icon, side=32)
 				))
@@ -73,7 +73,7 @@ class WebsocketWorkerMixinForMain(object):
 		self.list_widget.insertItem(0,itm) #add to top #http://www.qtcentre.org/threads/44672-How-to-add-a-item-to-the-top-in-QListWidget
 		
 		space = "&nbsp;"*8
-		timestamp_human = '{dt:%I}:{dt:%M}:{dt:%S}{dt:%p}{space}<span style="color:grey">{dt.month}-{dt.day}-{dt.year}</span>'.format(space = space, dt=datetime.datetime.fromtimestamp(new_clip["timestamp_server"] ) ) #http://stackoverflow.com/questions/904928/python-strftime-date-without-leading-0
+		timestamp_human = u'{dt:%I}:{dt:%M}:{dt:%S}{dt:%p}{space}<span style="color:grey">{dt.month}-{dt.day}-{dt.year}</span>'.format(space = space, dt=datetime.datetime.fromtimestamp(new_clip["timestamp_server"] ) ) #http://stackoverflow.com/questions/904928/python-strftime-date-without-leading-0
 		custom_label = QLabel(u"<html><b>{host_name}</b>{space}{timestamp}<pre>{text}</pre></html>".format(space = space, host_name = new_clip["host_name"], timestamp = timestamp_human, text=txt ) )
 		custom_label.setOpenExternalLinks(True) ##http://stackoverflow.com/questions/8427446/making-qlabel-behave-like-a-hyperlink
 		
