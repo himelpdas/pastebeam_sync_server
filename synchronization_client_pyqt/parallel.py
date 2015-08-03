@@ -93,6 +93,7 @@ class WebsocketWorker(QtCore.QThread):
 	incommingSignalForMain = QtCore.Signal(dict)
 	newClipSignalForMain = QtCore.Signal(dict)
 	statusSignalForMain = QtCore.Signal(tuple)
+	session_id = uuid.uuid4()
 
 	#You can do any extra things in this init you need, but for this example
 	#nothing else needs to be done expect call the super's init
@@ -122,6 +123,8 @@ class WebsocketWorker(QtCore.QThread):
 		data['host_name'] = self.main.HOST_NAME
 
 		data["timestamp_client"] = time.time()	
+		
+		data["session_id"] = self.session_id
 		
 		#data["send_uuid"] = uuid.uu
 		
@@ -234,10 +237,11 @@ class WebsocketWorker(QtCore.QThread):
 				self.incommingSignalForMain.emit(each)
 				
 			#PRINT("new_clip", each)
-			self.newClipSignalForMain.emit(each) #this will set the newest clip only, thanks to self.main.new_clip!!!
+			if each["session_id"] != self.session_id: #do not allow setting from the same pc
+				self.newClipSignalForMain.emit(each) #this will set the newest clip only, thanks to self.main.new_clip!!!
 										
 		elif answer == "Update!":
-			self.INCOMMING_UPDATE_EVENT.set(data) #clip	
+			self.INCOMMING_UPDATE_EVENT.set(data) #clip	id
 			self.statusSignalForMain.emit(("updated", "good"))
 			
 		#all responses were received, now just wait and listen
