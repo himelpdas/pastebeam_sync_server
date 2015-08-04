@@ -222,7 +222,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 			
 			PRINT("on clip change html", (hash,prev))
 			if hash == prev:
-				self.onSetStatusSlot(("data copied","good"))
+				#self.onSetStatusSlot(("data copied","good"))
 				return
 			
 			preview = cgi.escape(text) #crashes with big data
@@ -257,7 +257,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 			
 			PRINT("on clip change text", (hash,prev))
 			if hash == prev:
-				self.onSetStatusSlot(("text copied","good"))
+				#self.onSetStatusSlot(("text copied","good"))
 				return
 			
 			preview = cgi.escape(original) #prevent html from styling in qlabel
@@ -352,7 +352,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 			checksum = format(sum(os_file_hashes_new), "x")					
 			if self.previous_hash == checksum:  #checks to make sure if name and file are the same
 				PRINT("failure",262)
-				self.onSetStatusSlot(("File%s copied" % ("s" if len(os_file_names_new) > 1 else "") , "good"))
+				#self.onSetStatusSlot(("File%s copied" % ("s" if len(os_file_names_new) > 1 else "") , "good"))
 				return
 			else:
 				hash = checksum
@@ -473,10 +473,11 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 			return
 			
 		del selected_clip['_id'] #this is an id from an old clip from server. must remove or else key error will occur on server when trying to insert new clip 
-		if os.name=="nt" and selected_clip["clip_type"] == "files":
-			selected_clip["file_names"] = map(lambda each_name: each_name.encode(sys.getfilesystemencoding()), selected_clip["file_names"]) #undo ms filename encoding back to ascii #http://stackoverflow.com/questions/10180765/open-file-with-a-unicode-filename
-			selected_clip["clip_display"] = map(lambda each_name: each_name.encode(sys.getfilesystemencoding()), selected_clip["clip_display"])
-		self.outgoingSignalForWorker.emit(selected_clip)
+		#if os.name=="nt" and selected_clip["clip_type"] == "files":
+		#	selected_clip["file_names"] = map(lambda each_name: each_name.encode(sys.getfilesystemencoding()), selected_clip["file_names"]) #undo ms filename encoding back to ascii #http://stackoverflow.com/questions/10180765/open-file-with-a-unicode-filename
+		#	selected_clip["clip_display"] = map(lambda each_name: each_name.encode(sys.getfilesystemencoding()), selected_clip["clip_display"])
+		#self.outgoingSignalForWorker.emit(selected_clip)
+		self.onSetNewClipSlot(selected_clip)
 		
 		self.previous_hash = hash #or else onClipChangeSlot will react and a duplicate new list item will occur.
 		#PRINT("thumb on item.data", selected_clip["clip_display"])
