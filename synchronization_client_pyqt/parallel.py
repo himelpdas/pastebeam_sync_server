@@ -128,9 +128,9 @@ class WebsocketWorker(QtCore.QThread):
 		
 		#data["send_uuid"] = uuid.uu
 		
-		if os.name=="nt" and data["clip_type"] == "files":
-			data["file_names"] = map(lambda each_name: each_name.decode(sys.getfilesystemencoding()), data["file_names"]) #undo ms filename encoding back to ascii #http://stackoverflow.com/questions/10180765/open-file-with-a-unicode-filename
-			data["clip_display"] = map(lambda each_name: each_name.decode(sys.getfilesystemencoding()), data["clip_display"])
+		#if os.name=="nt" and data["clip_type"] == "files":
+		#	data["file_names"] = map(lambda each_name: each_name.decode(sys.getfilesystemencoding()), data["file_names"]) #undo ms filename encoding back to ascii #http://stackoverflow.com/questions/10180765/open-file-with-a-unicode-filename
+		#	data["clip_display"] = map(lambda each_name: each_name.decode(sys.getfilesystemencoding()), data["clip_display"])
 		
 		send = dict(
 			question = "Update?",

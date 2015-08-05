@@ -290,8 +290,8 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 			for each in self.clipboard.mimeData().urls():
 				#PRINT("path", each.toString().encode())
 				each_path = each.path()[(1 if os.name == "nt" else 0):] #urls() returns /c://...// in windows, [1:] removes the starting /, not sure how this will affect *NIXs
-				if os.name=="nt":
-					each_path = each_path.encode(sys.getfilesystemencoding()) #windows uses mbcs encoding, not utf8 like *nix, so something like a chinese character will result in file operations raising WindowsErrors #http://stackoverflow.com/questions/10180765/open-file-with-a-unicode-filename
+				#if os.name=="nt":
+				#	each_path = each_path.encode(sys.getfilesystemencoding()) #windows uses mbcs encoding, not utf8 like *nix, so something like a chinese character will result in file operations raising WindowsErrors #http://stackoverflow.com/questions/10180765/open-file-with-a-unicode-filename
 				standardized_path = os.path.abspath(each_path) #abspath is needed to bypass symlinks in *NIX systems, also guarantees slashes are correct (C:\\...) for windows
 				os_file_paths_new.append(standardized_path)
 			
@@ -347,7 +347,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 						each_file_name = os.path.split(each_path)[1]
 						each_data = each_file.read() #update status
 				
-				os_file_hashes_new.add(hash128(each_file_name) + hash128(each_data) ) #append the hash for this file #use filename and hash so that set does not ignore copies of two idenitcal files (but different names) in different directories #also hash filename as this can be a security issue when stored serverside
+				os_file_hashes_new.add(hash128(each_file_name.encode("utf8")) + hash128(each_data) ) #http://stackoverflow.com/questions/497233/pythons-os-path-choking-on-hebrew-filenames #append the hash for this file #use filename and hash so that set does not ignore copies of two idenitcal files (but different names) in different directories #also hash filename as this can be a security issue when stored serverside
 			
 			checksum = format(sum(os_file_hashes_new), "x")					
 			if self.previous_hash == checksum:  #checks to make sure if name and file are the same
@@ -441,7 +441,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 				for each_path in file_paths_decrypt:
 					if os.name=="nt":
 						each_path = each_path.replace("\\","/").replace("c:","C:")
-						each_path = each_path.decode(sys.getfilesystemencoding()) #windows uses mbcs encoding, not utf8 like *nix, so something like a chinese character will result in file operations raising WindowsErrors #http://stackoverflow.com/questions/10180765/open-file-with-a-unicode-filename
+						#each_path = each_path.decode(sys.getfilesystemencoding()) #windows uses mbcs encoding, not utf8 like *nix, so something like a chinese character will result in file operations raising WindowsErrors #http://stackoverflow.com/questions/10180765/open-file-with-a-unicode-filename
 
 					each_path = "file:///"+each_path
 					
