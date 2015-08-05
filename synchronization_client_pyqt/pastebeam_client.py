@@ -113,7 +113,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 
 	TEMP_DIR = tempfile.mkdtemp()
 
-	ICON_HTML = u"<html><img src='images/{name}.png' width={side} height={side} style='vertical-align:middle'></html>"
+	ICON_HTML = u"<html><img src='images/{name}.png' width={side} height={side}></html>"
 	
 	HOST_NAME = u"{system} {release}".format(system = platform.system(), release = platform.release() ) #self.getLogin().get("device_name"),
 	
@@ -322,7 +322,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 				
 				if os.path.isdir(each_path):
 				
-					display_file_names.append(each_file_name+" folder (%s inside)"%len(os.listdir(each_path))+"._folder")
+					display_file_names.append(each_file_name+" (%s inside)"%len(os.listdir(each_path))+"._folder")
 				
 					os_folder_hashes = []
 					for dirName, subdirList, fileList in os.walk(each_path, topdown=False):
