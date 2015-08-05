@@ -132,7 +132,7 @@ class Encompress():
 		#file_names = self.file_names_encrypt[0] #redundant / dry here. seems like cliphash secure is good enough
 		#archive_id  = hashlib.new("ripemd160", "".join(file_names) + files_hash ).hexdigest()
 		
-		tar = tarfile.open(self.archive_path, "w:gz") #write mode in gz #compresslevel=9)
+		tar = tarfile.open(self.archive_path, "w:gz", encoding="utf8") #write mode in gz #compresslevel=9)
 		for each_name in self.file_names:
 			each_path =  os.path.join(self.directory, each_name)
 			tar.add(each_path, arcname=each_name) #WARNING BY DEFAULT THE DIRECTORY PATH IS ADDED AS WELL, THEREFORE THE FINAL CONTAINER FILE's HASH WILL BE DIFFERENT, USE THIS SOLUTION #http://ubuntuforums.org/showthread.php?t=1699689
@@ -189,7 +189,25 @@ class Encompress():
 		#self.extract_path = os.path.join(self.directory,"extracted")
 		print "\n\nArchive: %s\n\n"%self.archive_path
 		tar = tarfile.open(self.archive_path)
-		tar.extractall(path=self.directory)
+
+		#The issue is the filenames in Tarfile.add() are encoded by default to sys.getfilesystemconding() (mbcs in windows), unless specified in encoding argument. There are two problems:
+		#1) This is not cross-platform and will fail in *nix muchanines. 2) mbcs fails at decoding chinese characters, so ? will be stored in the tarfile instead of a chinese character. This causes an ioerror when tarfile attempts extractall since,  >>> u"\u9999".encode("mbcs") >>> "?"
+		#the solution is to set encoding to "utf8" in tarfile, before any add(). The problem is windows cannot directly access utf8 encoded bytestring representations, so we must convert it back to system unicode (hence the decode)
+		#Windows cannot handle unicode filenames, it uses its own representation
+		def recover(name):
+			#return unicode(name, 'utf-8')
+			return name.decode("utf8") #decode back to unicode representation
+
+		updated = []
+		for m in tar.getmembers(): 
+			print m.name
+			m.name = recover(m.name)
+			#print m.name
+			updated.append(m)
+		#http://superuser.com/questions/60379/how-can-i-create-a-zip-tgz-in-linux-such-that-windows-has-proper-filenames
+
+		tar.extractall(path=self.directory, members = updated)
+	
 		root_file_and_folder_names = filter(lambda each_name: not "/" in each_name, tar.getnames()) #getnames alone returns folder cool.jpg ,48px, 48px/css.png, etc., we want 48px, and cool.jpg only
 		self.result = map(lambda each_name: os.path.join(self.directory, each_name), root_file_and_folder_names )
 		tar.close()
