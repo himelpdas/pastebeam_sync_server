@@ -10,9 +10,11 @@ from parallel import *
 
 from functions import *
 
+from widgets import *
+
 import platform, distutils
 
-class UIMixin(QtGui.QMainWindow): #handles menubar and statusbar, which qwidget did not do
+class UIMixin(QtGui.QMainWindow, AccountMixin): #handles menubar and statusbar, which qwidget did not do
 	#SLOT IS A QT TERM MEANING EVENT
 	def initUI(self):			   
 		
@@ -74,7 +76,7 @@ class UIMixin(QtGui.QMainWindow): #handles menubar and statusbar, which qwidget 
 		self.main_widget.setLayout(vbox) #http://www.qtcentre.org/threads/5648-How-do-I-add-a-QGridlayout-in-a-QMainwindow
 		
 	def initMenuBar(self):
-	
+
 		exitAction = QtGui.QAction(QtGui.QIcon("images/exit.png"), '&Exit', self)	#http://ubuntuforums.org/archive/index.php/t-724672.htmls	
 		exitAction.setShortcut('Ctrl+Q')
 		exitAction.setStatusTip('Exit application')
@@ -83,6 +85,15 @@ class UIMixin(QtGui.QMainWindow): #handles menubar and statusbar, which qwidget 
 		menubar = self.menuBar()
 		fileMenu = menubar.addMenu('&File')
 		fileMenu.addAction(exitAction)
+		
+		accountAction = QtGui.QAction(QtGui.QIcon("images/account.png"), '&Account', self)	#http://ubuntuforums.org/archive/index.php/t-724672.htmls	
+		#accountAction.setShortcut('Ctrl+Q')
+		accountAction.setStatusTip('Edit login info')
+		accountAction.triggered.connect(self.showAccountDialogs) #accountAction.triggered.connect(QtGui.qApp.quit) #does not trigger closeEvent()
+		
+		menubar = self.menuBar()
+		editMenu = menubar.addMenu('&Edit')
+		editMenu.addAction(accountAction)	
 		
 	def initStatusBar(self):
 		
@@ -127,45 +138,21 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 		super(Main, self).__init__()
 		
 		self.app = app
+		
+		self.initUI()
+		self.setupClip()
+		
 		self.ws_worker = WebsocketWorker(self)
 		self.ws_worker.incommingSignalForMain.connect(self.onIncommingSlot)
 		self.ws_worker.newClipSignalForMain.connect(self.onSetNewClipSlot)
 		self.ws_worker.statusSignalForMain.connect(self.onSetStatusSlot)
 		self.ws_worker.start()
-		
-		self.initUI()
-		self.setupClip()
 			
 	def setupClip(self):
 		self.previous_hash = {}
 		
 		self.clipboard = self.app.clipboard() #clipboard is in the QApplication class as a static (class) attribute. Therefore it is available to all instances as well, ie. the app instance.#http://doc.qt.io/qt-5/qclipboard.html#changed http://codeprogress.com/python/libraries/pyqt/showPyQTExample.php?index=374&key=PyQTQClipBoardDetectTextCopy https://www.youtube.com/watch?v=nixHrjsezac
 		self.clipboard.dataChanged.connect(self.onClipChangeSlot) #datachanged is signal, doclip is slot, so we are connecting slot to handle signal
-	"""	
-	def _onClipChangeSlot(self):
-		#self.status.setText(self.clipboard.text() or str(self.clipboard.pixmap()) )
-		pmap = self.clipboard.pixmap()
-		if pmap:
-			#crop and reduce pmap size to fit square icon
-			pmap = PixmapThumbnail(pmap)
-			itm =  QListWidgetItem()
-			itm.setIcon(QIcon(pmap.thumbnail))
-			txt = "Copied Image / Screenshot ({w} x {h})".format(w=pmap.original_w, h=pmap.original_h )
-		else:
-			itm = QListWidgetItem()
-			itm.setIcon(QIcon("images/text.png"))
-			
-			txt = cgi.escape(self.clipboard.text())
-			txt = self.truncateTextLines(txt)
-			txt = self.anchorUrls(txt)
-		self.list_widget.addItem(itm) #or self.list_widget.addItem("some text") (different signature)
-		custom_label = QLabel("<html><b>By Test on {timestamp}:</b><pre>{text}</pre></html>".format(timestamp = time.time(), text=txt ) )
-		self.list_widget.setItemWidget(itm, custom_label )
-		itm.setSizeHint( custom_label.sizeHint() )
-		
-		self.outgoingSignalForWorker.emit(txt)
-		#self.status.setText(str(time.time()))
-	"""
 		
 	def onClipChangeSlot(self):
 		#test if identical
@@ -322,7 +309,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 				
 				if os.path.isdir(each_path):
 				
-					display_file_names.append(each_file_name+" (%s inside)"%len(os.listdir(each_path))+"._folder")
+					display_file_names.append(each_file_name+" (%s things inside)"%len(os.listdir(each_path))+"._folder")
 				
 					os_folder_hashes = []
 					for dirName, subdirList, fileList in os.walk(each_path, topdown=False):

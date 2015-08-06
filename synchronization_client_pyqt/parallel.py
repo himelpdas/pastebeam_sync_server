@@ -149,9 +149,11 @@ class WebsocketWorker(QtCore.QThread):
 		self.INCOMMING_UPLOAD_EVENT = AsyncResult()
 		self.INCOMMING_LIVING_EVENT = AsyncResult()
 		
-		self.RECONNECT = lambda: create_connection(URL("ws",DEFAULT_DOMAIN, DEFAULT_PORT, "ws", email="himeldas@live.com", password="faggotass", ) ) #The geventclient's websocket MUST be runned here, as running it in __init__ would put websocket in main thread
+		self.RECONNECT = lambda: create_connection(URL("ws",DEFAULT_DOMAIN, DEFAULT_PORT, "ws", email=self.main.getLogin().get("email"), password=self.main.getLogin().get("password"), ) ) #The geventclient's websocket MUST be runned here, as running it in __init__ would put websocket in main thread
 		
 		self.WSOCK = None
+		
+		self.KEEP_RUNNING = 1
 		
 		self.greenlets = [
 			gevent.spawn(self.outgoingGreenlet),
@@ -164,19 +166,21 @@ class WebsocketWorker(QtCore.QThread):
 	def workerLoopDecorator(workerGreenlet):
 		def closure(self):
 			while 1:
+				if not self.KEEP_RUNNING: 
+					continue #needed when username/password is incorrect, to pause the loop until a new password is set
 				gevent.sleep(1)
 				if self.WSOCK:
 					try:
 						workerGreenlet(self)
 					except (socket.error, _exceptions.WebSocketConnectionClosedException):
 						PRINT("failure in", workerGreenlet.__name__)
-						self.statusSignalForMain.emit(("Reconnecting", "bad"))
+						self.statusSignalForMain.emit(("Reconnecting", "warn"))
 						self.WSOCK.close() #close the WSOCK
 					else:
 						continue
 				try: #TODO INVOKE CLIP READING ON STARTUP! AFTER CONNECTION
 					self.WSOCK = self.RECONNECT()
-					self.statusSignalForMain.emit(("connected", "good"))
+					#self.statusSignalForMain.emit(("connected", "good"))
 				except: #previous try will handle later
 					pass #block thread until there is a connection
 		return closure
@@ -247,6 +251,17 @@ class WebsocketWorker(QtCore.QThread):
 		elif answer == "Update!":
 			self.INCOMMING_UPDATE_EVENT.set(data) #clip	id
 			self.statusSignalForMain.emit(("updated", "good"))
+			
+		elif answer == "Error!":
+			self.KEEP_RUNNING = 0
+			self.statusSignalForMain.emit((data, "bad"))
+			
+		elif answer == "Connected!":
+			if not hasattr(self,"initialized"):
+				self.statusSignalForMain.emit(("connected", "good"))
+				self.initialized = 1
+			else:
+				self.statusSignalForMain.emit(("reconnected", "good"))
 			
 		#all responses were received, now just wait and listen
 		#self.statusSignalForMain.emit(("monitoring", "monitor"))

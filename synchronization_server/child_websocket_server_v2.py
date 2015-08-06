@@ -152,19 +152,25 @@ def handle_websocket():
 		if not wsock:
 			abort(400, 'Expected WebSocket request.')
 
-		"""
+		
 		###Uncomment to enable Login
 		checked_login = login(request.query.email, request.query.password)
 
 		if not checked_login['success']:
 			
 			wsock.send(json.dumps(dict(
-				message = "Error!",
+				answer = "Error!",
 				data = checked_login["reason"],
 			)))
 			
 			return
-		"""
+		else:
+			wsock.send(json.dumps(dict(
+				answer = "Connected!",
+				data = checked_login["reason"],
+			)))
+			
+		
 
 		timeout=40000
 				
