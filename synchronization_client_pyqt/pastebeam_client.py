@@ -119,7 +119,7 @@ class UIMixin(QtGui.QMainWindow, AccountMixin): #handles menubar and statusbar, 
 		
 		#events process once every x milliseconds, this forces them to process... or we can use repaint isntead
 		qApp.processEvents() #http://stackoverflow.com/questions/4510712/qlabel-settext-not-displaying-text-immediately-before-running-other-method #the gui gets blocked, especially with file operations. DOCS: Processes all pending events for the calling thread according to the specified flags until there are no more events to process. You can call this function occasionally when your program is busy performing a long operation (e.g. copying a file).
-
+		
 class Main(WebsocketWorkerMixinForMain, UIMixin):
 
 	TEMP_DIR = tempfile.mkdtemp()
@@ -146,6 +146,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 		self.ws_worker.incommingSignalForMain.connect(self.onIncommingSlot)
 		self.ws_worker.newClipSignalForMain.connect(self.onSetNewClipSlot)
 		self.ws_worker.statusSignalForMain.connect(self.onSetStatusSlot)
+		self.ws_worker.clearListSignalForMain.connect(self.list_widget.clear)
 		self.ws_worker.start()
 			
 	def setupClip(self):

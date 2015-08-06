@@ -95,6 +95,7 @@ class WebsocketWorker(QtCore.QThread):
 	incommingSignalForMain = QtCore.Signal(dict)
 	newClipSignalForMain = QtCore.Signal(dict)
 	statusSignalForMain = QtCore.Signal(tuple)
+	clearListSignalForMain = QtCore.Signal()
 	session_id = uuid.uuid4()
 
 	#You can do any extra things in this init you need, but for this example
@@ -180,6 +181,7 @@ class WebsocketWorker(QtCore.QThread):
 						continue
 				try: #TODO INVOKE CLIP READING ON STARTUP! AFTER CONNECTION
 					self.WSOCK = self.RECONNECT()
+					self.clearListSignalForMain.emit() #clear list on reconnect or else a new list will be sent on top of previous
 					#self.statusSignalForMain.emit(("connected", "good"))
 				except: #previous try will handle later
 					pass #block thread until there is a connection
