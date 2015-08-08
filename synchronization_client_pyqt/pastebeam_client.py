@@ -29,14 +29,15 @@ class UIMixin(QtGui.QMainWindow, AccountMixin): #handles menubar and statusbar, 
 		self.show()	
 		
 	def initPanel(self):
-		#self.setLayout(grid)
-		self.search = QLineEdit()
 		
 		self.list_widget  = QListWidget()
 		list_widget_icon_size = QtCore.QSize(PixmapThumbnail.Px,PixmapThumbnail.Px)
 		self.list_widget.setIconSize(list_widget_icon_size) #http://www.qtcentre.org/threads/8733-Size-of-an-Icon #http://nullege.com/codes/search/PySide.QtGui.QListWidget.setIconSize
 		self.list_widget.setAlternatingRowColors(True) #http://stackoverflow.com/questions/23213929/qt-qlistwidget-item-with-alternating-colors
-		self.list_widget.doubleClicked.connect(self.onItemDoubleClickSlot)
+		self.list_widget.doubleClicked.connect(self.onItemDoubleClickSlot) #textChanged() is emited whenever the contents of the widget changes whereas textEdited() is emited only when the user changes the text using mouse and keyboard (so it is not emitted when you call QLineEdit::setText()).
+		
+		self.search = QLineEdit()
+		self.search.textEdited.connect(self.onSearchEditedSlot)
 		
 		search_icon = QLabel() #http://www.iconarchive.com/show/super-mono-3d-icons-by-double-j-design/search-icon.html
 		pmap = QPixmap("images/find.png")
@@ -119,6 +120,26 @@ class UIMixin(QtGui.QMainWindow, AccountMixin): #handles menubar and statusbar, 
 		
 		#events process once every x milliseconds, this forces them to process... or we can use repaint isntead
 		qApp.processEvents() #http://stackoverflow.com/questions/4510712/qlabel-settext-not-displaying-text-immediately-before-running-other-method #the gui gets blocked, especially with file operations. DOCS: Processes all pending events for the calling thread according to the specified flags until there are no more events to process. You can call this function occasionally when your program is busy performing a long operation (e.g. copying a file).
+
+	def onSearchEditedSlot(self, written):
+		items = [] #http://stackoverflow.com/questions/12087715/pyqt4-get-list-of-all-labels-in-qlistwidget
+		for index in xrange(self.list_widget.count()):
+			items.append(self.list_widget.item(index))
+		
+		is_blank = not bool(written) #unhide when written is blank
+				
+		for item in items:
+			if is_blank:
+				item.setHidden(False) #unhide all
+			else:
+				item_data = json.loads(item.data(QtCore.Qt.UserRole))
+				if not item_data["clip_type"] in ["text","html"]:
+					item.setHidden(True)
+					continue
+				if written in item_data["clip_display"]: #TODO only search in searchable html class
+					item.setHidden(False)
+				else:
+					item.setHidden(True)
 		
 class Main(WebsocketWorkerMixinForMain, UIMixin):
 

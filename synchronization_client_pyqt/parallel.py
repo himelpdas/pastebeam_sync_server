@@ -235,7 +235,7 @@ class WebsocketWorker(QtCore.QThread):
 		elif answer == "Upload!":
 			self.INCOMMING_UPLOAD_EVENT.set(data) #true or false
 			
-		elif answer == "Newest!":
+		elif answer == "Newest!": #SOCKET OFTEN FAILS ON STARTUP SO MULTIPLE statusSignalForMain ARE EMITTED, that's why clips are set multiple times on startup, especially for large data
 			self.INCOMMING_NEWEST_EVENT.set(data) #clip
 						
 			self.statusSignalForMain.emit(("downloading", "download"))
