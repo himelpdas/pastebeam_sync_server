@@ -128,10 +128,10 @@ def outgoingGreenlet(wsock, timeout, OUTGOING_QUEUE):
 					server_previous_row = server_latest_row #reset prev
 					
 				server_latest_clips = [each for each in clips.find({"_id":{"$gt":server_latest_row["_id"]}}).sort('_id',pymongo.ASCENDING).limit( 50 )]
+			
 			except UnboundLocalError:
 				server_previous_row = {}
-				server_latest_clips = [each for each in clips.find().sort('_id',pymongo.ASCENDING).limit( 50 )] #returns an iterator but we want a list
-				
+				server_latest_clips = [each for each in clips.find().sort('_id',pymongo.ASCENDING).limit( 50 )] #returns an iterator but we want a list	
 			
 		else:
 			wsock.send(json.dumps(send))

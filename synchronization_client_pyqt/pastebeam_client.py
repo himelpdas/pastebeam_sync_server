@@ -136,7 +136,7 @@ class UIMixin(QtGui.QMainWindow, AccountMixin): #handles menubar and statusbar, 
 				if not item_data["clip_type"] in ["text","html"]:
 					item.setHidden(True)
 					continue
-				if written in item_data["clip_display"]: #TODO only search in searchable html class
+				if written.upper() in item_data["clip_display"].upper(): #TODO only search in searchable html class
 					item.setHidden(False)
 				else:
 					item.setHidden(True)

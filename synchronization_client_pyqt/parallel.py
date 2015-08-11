@@ -248,7 +248,7 @@ class WebsocketWorker(QtCore.QThread):
 			if each["session_id"] != self.session_id: #do not allow setting from the same pc
 				self.newClipSignalForMain.emit(each) #this will set the newest clip only, thanks to self.main.new_clip!!!
 										
-			self.statusSignalForMain.emit(("data copied","good"))
+			self.statusSignalForMain.emit(("clip copied","good"))
 										
 		elif answer == "Update!":
 			self.INCOMMING_UPDATE_EVENT.set(data) #clip	id
