@@ -52,24 +52,33 @@ class UIMixin(QtGui.QMainWindow, AccountMixin): #handles menubar and statusbar, 
 		hbox_tool = QHBoxLayout()
 		hbox_list = QHBoxLayout()
 		
-		pmap = QPixmap("images/up.png");
+		pmap = QPixmap("images/devices.png");
 		icn = QIcon(pmap);
-		btn1 = QPushButton("Up")
+		btn1 = QPushButton("Devices")
 		btn1.setIcon(icn)
+		btn1.setCheckable(True)
+		btn1.setChecked(True)
 		
-		pmap = QPixmap("images/down.png");
+		pmap = QPixmap("images/star.png");
 		icn = QIcon(pmap);
-		btn2 = QPushButton("Down")
-		btn1.setIcon(icn)
+		btn2 = QPushButton("Starred")
+		btn2.setIcon(icn)
+		btn2.setCheckable(True) #from docs... if you need toggle behavior (see setCheckable()) #PART OF QABSTRACTBUTTON CLASS #BUTTONS MUST BE CHECKABLE FOR TOGGLE FUNCTION TO WORK VIA btn.setCheckable for button group toggle style functionality
+		
+		self.btn_group = QButtonGroup() #similar to bootstrap
+		self.btn_group.addButton(btn1)
+		self.btn_group.addButton(btn2)
+		self.btn_group.setExclusive(True) #An PySide.QtGui.QButtonGroup.exclusive() button group switches off all checkable (toggle) buttons except the one that was clicked. 
 		
 		hbox_tool.addWidget(btn1)
 		hbox_tool.addWidget(btn2)
-		
-		hbox_tool.addStretch(1) #pushes widgets to the side, kind of like pull-right
+				
+		hbox_tool.addStretch(1) #pushes widgets to the side after this, kind of like pull-right
 		hbox_tool.addWidget(search_icon)
 		hbox_tool.addWidget(self.search)
 		
 		hbox_list.addWidget(self.list_widget)
+				
 		vbox.addLayout(hbox_tool)
 		vbox.addLayout(hbox_list)
 		
