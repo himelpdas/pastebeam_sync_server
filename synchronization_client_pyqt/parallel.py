@@ -146,7 +146,7 @@ class WebsocketWorker(QtCore.QThread):
 		#GEVENT OBJECTS CANNOT BE RUNNED OUTSIDE OF THIS THREAD, OR ELSE CONTEXT SWITCHING (COROUTINE YIELDING) WILL FAIL! THIS IS BECAUSE QTHREAD IS NOT MONKEY_PATCHABLE
 	
 		self.INCOMMING_UPDATE_EVENT = AsyncResult()
-		self.INCOMMING_NEWEST_EVENT = AsyncResult()
+		#self.INCOMMING_NEWEST_EVENT = AsyncResult()
 		self.INCOMMING_UPLOAD_EVENT = AsyncResult()
 		self.INCOMMING_LIVING_EVENT = AsyncResult()
 		
@@ -236,8 +236,8 @@ class WebsocketWorker(QtCore.QThread):
 			self.INCOMMING_UPLOAD_EVENT.set(data) #true or false
 			
 		elif answer == "Newest!": #SOCKET OFTEN FAILS ON STARTUP SO MULTIPLE statusSignalForMain ARE EMITTED, that's why clips are set multiple times on startup, especially for large data
-			self.INCOMMING_NEWEST_EVENT.set(data) #clip
-						
+			#self.INCOMMING_NEWEST_EVENT.set(data) #clip
+			data.reverse() #so the clips can be displayed top down since each clip added gets pushed down in listwidget
 			self.statusSignalForMain.emit(("downloading", "download"))
 			for each in data:
 			

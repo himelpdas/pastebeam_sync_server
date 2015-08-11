@@ -117,21 +117,21 @@ def outgoingGreenlet(wsock, timeout, OUTGOING_QUEUE):
 		
 			try:	
 				if server_latest_clips:
-					server_latest_row = server_latest_clips[-1]
+					server_latest_row = server_latest_clips[0]
 			
 				if server_latest_row.get('_id') != server_previous_row.get('_id'): #change to Reload if signature of last 50 clips changed
 					PRINT("sending new",server_latest_row.get('_id'))
 					wsock.send(json.dumps(dict(
 						answer = "Newest!", #when there is a new clip from an outside source, or deletion
-						data = server_latest_clips,
+						data = server_latest_clips, 
 					)))
 					server_previous_row = server_latest_row #reset prev
 					
-				server_latest_clips = [each for each in clips.find({"_id":{"$gt":server_latest_row["_id"]}}).sort('_id',pymongo.ASCENDING).limit( 50 )]
+				server_latest_clips = [each for each in clips.find({"_id":{"$gt":server_latest_row["_id"]}}).sort('_id',pymongo.DESCENDING).limit( 5 )] #DO NOT USE ASCENDING, USE DESCENDING AND THEN REVERSED THE LIST INSTEAD!... AS AFTER 50, THE LATEST CLIP ON DB WILL ALWAYS BE HIGHER THAN THE LATEST CLIP OF THE INITIAL 50 CLIPS SENT TO CLIENT. THIS WILL RESULT IN THE SENDING OF NEW CLIPS IN BATCHES OF 50 UNTIL THE LATEST CLIP MATCHES THAT ON DB.
 			
 			except UnboundLocalError:
 				server_previous_row = {}
-				server_latest_clips = [each for each in clips.find().sort('_id',pymongo.ASCENDING).limit( 50 )] #returns an iterator but we want a list	
+				server_latest_clips = [each for each in clips.find().sort('_id',pymongo.DESCENDING).limit( 5 )] #returns an iterator but we want a list	
 			
 		else:
 			wsock.send(json.dumps(send))
