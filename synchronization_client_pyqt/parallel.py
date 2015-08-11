@@ -175,7 +175,7 @@ class WebsocketWorker(QtCore.QThread):
 						workerGreenlet(self)
 					except (socket.error, _exceptions.WebSocketConnectionClosedException):
 						PRINT("failure in", workerGreenlet.__name__)
-						self.statusSignalForMain.emit(("Reconnecting", "warn"))
+						self.statusSignalForMain.emit(("Reconnecting", "connect"))
 						self.WSOCK.close() #close the WSOCK
 					else:
 						continue
@@ -241,7 +241,7 @@ class WebsocketWorker(QtCore.QThread):
 			self.statusSignalForMain.emit(("downloading", "download"))
 			for each in data:
 			
-				self.downloadContainerIfNotExist(each) #MUST download container first, as it may not exist locally if new clip is from anothe device
+				self.downloadContainerIfNotExist(each) #TODO MOVE THIS TO AFTER ONDOUBLE CLICK TO SAVE BANDWIDTH #MUST download container first, as it may not exist locally if new clip is from anothe device
 				self.incommingSignalForMain.emit(each)
 				
 			#PRINT("new_clip", each)
