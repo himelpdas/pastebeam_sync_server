@@ -126,6 +126,7 @@ class UIMixin(QtGui.QMainWindow, AccountMixin, LockoutMixin): #handles menubar a
 		lockoutAction.triggered.connect(self.onShowLockoutSlot )
 		
 		fileMenu.addAction(lockoutAction)
+		fileMenu.addSeparator()
 
 		exitAction = QtGui.QAction(QtGui.QIcon("images/exit.png"), '&Exit', self)	#http://ubuntuforums.org/archive/index.php/t-724672.htmls	
 		exitAction.setShortcut('Ctrl+Q')
