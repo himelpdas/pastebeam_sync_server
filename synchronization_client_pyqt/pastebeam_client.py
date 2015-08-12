@@ -14,15 +14,18 @@ from widgets import *
 
 import platform, distutils
 
-class UIMixin(QtGui.QMainWindow, AccountMixin): #handles menubar and statusbar, which qwidget did not do
+class UIMixin(QtGui.QMainWindow, AccountMixin, LockoutMixin): #handles menubar and statusbar, which qwidget did not do
 	#SLOT IS A QT TERM MEANING EVENT
 	def initUI(self):			   
 		
+		self.stacked_widget = StackedWidget()
+		
 		self.initPanel()
+		self.initLockoutWidget()
 		self.initMenuBar()
 		self.initStatusBar()
 		
-		self.setCentralWidget(self.main_widget)
+		self.setCentralWidget(self.stacked_widget)
 		self.setGeometry(300, 300, 1024, 768)
 		self.setWindowTitle('PasteBeam 1.0.0')	
 		
@@ -34,21 +37,32 @@ class UIMixin(QtGui.QMainWindow, AccountMixin): #handles menubar and statusbar, 
 		list_widget_icon_size = QtCore.QSize(PixmapThumbnail.Px,PixmapThumbnail.Px)
 		self.list_widget.setIconSize(list_widget_icon_size) #http://www.qtcentre.org/threads/8733-Size-of-an-Icon #http://nullege.com/codes/search/PySide.QtGui.QListWidget.setIconSize
 		self.list_widget.setAlternatingRowColors(True) #http://stackoverflow.com/questions/23213929/qt-qlistwidget-item-with-alternating-colors
-		self.list_widget.doubleClicked.connect(self.onItemDoubleClickSlot) #textChanged() is emited whenever the contents of the widget changes whereas textEdited() is emited only when the user changes the text using mouse and keyboard (so it is not emitted when you call QLineEdit::setText()).
+		self.list_widget.doubleClicked.connect(self.onItemDoubleClickSlot) #textChanged() is emited whenever the contents of the widget changes (even if its from the app itself) whereas textEdited() is emited only when the user changes the text using mouse and keyboard (so it is not emitted when you call QLineEdit::setText()).
+		self.list_widget.setStatusTip('Double-click a clip to copy, or right-click for more options.')
+
+		self.star_list_widget = QListWidget()
+		self.star_list_widget.hide()
+
+		#self.doLockoutWidget()
+		
+		self.list_widgets = [self.list_widget, self.star_list_widget] #friend_list_widget
 		
 		self.search = QLineEdit()
 		self.search.textEdited.connect(self.onSearchEditedSlot)
+		search_tip = "Search through your clips (preview text only)."
+		self.search.setStatusTip(search_tip)
 		
 		search_icon = QLabel() #http://www.iconarchive.com/show/super-mono-3d-icons-by-double-j-design/search-icon.html
 		pmap = QPixmap("images/find.png")
 		pmap = pmap.scaledToWidth(32, QtCore.Qt.SmoothTransformation)
 		search_icon.setPixmap(pmap)
+		search_icon.setStatusTip(search_tip)
 		
 		#clipboard_icon = QLabel(self.ICON_HTML.format(name="clipboard",side=32))
 		#grid = QGridLayout() #passing QApplication instance will set the QGridLayout to it, or use #self.setLayout(grid)
 		#grid.setSpacing(10)
 		
-		vbox = QVBoxLayout()
+		self.vbox = QVBoxLayout()
 		hbox_tool = QHBoxLayout()
 		hbox_list = QHBoxLayout()
 		
@@ -58,24 +72,29 @@ class UIMixin(QtGui.QMainWindow, AccountMixin): #handles menubar and statusbar, 
 		btn1.setIcon(icn)
 		btn1.setCheckable(True)
 		btn1.setChecked(True)
+		btn1.setStatusTip('Shows clips from all of your devices.')
 		
 		pmap = QPixmap("images/star.png");
 		icn = QIcon(pmap);
 		btn2 = QPushButton("Starred")
 		btn2.setIcon(icn)
 		btn2.setCheckable(True) #from docs... if you need toggle behavior (see setCheckable()) #PART OF QABSTRACTBUTTON CLASS #BUTTONS MUST BE CHECKABLE FOR TOGGLE FUNCTION TO WORK VIA btn.setCheckable for button group toggle style functionality
+		btn2.setStatusTip('Shows clips that you saved for future use.')
 		
 		pmap = QPixmap("images/friends.png");
 		icn = QIcon(pmap);
 		btn3 = QPushButton("Friends")
 		btn3.setIcon(icn)
 		btn3.setCheckable(True)
+		btn3.setStatusTip('Shows clips your friends sent you.')
 		
 		self.btn_group = QButtonGroup() #similar to bootstrap
 		self.btn_group.addButton(btn1)
 		self.btn_group.addButton(btn2)
 		self.btn_group.addButton(btn3)
 		self.btn_group.setExclusive(True) #An PySide.QtGui.QButtonGroup.exclusive() button group switches off all checkable (toggle) buttons except the one that was clicked. 
+		self.btn_group.buttonClicked[int].connect(self.onButtonGroupClickedSlot) #self.buttonGroup.buttonClicked[int].connect(self.buttonGroupClicked) #http://nullege.com/codes/show/src@p@y@PyQt4-HEAD@examples@graphicsview@diagramscene@diagramscene.py/732/PyQt4.QtGui.QButtonGroup.addButton
+		
 		
 		hbox_tool.addWidget(btn1)
 		hbox_tool.addWidget(btn2)
@@ -86,22 +105,33 @@ class UIMixin(QtGui.QMainWindow, AccountMixin): #handles menubar and statusbar, 
 		hbox_tool.addWidget(self.search)
 		
 		hbox_list.addWidget(self.list_widget)
+		hbox_list.addWidget(self.star_list_widget)
+		#hbox_list.addWidget(self.lockout_widget)
 				
-		vbox.addLayout(hbox_tool)
-		vbox.addLayout(hbox_list)
+		self.vbox.addLayout(hbox_tool)
+		self.vbox.addLayout(hbox_list)
 		
 		self.main_widget = QWidget() #used to be inherited by main, which will automatically display as a window, but now it is handled by setCentralWidget
-		self.main_widget.setLayout(vbox) #http://www.qtcentre.org/threads/5648-How-do-I-add-a-QGridlayout-in-a-QMainwindow
+		self.main_widget.setLayout(self.vbox) #http://www.qtcentre.org/threads/5648-How-do-I-add-a-QGridlayout-in-a-QMainwindow
+		
+		self.stacked_widget.addWidget(self.main_widget)
 		
 	def initMenuBar(self):
+	
+		menubar = self.menuBar()
+		fileMenu = menubar.addMenu('&File')
+		
+		lockoutAction = QtGui.QAction(QtGui.QIcon("images/safe.png"), '&Lockout', self)
+		lockoutAction.setStatusTip('Lock the application')
+		lockoutAction.triggered.connect(self.onShowLockoutSlot )
+		
+		fileMenu.addAction(lockoutAction)
 
 		exitAction = QtGui.QAction(QtGui.QIcon("images/exit.png"), '&Exit', self)	#http://ubuntuforums.org/archive/index.php/t-724672.htmls	
 		exitAction.setShortcut('Ctrl+Q')
 		exitAction.setStatusTip('Exit application')
 		exitAction.triggered.connect(self.close) #exitAction.triggered.connect(QtGui.qApp.quit) #does not trigger closeEvent()
 		
-		menubar = self.menuBar()
-		fileMenu = menubar.addMenu('&File')
 		fileMenu.addAction(exitAction)
 		
 		accountAction = QtGui.QAction(QtGui.QIcon("images/account.png"), '&Account', self)	#http://ubuntuforums.org/archive/index.php/t-724672.htmls	
@@ -109,7 +139,6 @@ class UIMixin(QtGui.QMainWindow, AccountMixin): #handles menubar and statusbar, 
 		accountAction.setStatusTip('Edit login info')
 		accountAction.triggered.connect(self.showAccountDialogs) #accountAction.triggered.connect(QtGui.qApp.quit) #does not trigger closeEvent()
 		
-		menubar = self.menuBar()
 		editMenu = menubar.addMenu('&Edit')
 		editMenu.addAction(accountAction)	
 		
@@ -157,6 +186,19 @@ class UIMixin(QtGui.QMainWindow, AccountMixin): #handles menubar and statusbar, 
 					item.setHidden(False)
 				else:
 					item.setHidden(True)
+					
+	def onButtonGroupClickedSlot(self, id):
+		print id
+		for each in self.list_widgets:
+			each.hide()
+		if id==-2:
+			self.list_widget.show()
+		if id==-3:
+			self.star_list_widget.show()
+		if id==-4:
+			pass
+			#self.lockout_pin.setFocus() #https://forum.qt.io/topic/10723/setfocus-on-widget-in-a-new/2
+			#self.lockout_widget.show()
 		
 class Main(WebsocketWorkerMixinForMain, UIMixin):
 
