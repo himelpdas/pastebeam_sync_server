@@ -74,8 +74,12 @@ class LockoutMixin(object):
 			return
 		self.stacked_widget.setMainWidget()
 		self.lockout_pin.clear()
+		for each in self.menu_lockables:
+			each.setEnabled(True)
 		
 	def onShowLockoutSlot(self):
+		for each in self.menu_lockables:
+			each.setEnabled(False)
 		self.stacked_widget.setLockoutWidget()
 		
 class FaderWidget(QWidget):

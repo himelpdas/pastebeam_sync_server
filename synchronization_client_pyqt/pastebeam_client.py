@@ -143,6 +143,8 @@ class UIMixin(QtGui.QMainWindow, AccountMixin, LockoutMixin): #handles menubar a
 		editMenu = menubar.addMenu('&Edit')
 		editMenu.addAction(accountAction)	
 		
+		self.menu_lockables = [lockoutAction, editMenu]
+		
 	def initStatusBar(self):
 		
 		self.sbar = sb = self.statusBar()
