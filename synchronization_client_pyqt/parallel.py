@@ -71,8 +71,8 @@ class WebsocketWorkerMixinForMain(object):
 		#PRINT("thumb on new_clip.data", new_clip["clip_display"])
 		itm.setData(QtCore.Qt.UserRole, json.dumps(new_clip)) #json.dumps or else clip data (especially BSON's Binary)will be truncated by setData 
 			
-		#self.list_widget.addItem(itm) #or self.list_widget.addItem("some text") (different signature)
-		self.list_widget.insertItem(0,itm) #add to top #http://www.qtcentre.org/threads/44672-How-to-add-a-item-to-the-top-in-QListWidget
+		#self.panel_stacked_widget.main_list_widget.addItem(itm) #or self.panel_stacked_widget.main_list_widget.addItem("some text") (different signature)
+		self.panel_stacked_widget.main_list_widget.insertItem(0,itm) #add to top #http://www.qtcentre.org/threads/44672-How-to-add-a-item-to-the-top-in-QListWidget
 		
 		space = "&nbsp;"*8
 		timestamp_human = u'{dt:%I}:{dt:%M}:{dt:%S}{dt:%p}{space}<span style="color:grey">{dt.month}-{dt.day}-{dt.year}</span>'.format(space = space, dt=datetime.datetime.fromtimestamp(new_clip["timestamp_server"] ) ) #http://stackoverflow.com/questions/904928/python-strftime-date-without-leading-0
@@ -80,11 +80,11 @@ class WebsocketWorkerMixinForMain(object):
 		custom_label.setOpenExternalLinks(True) ##http://stackoverflow.com/questions/8427446/making-qlabel-behave-like-a-hyperlink
 		
 		#resize the listwidget item to fit the html Qlabel, using Qlabel's sizehint
-		self.list_widget.setItemWidget(itm, custom_label ) #add the label
+		self.panel_stacked_widget.main_list_widget.setItemWidget(itm, custom_label ) #add the label
 		itm.setSizeHint( custom_label.sizeHint() ) #resize
 		
 		#move the scrollbar to top
-		list_widget_scrollbar = self.list_widget.verticalScrollBar() #http://stackoverflow.com/questions/8698174/how-to-control-the-scroll-bar-with-qlistwidget
+		list_widget_scrollbar = self.panel_stacked_widget.main_list_widget.verticalScrollBar() #http://stackoverflow.com/questions/8698174/how-to-control-the-scroll-bar-with-qlistwidget
 		list_widget_scrollbar.setValue(0)
 					
 class WebsocketWorker(QtCore.QThread):

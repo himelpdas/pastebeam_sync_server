@@ -72,7 +72,7 @@ class LockoutMixin(object):
 			pass #no password was set yet
 		elif login != written:
 			return
-		self.stacked_widget.setMainWidget()
+		self.stacked_widget.switchToMainWidget()
 		self.lockout_pin.clear()
 		for each in self.menu_lockables:
 			each.setEnabled(True)
@@ -80,11 +80,11 @@ class LockoutMixin(object):
 	def onShowLockoutSlot(self):
 		for each in self.menu_lockables:
 			each.setEnabled(False)
-		self.stacked_widget.setLockoutWidget()
+		self.stacked_widget.switchToLockoutWidget()
 		
 class FaderWidget(QWidget):
 
-	def __init__(self, old_widget, new_widget):
+	def __init__(self, old_widget, new_widget, duration = 333):
 	
 		QWidget.__init__(self, new_widget)
 		
@@ -95,7 +95,7 @@ class FaderWidget(QWidget):
 		self.timeline = QtCore.QTimeLine()
 		self.timeline.valueChanged.connect(self.animate)
 		self.timeline.finished.connect(self.close)
-		self.timeline.setDuration(333)
+		self.timeline.setDuration(duration)
 		self.timeline.start()
 		
 		self.resize(new_widget.size())
@@ -113,21 +113,62 @@ class FaderWidget(QWidget):
 	
 		self.pixmap_opacity = 1.0 - value
 		self.repaint()
+		
+class StackedWidgetFader(QStackedWidget):
+	def __init__(self, parent):
+		super(StackedWidgetFader, self).__init__(parent)
+		self.duration = 444
+	def setCurrentIndex(self, index):
+		self.fader_widget = FaderWidget(self.currentWidget(), self.widget(index), self.duration) #does not work as a mixin, as self.currentWidget needs to be a subclass of QStackedWidget
+		QStackedWidget.setCurrentIndex(self, index)
+	def setFadeDuration(self, duration):
+		self.duration = duration
 
+
+class PanelStackedWidget(StackedWidgetFader):
+	def __init__(self, icon_size, parent = None,):
+		super(PanelStackedWidget, self).__init__(parent)
+		self.icon_size=icon_size
+		self.setFadeDuration(111)
+		self.doPanels()
+		self.addPanels()
+	
+	def doPanels(self):
+		self.main_list_widget  = QListWidget()
+		self.main_list_widget.setIconSize(self.icon_size) #http://www.qtcentre.org/threads/8733-Size-of-an-Icon #http://nullege.com/codes/search/PySide.QtGui.QListWidget.setIconSize
+		self.main_list_widget.setAlternatingRowColors(True) #http://stackoverflow.com/questions/23213929/qt-qlistwidget-item-with-alternating-colors
+		self.main_list_widget.setStatusTip('Double-click a clip to copy, or right-click for more options.')
+
+		self.star_list_widget = QListWidget()
+
+		self.friends_list_widget = QListWidget()
 		
+		self.panels = [self.main_list_widget, self.star_list_widget, self.friends_list_widget]
 		
-class StackedWidget(QStackedWidget):
+		#self.list_widgets = [self.main_list_widget, self.star_list_widget.self.friends_list_widget] #friend_list_widget
+	
+	def addPanels(self):
+		for each in self.panels:
+			self.addWidget(each)
+	
+	def switchToDeviceListWidget(self):
+		self.setCurrentIndex(0)
+	
+	def switchToStarListWidget(self):
+		self.setCurrentIndex(1)
+
+	def switchToFriendListWidget(self):
+		self.setCurrentIndex(2)
+		
+class MainStackedWidget(StackedWidgetFader):
 	#https://wiki.python.org/moin/PyQt/Fading%20Between%20Widgets
 	#http://www.qtcentre.org/threads/30830-setCentralWidget()-without-deleting-prev-widget
 	def __init__(self, parent = None):
-		QStackedWidget.__init__(self, parent)
+		#QStackedWidget.__init__(self, parent)
+		super(MainStackedWidget, self).__init__(parent) # it's better to use super method instead of explicitly calling the parent class, because the former allows to add another parent and "push up" the previous parent up the ladder without making any changes to the code here
 	
-	def setCurrentIndex(self, index):
-		self.fader_widget = FaderWidget(self.currentWidget(), self.widget(index))
-		QStackedWidget.setCurrentIndex(self, index)
-	
-	def setMainWidget(self):
+	def switchToMainWidget(self):
 		self.setCurrentIndex(0)
 	
-	def setLockoutWidget(self):
+	def switchToLockoutWidget(self):
 		self.setCurrentIndex(1)

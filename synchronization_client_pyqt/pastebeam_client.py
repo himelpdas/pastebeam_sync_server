@@ -18,7 +18,7 @@ class UIMixin(QtGui.QMainWindow, AccountMixin, LockoutMixin): #handles menubar a
 	#SLOT IS A QT TERM MEANING EVENT
 	def initUI(self):			   
 		
-		self.stacked_widget = StackedWidget()
+		self.stacked_widget = MainStackedWidget()
 		
 		self.initPanel()
 		self.initLockoutWidget()
@@ -33,19 +33,10 @@ class UIMixin(QtGui.QMainWindow, AccountMixin, LockoutMixin): #handles menubar a
 		
 	def initPanel(self):
 		
-		self.list_widget  = QListWidget()
-		list_widget_icon_size = QtCore.QSize(PixmapThumbnail.Px,PixmapThumbnail.Px)
-		self.list_widget.setIconSize(list_widget_icon_size) #http://www.qtcentre.org/threads/8733-Size-of-an-Icon #http://nullege.com/codes/search/PySide.QtGui.QListWidget.setIconSize
-		self.list_widget.setAlternatingRowColors(True) #http://stackoverflow.com/questions/23213929/qt-qlistwidget-item-with-alternating-colors
-		self.list_widget.doubleClicked.connect(self.onItemDoubleClickSlot) #textChanged() is emited whenever the contents of the widget changes (even if its from the app itself) whereas textEdited() is emited only when the user changes the text using mouse and keyboard (so it is not emitted when you call QLineEdit::setText()).
-		self.list_widget.setStatusTip('Double-click a clip to copy, or right-click for more options.')
-
-		self.star_list_widget = QListWidget()
-		self.star_list_widget.hide()
-
 		#self.doLockoutWidget()
-		
-		self.list_widgets = [self.list_widget, self.star_list_widget] #friend_list_widget
+				
+		self.panel_stacked_widget = PanelStackedWidget(QtCore.QSize(PixmapThumbnail.Px,PixmapThumbnail.Px))
+		self.panel_stacked_widget.main_list_widget.doubleClicked.connect(self.onItemDoubleClickSlot) #textChanged() is emited whenever the contents of the widget changes (even if its from the app itself) whereas textEdited() is emited only when the user changes the text using mouse and keyboard (so it is not emitted when you call QLineEdit::setText()).
 		
 		self.search = QLineEdit()
 		self.search.textEdited.connect(self.onSearchEditedSlot)
@@ -104,8 +95,8 @@ class UIMixin(QtGui.QMainWindow, AccountMixin, LockoutMixin): #handles menubar a
 		hbox_tool.addWidget(search_icon)
 		hbox_tool.addWidget(self.search)
 		
-		hbox_list.addWidget(self.list_widget)
-		hbox_list.addWidget(self.star_list_widget)
+		hbox_list.addWidget(self.panel_stacked_widget)
+		#hbox_list.addWidget(self.star_list_widget)
 		#hbox_list.addWidget(self.lockout_widget)
 				
 		self.vbox.addLayout(hbox_tool)
@@ -172,8 +163,8 @@ class UIMixin(QtGui.QMainWindow, AccountMixin, LockoutMixin): #handles menubar a
 
 	def onSearchEditedSlot(self, written):
 		items = [] #http://stackoverflow.com/questions/12087715/pyqt4-get-list-of-all-labels-in-qlistwidget
-		for index in xrange(self.list_widget.count()):
-			items.append(self.list_widget.item(index))
+		for index in xrange(self.panel_stacked_widget.main_list_widget.count()):
+			items.append(self.panel_stacked_widget.main_list_widget.item(index))
 		
 		is_blank = not bool(written) #unhide when written is blank
 				
@@ -192,16 +183,12 @@ class UIMixin(QtGui.QMainWindow, AccountMixin, LockoutMixin): #handles menubar a
 					
 	def onButtonGroupClickedSlot(self, id):
 		print id
-		for each in self.list_widgets:
-			each.hide()
 		if id==-2:
-			self.list_widget.show()
+			self.panel_stacked_widget.switchToDeviceListWidget()
 		if id==-3:
-			self.star_list_widget.show()
+			self.panel_stacked_widget.switchToStarListWidget()
 		if id==-4:
-			pass
-			#self.lockout_pin.setFocus() #https://forum.qt.io/topic/10723/setfocus-on-widget-in-a-new/2
-			#self.lockout_widget.show()
+			self.panel_stacked_widget.switchToFriendListWidget()
 		
 class Main(WebsocketWorkerMixinForMain, UIMixin):
 
@@ -229,7 +216,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 		self.ws_worker.incommingSignalForMain.connect(self.onIncommingSlot)
 		self.ws_worker.newClipSignalForMain.connect(self.onSetNewClipSlot)
 		self.ws_worker.statusSignalForMain.connect(self.onSetStatusSlot)
-		self.ws_worker.clearListSignalForMain.connect(self.list_widget.clear)
+		self.ws_worker.clearListSignalForMain.connect(self.panel_stacked_widget.main_list_widget.clear)
 		self.ws_worker.start()
 			
 	def setupClip(self):
@@ -531,9 +518,9 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 		
 	def onItemDoubleClickSlot(self, clicked):
 		selected_row =  clicked.row()
-		selected_item = self.list_widget.item(selected_row)
+		selected_item = self.panel_stacked_widget.main_list_widget.item(selected_row)
 		
-		current_item = self.list_widget.item(0)
+		current_item = self.panel_stacked_widget.main_list_widget.item(0)
 		#current_clip = json.loads(current_item.data(QtCore.Qt.UserRole))
 		
 		selected_clip = json.loads(selected_item.data(QtCore.Qt.UserRole)) #http://stackoverflow.com/questions/25452125/is-it-possible-to-add-a-hidden-value-to-every-item-of-qlistwidget
