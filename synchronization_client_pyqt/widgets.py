@@ -134,11 +134,17 @@ class PanelStackedWidget(StackedWidgetFader):
 		self.addPanels()
 	
 	def doPanels(self):
-		self.main_list_widget  = QListWidget()
+		self.main_list_widget  = QListWidget() #SUBCLAS INSTEAD OF INSTANTIATING
 		self.main_list_widget.setIconSize(self.icon_size) #http://www.qtcentre.org/threads/8733-Size-of-an-Icon #http://nullege.com/codes/search/PySide.QtGui.QListWidget.setIconSize
 		self.main_list_widget.setAlternatingRowColors(True) #http://stackoverflow.com/questions/23213929/qt-qlistwidget-item-with-alternating-colors
 		self.main_list_widget.setStatusTip('Double-click a clip to copy, or right-click for more options.')
-
+		#set right click menu
+		self.main_list_widget.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
+		delete = QAction(QIcon("images/close.png"), '&Delete', self.main_list_widget)
+		#delete.setText("Delete")
+		delete.triggered.connect(self.onDeleteMainListWidgetItem)
+		self.main_list_widget.addAction(delete)
+		
 		self.star_list_widget = QListWidget()
 
 		self.friends_list_widget = QListWidget()
@@ -146,6 +152,9 @@ class PanelStackedWidget(StackedWidgetFader):
 		self.panels = [self.main_list_widget, self.star_list_widget, self.friends_list_widget]
 		
 		#self.list_widgets = [self.main_list_widget, self.star_list_widget.self.friends_list_widget] #friend_list_widget
+	
+	def onDeleteMainListWidgetItem(self):
+		self.main_list_widget.takeItem(self.main_list_widget.currentRow()) #TODO move to INCOMMING_UPDATE_EVENT
 	
 	def addPanels(self):
 		for each in self.panels:

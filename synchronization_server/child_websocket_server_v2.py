@@ -54,9 +54,20 @@ def incommingGreenlet(wsock, timeout, OUTGOING_QUEUE): #these seem to run in ano
 				data = time.time()
 			))
 			
-		if question == "Salt?":
+		#if question == "Salt?":
 		
-			send_usr_crypt_salt.set(checked_login["found"]["salt"])
+		#	send_usr_crypt_salt.set(checked_login["found"]["salt"])
+			
+		if question == "Delete?":
+			
+			id = data
+			
+			result  = clips.delete_one({"_id":id}).deleted_count
+			
+			OUTGOING_QUEUE(dict(
+				answer="Deleted!",
+				data = result
+			))
 			
 		if question == "Upload?":
 				
@@ -75,7 +86,7 @@ def incommingGreenlet(wsock, timeout, OUTGOING_QUEUE): #these seem to run in ano
 			
 			PRINT("container_exists", container_exists)
 	
-		elif question == "Update?":
+		if question == "Update?":
 				
 			data['timestamp_server'] = time.time()
 			
@@ -107,7 +118,7 @@ def outgoingGreenlet(wsock, timeout, OUTGOING_QUEUE):
 	
 	for second in xrange(timeout):
 	
-		sleep(1)
+		sleep(0.1)
 	
 		try:
 				
@@ -141,7 +152,7 @@ def outgoingGreenlet(wsock, timeout, OUTGOING_QUEUE):
 @app.route('/ws')
 def handle_websocket():
 	
-	gevent.sleep(0.1) #prevent many connections
+	gevent.sleep(1) #prevent many connections
 	
 	websocket_id = uuid.uuid4()
 

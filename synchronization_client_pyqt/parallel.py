@@ -70,7 +70,7 @@ class WebsocketWorkerMixinForMain(object):
 				
 		#PRINT("thumb on new_clip.data", new_clip["clip_display"])
 		itm.setData(QtCore.Qt.UserRole, json.dumps(new_clip)) #json.dumps or else clip data (especially BSON's Binary)will be truncated by setData 
-			
+		
 		#self.panel_stacked_widget.main_list_widget.addItem(itm) #or self.panel_stacked_widget.main_list_widget.addItem("some text") (different signature)
 		self.panel_stacked_widget.main_list_widget.insertItem(0,itm) #add to top #http://www.qtcentre.org/threads/44672-How-to-add-a-item-to-the-top-in-QListWidget
 		
