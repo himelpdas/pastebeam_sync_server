@@ -128,6 +128,7 @@ class StackedWidgetFader(QStackedWidget):
 class PanelStackedWidget(StackedWidgetFader):
 	def __init__(self, icon_size, parent = None,):
 		super(PanelStackedWidget, self).__init__(parent)
+		self.main=parent
 		self.icon_size=icon_size
 		self.setFadeDuration(111)
 		self.doPanels()
@@ -154,7 +155,19 @@ class PanelStackedWidget(StackedWidgetFader):
 		#self.list_widgets = [self.main_list_widget, self.star_list_widget.self.friends_list_widget] #friend_list_widget
 	
 	def onDeleteMainListWidgetItem(self):
-		self.main_list_widget.takeItem(self.main_list_widget.currentRow()) #TODO move to INCOMMING_UPDATE_EVENT
+		#self.main_list_widget.takeItem(self.main_list_widget.currentRow()) #TODO move to INCOMMING_UPDATE_EVENT
+		current_row = self.main_list_widget.currentRow()
+		current_item = self.main_list_widget.currentItem()
+		item_data = json.loads(current_item.data(QtCore.Qt.UserRole))
+		remove_id = item_data["_id"]
+		async_process = dict(
+			question = "Delete?",
+			data = {"remove_id":remove_id, "remove_row":current_row}
+		)
+		self.main.outgoingSignalForWorker.emit(async_process)
+		
+	def onDeleteClipSlot(self,remove_row):
+		self.main_list_widget.takeItem(remove_row) #TODO move to INCOMMING_UPDATE_EVENT
 	
 	def addPanels(self):
 		for each in self.panels:

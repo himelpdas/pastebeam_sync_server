@@ -35,7 +35,7 @@ class UIMixin(QtGui.QMainWindow, AccountMixin, LockoutMixin): #handles menubar a
 		
 		#self.doLockoutWidget()
 				
-		self.panel_stacked_widget = PanelStackedWidget(QtCore.QSize(PixmapThumbnail.Px,PixmapThumbnail.Px))
+		self.panel_stacked_widget = PanelStackedWidget(QtCore.QSize(PixmapThumbnail.Px,PixmapThumbnail.Px), self)
 		self.panel_stacked_widget.main_list_widget.doubleClicked.connect(self.onItemDoubleClickSlot) #textChanged() is emited whenever the contents of the widget changes (even if its from the app itself) whereas textEdited() is emited only when the user changes the text using mouse and keyboard (so it is not emitted when you call QLineEdit::setText()).
 		
 		self.search = QLineEdit()
@@ -216,6 +216,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 		self.ws_worker.incommingSignalForMain.connect(self.onIncommingSlot)
 		self.ws_worker.newClipSignalForMain.connect(self.onSetNewClipSlot)
 		self.ws_worker.statusSignalForMain.connect(self.onSetStatusSlot)
+		self.ws_worker.deleteClipSignalForMain.connect(self.panel_stacked_widget.onDeleteClipSlot)
 		self.ws_worker.clearListSignalForMain.connect(self.panel_stacked_widget.main_list_widget.clear)
 		self.ws_worker.start()
 			
@@ -438,13 +439,15 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 			return	
 		
 		prepare["hash"]= hash
-		self.outgoingSignalForWorker.emit(prepare)
+		
+		async_process = dict(question="Update?", data=prepare)
+		
+		self.outgoingSignalForWorker.emit(async_process)
 		
 		self.previous_hash = hash
 		#image.destroy()
 		
-	def onSetNewClipSlot(self, new_clip):
-		#only needed when user double clicks an item
+	def onSetNewClipSlot(self, new_clip): #happens when new incomming clip or when user double clicks an item
 			
 		container_name = new_clip["container_name"]
 		clip_type = new_clip["clip_type"]

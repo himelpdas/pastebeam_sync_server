@@ -95,6 +95,7 @@ class WebsocketWorker(QtCore.QThread):
 	incommingSignalForMain = QtCore.Signal(dict)
 	newClipSignalForMain = QtCore.Signal(dict)
 	statusSignalForMain = QtCore.Signal(tuple)
+	deleteClipSignalForMain = QtCore.Signal(int)
 	clearListSignalForMain = QtCore.Signal()
 	session_id = uuid.uuid4()
 
@@ -112,33 +113,43 @@ class WebsocketWorker(QtCore.QThread):
 	#A QThread is run by calling it's start() function, which calls this run()
 	#function in it's own "thread". 
 	
-	def onOutgoingSlot(self, data):
+	def onOutgoingSlot(self, async_process):
 		#PRINT("onOutgoingSlot", prepare)
 		
-		if not data.get("container_name"): ##CHECK HERE IF CONTAINER EXISTS IN OTHER ITEMS
-			file_names = data["file_names"]
-			self.statusSignalForMain.emit(("encrypting", "lock"))
-			with encompress.Encompress(password = "nigger", directory = self.TEMP_DIR, file_names_encrypt = file_names) as container_name: 					
-				
-				data["container_name"] = container_name
-				PRINT("encompress", container_name)
-							
+		data = async_process["data"]
+		question = async_process["question"]
+		
+		if question == "Delete?":
+			pass #nothing to process
+		
+		if question == "Update?": #do cpu intesive data modification before sending
+
+			if not data.get("container_name"): ##CHECK HERE IF CONTAINER EXISTS IN OTHER ITEMS
+				file_names = data["file_names"]
+				self.statusSignalForMain.emit(("encrypting", "lock"))
+				with encompress.Encompress(password = "nigger", directory = self.TEMP_DIR, file_names_encrypt = file_names) as container_name: 					
+					
+					data["container_name"] = container_name
+					PRINT("encompress", container_name)
+			
+			#data["send_uuid"] = uuid.uu
+			
+			#if os.name=="nt" and data["clip_type"] == "files":
+			#	data["file_names"] = map(lambda each_name: each_name.decode(sys.getfilesystemencoding()), data["file_names"]) #undo ms filename encoding back to ascii #http://stackoverflow.com/questions/10180765/open-file-with-a-unicode-filename
+			#	data["clip_display"] = map(lambda each_name: each_name.decode(sys.getfilesystemencoding()), data["clip_display"])
+			
 		data['host_name'] = self.main.HOST_NAME
 
 		data["timestamp_client"] = time.time()	
 		
 		data["session_id"] = self.session_id
 		
-		#data["send_uuid"] = uuid.uu
-		
-		#if os.name=="nt" and data["clip_type"] == "files":
-		#	data["file_names"] = map(lambda each_name: each_name.decode(sys.getfilesystemencoding()), data["file_names"]) #undo ms filename encoding back to ascii #http://stackoverflow.com/questions/10180765/open-file-with-a-unicode-filename
-		#	data["clip_display"] = map(lambda each_name: each_name.decode(sys.getfilesystemencoding()), data["clip_display"])
-		
 		send = dict(
-			question = "Update?",
+			question = question,
 			data=data
 		)
+		
+		print 
 
 		self.OUTGOING_QUEUE.append(send)
 	
@@ -146,7 +157,7 @@ class WebsocketWorker(QtCore.QThread):
 		#GEVENT OBJECTS CANNOT BE RUNNED OUTSIDE OF THIS THREAD, OR ELSE CONTEXT SWITCHING (COROUTINE YIELDING) WILL FAIL! THIS IS BECAUSE QTHREAD IS NOT MONKEY_PATCHABLE
 	
 		self.INCOMMING_UPDATE_EVENT = AsyncResult()
-		#self.INCOMMING_NEWEST_EVENT = AsyncResult()
+		self.INCOMMING_DELETE_EVENT = AsyncResult()
 		self.INCOMMING_UPLOAD_EVENT = AsyncResult()
 		self.INCOMMING_LIVING_EVENT = AsyncResult()
 		
@@ -247,7 +258,8 @@ class WebsocketWorker(QtCore.QThread):
 			#PRINT("new_clip", each)
 			if each["session_id"] != self.session_id: #do not allow setting from the same pc
 				self.newClipSignalForMain.emit(each) #this will set the newest clip only, thanks to self.main.new_clip!!!
-
+				#container_names will NOT be reused as newClipSignalForMain will cause a new outgoing signal when the hashes change. This will result in unecessary uploads. The only way to resolve this is to make a hashtable
+				
 			self.statusSignalForMain.emit(("clip copied","good"))
 
 		elif answer == "Update!":
@@ -257,6 +269,12 @@ class WebsocketWorker(QtCore.QThread):
 		elif answer == "Error!":
 			self.KEEP_RUNNING = 0
 			self.statusSignalForMain.emit((data, "bad"))
+			
+		elif answer == "Delete!":
+			self.INCOMMING_DELETE_EVENT.set(data)
+			
+			if data["success"] == True:
+				self.deleteClipSignalForMain.emit(data["remove_row"])
 			
 		elif answer == "Connected!":
 			if not hasattr(self,"initialized"):
@@ -268,13 +286,8 @@ class WebsocketWorker(QtCore.QThread):
 		#all responses were received, now just wait and listen
 		#self.statusSignalForMain.emit(("monitoring", "monitor"))
 		
-	def secureSend(question, data):
-		string = json.dumps(dict(
-			question = "Upload?",
-			data = container_name
-		))
-		string = string.encode("zlib").encrypt()
-		self.WSOCK.send(string)
+	def sendForever(self):
+		pass
 
 	@workerLoopDecorator
 	def outgoingGreenlet(self):
@@ -332,6 +345,19 @@ class WebsocketWorker(QtCore.QThread):
 					
 				PRINT("update",data)
 				
+		elif question=="Delete?":
+			while 1: #mimic do while to prevent waiting before send #TODO PREVENT DUPLICATE SENDS USING UUID
+			
+				self.WSOCK.send(json.dumps(send))
+									
+				data = self.INCOMMING_DELETE_EVENT.wait(timeout=5) #AsyncResult.get will block until a result is set by another greenlet, after that get will not block anymore. NOTE- get will return exception! Use wait instead 
+				
+				print data
+				
+				if data != None:
+					self.INCOMMING_DELETE_EVENT = AsyncResult()	
+					break
+									
 			
 	def downloadContainerIfNotExist(self, data):
 		container_name = data["container_name"]

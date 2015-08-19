@@ -60,13 +60,19 @@ def incommingGreenlet(wsock, timeout, OUTGOING_QUEUE): #these seem to run in ano
 			
 		if question == "Delete?":
 			
-			id = data
+			remove_id = data["remove_id"]
+			remove_row = data["remove_row"]
 			
-			result  = clips.delete_one({"_id":id}).deleted_count
+			result  = clips.delete_one({"_id":remove_id}).deleted_count
 			
-			OUTGOING_QUEUE(dict(
-				answer="Deleted!",
-				data = result
+			print "ROW ID: %s, DELETED: %s"%(remove_id,result)
+			
+			OUTGOING_QUEUE.append(dict(
+				answer="Delete!",
+				data = {
+					"success":bool(result),
+					"remove_row":remove_row
+				}
 			))
 			
 		if question == "Upload?":
@@ -145,6 +151,7 @@ def outgoingGreenlet(wsock, timeout, OUTGOING_QUEUE):
 				server_latest_clips = [each for each in clips.find().sort('_id',pymongo.DESCENDING).limit( 5 )] #returns an iterator but we want a list	
 			
 		else:
+			print send
 			wsock.send(json.dumps(send))
 			
 	wsock.close()
