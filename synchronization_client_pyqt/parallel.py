@@ -96,6 +96,7 @@ class WebsocketWorker(QtCore.QThread):
 	newClipSignalForMain = QtCore.Signal(dict)
 	statusSignalForMain = QtCore.Signal(tuple)
 	deleteClipSignalForMain = QtCore.Signal(int)
+	#addStarClipSignalForMain = QtCore.Signal()
 	clearListSignalForMain = QtCore.Signal()
 	session_id = uuid.uuid4()
 
@@ -156,10 +157,11 @@ class WebsocketWorker(QtCore.QThread):
 	def run(self): #It arranges for the object’s run() method to be invoked in a separate thread of control.
 		#GEVENT OBJECTS CANNOT BE RUNNED OUTSIDE OF THIS THREAD, OR ELSE CONTEXT SWITCHING (COROUTINE YIELDING) WILL FAIL! THIS IS BECAUSE QTHREAD IS NOT MONKEY_PATCHABLE
 	
-		self.INCOMMING_UPDATE_EVENT = AsyncResult()
-		self.INCOMMING_DELETE_EVENT = AsyncResult()
-		self.INCOMMING_UPLOAD_EVENT = AsyncResult()
-		self.INCOMMING_LIVING_EVENT = AsyncResult()
+		self.RESPONDED_UPDATE_EVENT = AsyncResult() #keep events separate, as other incomming events may interfere and crash the app! Though TCP/IP guarantees in-order sending and receiving, non-determanistic events like "new clips" will definitely fuck up the order!
+		self.RESPONDED_DELETE_EVENT = AsyncResult()
+		self.RESPONDED_UPLOAD_EVENT = AsyncResult()
+		self.RESPONDED_STAR_EVENT = AsyncResult()
+		#self.RESPONDED_LIVING_EVENT = AsyncResult()
 		
 		self.RECONNECT = lambda: create_connection(URL("ws",DEFAULT_DOMAIN, DEFAULT_PORT, "ws", email=self.main.getLogin().get("email"), password=self.main.getLogin().get("password"), ) ) #The geventclient's websocket MUST be runned here, as running it in __init__ would put websocket in main thread
 		
@@ -197,31 +199,6 @@ class WebsocketWorker(QtCore.QThread):
 				except: #previous try will handle later
 					pass #block thread until there is a connection
 		return closure
-
-	'''
-	def keepAlive(self):
-		"""
-		Checks to see if socket is still alive, if failure occurs workerLoopDecorator will fix
-		"""
-	
-		if time.time() - self.LAST_ALIVE > 30:
-						
-			while 1:
-				
-				self.WSOCK.send(json.dumps(dict(
-					question = "Alive?",
-					data = None
-				)))
-
-				alive = self.INCOMMING_LIVING_EVENT.wait(timeout=5) #yields to another greenlet for 5 seconds
-																
-				if alive != None:
-					self.LAST_ALIVE = alive
-					print "Alive!"
-					self.INCOMMING_LIVING_EVENT = AsyncResult()	
-					
-					break
-		'''
 				
 	@workerLoopDecorator
 	def incommingGreenlet(self):
@@ -229,7 +206,7 @@ class WebsocketWorker(QtCore.QThread):
 		PRINT("Begin Incomming Greenlet", "")
 	
 		dump = self.WSOCK.recv()
-		#PRINT("received", dump)
+
 		try:
 			received = json.loads(str(dump)) #blocks
 		except ValueError: #occurs when socket closes unexpectedly
@@ -239,20 +216,26 @@ class WebsocketWorker(QtCore.QThread):
 		
 		data   = received["data"]
 		
-		if answer == "Alive!":
-			PRINT("data", data)
-			self.INCOMMING_LIVING_EVENT.set(data)
+		#Keep alive is handled by the websocket library itself (ie. it sends "alive?" pings that was done manually befor)
 
-		elif answer == "Upload!":
-			self.INCOMMING_UPLOAD_EVENT.set(data) #true or false
+		#NON RESPONDED (non-determanistic)
+		if answer == "Error!":
+			self.KEEP_RUNNING = 0
+			self.statusSignalForMain.emit((data, "bad"))
 			
-		elif answer == "Newest!": #SOCKET OFTEN FAILS ON STARTUP SO MULTIPLE statusSignalForMain ARE EMITTED, that's why clips are set multiple times on startup, especially for large data
-			#self.INCOMMING_NEWEST_EVENT.set(data) #clip
+		elif answer == "Connected!":
+			if not hasattr(self,"initialized"):
+				self.statusSignalForMain.emit(("connected", "good"))
+				self.initialized = 1
+			else:
+				self.statusSignalForMain.emit(("reconnected", "good"))
+			
+		elif answer == "Newest!":
 			data.reverse() #so the clips can be displayed top down since each clip added gets pushed down in listwidget
 			self.statusSignalForMain.emit(("downloading", "download"))
 			for each in data:
 			
-				self.downloadContainerIfNotExist(each) #TODO MOVE THIS TO AFTER ONDOUBLE CLICK TO SAVE BANDWIDTH #MUST download container first, as it may not exist locally if new clip is from anothe device
+				self.downloadContainerIfNotExist(each) #TODO MOVE THIS TO AFTER ONDOUBLE CLICK TO SAVE BANDWIDTH #MUST download container first, as it may not exist locally if new clip is from another device
 				self.incommingSignalForMain.emit(each)
 				
 			#PRINT("new_clip", each)
@@ -262,32 +245,32 @@ class WebsocketWorker(QtCore.QThread):
 				
 			self.statusSignalForMain.emit(("clip copied","good"))
 
+		#RESPONDED (Handle data in outgoing_greenlet since it was the one that is expecting a response in order to yield control)
+		elif answer == "Upload!":
+			self.RESPONDED_UPLOAD_EVENT.set(data) #true or false	
+		
 		elif answer == "Update!":
-			self.INCOMMING_UPDATE_EVENT.set(data) #clip	id
-			self.statusSignalForMain.emit(("updated", "good"))
-			
-		elif answer == "Error!":
-			self.KEEP_RUNNING = 0
-			self.statusSignalForMain.emit((data, "bad"))
+			self.RESPONDED_UPDATE_EVENT.set(data) #clip	id
 			
 		elif answer == "Delete!":
-			self.INCOMMING_DELETE_EVENT.set(data)
-			
-			if data["success"] == True:
-				self.deleteClipSignalForMain.emit(data["remove_row"])
-			
-		elif answer == "Connected!":
-			if not hasattr(self,"initialized"):
-				self.statusSignalForMain.emit(("connected", "good"))
-				self.initialized = 1
-			else:
-				self.statusSignalForMain.emit(("reconnected", "good"))
-			
-		#all responses were received, now just wait and listen
-		#self.statusSignalForMain.emit(("monitoring", "monitor"))
+			self.RESPONDED_DELETE_EVENT.set(data) #true or false
 		
-	def sendForever(self):
-		pass
+	def sendUntilAnswered(self, send, event_name):
+		while 1: #mimic do while to prevent waiting before send #TODO PREVENT DUPLICATE SENDS USING UUID
+		
+			self.WSOCK.send(json.dumps(send))
+			
+			ASYNC_EVENT = getattr(self, event_name)
+								
+			data_in = ASYNC_EVENT.wait(timeout=5) #AsyncResult.get will block until a result is set by another greenlet, after that get will not block anymore. NOTE- get will return exception! Use wait instead 
+			
+			print data_in
+			
+			if data_in != None:
+				setattr(self, event_name, AsyncResult()	)
+				break
+		
+		return data_in
 
 	@workerLoopDecorator
 	def outgoingGreenlet(self):
@@ -301,27 +284,20 @@ class WebsocketWorker(QtCore.QThread):
 		except IndexError:
 			return
 		else:
-			data = send.get("data")
+			data_out = send.get("data")
 			question = send["question"]
 			
 		if question == "Update?":
 					
-			container_name = data["container_name"]
+			container_name = data_out["container_name"]
 			container_path = os.path.join(self.TEMP_DIR, container_name)
 							
 			self.statusSignalForMain.emit(("uploading", "upload"))
-			while 1: #this prevents the receiving of the data of later queues and causing a mixup
-				
-				self.WSOCK.send(json.dumps(dict(
-					question = "Upload?",
-					data = container_name
-				)))
-
-				container_exists = self.INCOMMING_UPLOAD_EVENT.wait(timeout=5) #perhaps change to a single AsyncResult as TCP/IP guarantees packets are sent and recieved in the same order
-				
-				if container_exists != None:
-					self.INCOMMING_UPLOAD_EVENT = AsyncResult()	
-					break
+			#first check if upload needed before updating
+			container_exists = self.sendUntilAnswered(dict(
+				question = "Upload?",
+				data = container_name
+			), "RESPONDED_UPLOAD_EVENT")
 			
 			if container_exists == False:
 
@@ -329,35 +305,29 @@ class WebsocketWorker(QtCore.QThread):
 					r = requests.post(URL("http", DEFAULT_DOMAIN, DEFAULT_PORT, "upload"), files={"upload": open(container_path, 'rb')})
 				except requests.exceptions.ConnectionError:
 					#connection error
-					#self.webSocketReconnect()
 					raise socket.error 
 			
 			self.statusSignalForMain.emit(("updating", "sync"))
-			while 1: #mimic do while to prevent waiting before send #TODO PREVENT DUPLICATE SENDS USING UUID
-			
-				self.WSOCK.send(json.dumps(send))
-									
-				data = self.INCOMMING_UPDATE_EVENT.wait(timeout=5) #AsyncResult.get will block until a result is set by another greenlet, after that get will not block anymore. NOTE- get will return exception! Use wait instead 
-				
-				if data != None:
-					self.INCOMMING_UDATE_EVENT = AsyncResult()	
-					break
-					
-				PRINT("update",data)
+
+			data_in = self.sendUntilAnswered(send, "RESPONDED_UPDATE_EVENT")
+								
+			self.statusSignalForMain.emit(("updated", "good"))
+
 				
 		elif question=="Delete?":
-			while 1: #mimic do while to prevent waiting before send #TODO PREVENT DUPLICATE SENDS USING UUID
 			
-				self.WSOCK.send(json.dumps(send))
-									
-				data = self.INCOMMING_DELETE_EVENT.wait(timeout=5) #AsyncResult.get will block until a result is set by another greenlet, after that get will not block anymore. NOTE- get will return exception! Use wait instead 
+			data_in = self.sendUntilAnswered(send, "RESPONDED_DELETE_EVENT")
+			
+			if data_in["success"] == True:
+				self.deleteClipSignalForMain.emit(data_in["remove_row"])
+					
+		elif question=="Star?":
+		
+			data_in = self.sendUntilAnswered(send, "RESPONDED_STAR_EVENT")
+			
+			if data_in["added"] == True:
+				self.addStarClipSignalForMain.emit()
 				
-				print data
-				
-				if data != None:
-					self.INCOMMING_DELETE_EVENT = AsyncResult()	
-					break
-									
 			
 	def downloadContainerIfNotExist(self, data):
 		container_name = data["container_name"]

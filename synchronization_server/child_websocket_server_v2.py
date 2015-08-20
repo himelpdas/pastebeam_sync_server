@@ -47,16 +47,16 @@ def incommingGreenlet(wsock, timeout, OUTGOING_QUEUE): #these seem to run in ano
 		
 		data = delivered['data']
 		
-		if question == "Alive?":
-	
-			OUTGOING_QUEUE.append(dict(
-				answer = "Alive!",
-				data = time.time()
-			))
+		if question == "Star?":
 			
-		#if question == "Salt?":
-		
-		#	send_usr_crypt_salt.set(checked_login["found"]["salt"])
+			star_id = data
+			
+			clips.find_one_and_update({"_id":star_id},{"bookmarked":True})
+			
+			OUTGOING_QUEUE.append(dict(
+				answer="Star!",
+				data = {"added":True, "id": star_id}
+			))
 			
 		if question == "Delete?":
 			

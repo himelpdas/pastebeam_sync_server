@@ -135,20 +135,32 @@ class PanelStackedWidget(StackedWidgetFader):
 		self.addPanels()
 	
 	def doPanels(self):
-		self.main_list_widget  = QListWidget() #SUBCLAS INSTEAD OF INSTANTIATING
-		self.main_list_widget.setIconSize(self.icon_size) #http://www.qtcentre.org/threads/8733-Size-of-an-Icon #http://nullege.com/codes/search/PySide.QtGui.QListWidget.setIconSize
-		self.main_list_widget.setAlternatingRowColors(True) #http://stackoverflow.com/questions/23213929/qt-qlistwidget-item-with-alternating-colors
-		self.main_list_widget.setStatusTip('Double-click a clip to copy, or right-click for more options.')
-		#set right click menu
-		self.main_list_widget.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
-		delete = QAction(QIcon("images/close.png"), '&Delete', self.main_list_widget)
-		#delete.setText("Delete")
-		delete.triggered.connect(self.onDeleteMainListWidgetItem)
-		self.main_list_widget.addAction(delete)
+		def _do_main_list_widget():
+			self.main_list_widget  = QListWidget() #SUBCLAS INSTEAD OF INSTANTIATING
+			self.main_list_widget.setIconSize(self.icon_size) #http://www.qtcentre.org/threads/8733-Size-of-an-Icon #http://nullege.com/codes/search/PySide.QtGui.QListWidget.setIconSize
+			self.main_list_widget.setAlternatingRowColors(True) #http://stackoverflow.com/questions/23213929/qt-qlistwidget-item-with-alternating-colors
+			self.main_list_widget.setStatusTip('Double-click a clip to copy, or right-click for more options.')
+			#set right click menu
+			self.main_list_widget.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
+			#delete action
+			delete_action = QAction(QIcon("images/close.png"), '&Delete', self.main_list_widget) #delete.setText("Delete")
+			delete_action.triggered.connect(self.onDeleteMainListWidgetItem)
+			self.main_list_widget.addAction(delete_action)
+			#star action
+			star_action = QAction(QIcon("images/star.png"), '&Star', self.main_list_widget)
+			self.main_list_widget.addAction(star_action)
 		
-		self.star_list_widget = QListWidget()
-
-		self.friends_list_widget = QListWidget()
+		def _do_star_list_widget():
+			self.star_list_widget = QListWidget()
+			
+		def _do_friends_list_widget():
+			self.friends_list_widget = QListWidget()
+			
+		_do_main_list_widget()
+		
+		_do_star_list_widget()
+		
+		_do_friends_list_widget()
 		
 		self.panels = [self.main_list_widget, self.star_list_widget, self.friends_list_widget]
 		
