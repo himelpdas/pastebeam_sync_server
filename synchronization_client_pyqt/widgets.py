@@ -137,6 +137,57 @@ class StarListWidget(QListWidget, ListWidgetStyleMixin):
 		super(StarListWidget, self).__init__(parent)
 		self.parent = parent
 		self.doStyling()
+		
+class MainListWidget(QListWidget, ListWidgetStyleMixin):
+	def __init__(self, parent = None):
+		super(MainListWidget, self).__init__(parent)
+		self.parent = parent
+		self.main = parent.main
+		
+		self.doStyling()
+		self.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
+		#delete action
+		delete_action = QAction(QIcon("images/close.png"), '&Delete', self) #delete.setText("Delete")
+		delete_action.triggered.connect(self.onDeleteAction)
+		self.addAction(delete_action)
+		#star action
+		star_action = QAction(QIcon("images/star.png"), '&Star', self)
+		star_action.triggered.connect(self.onAddStarAction)
+		self.addAction(star_action)
+		
+	
+	def getClipDataByRow(self):
+		current_row = self.currentRow()
+		current_item = self.currentItem()
+		current_item = json.loads(current_item.data(QtCore.Qt.UserRole))
+		return current_row, current_item
+	
+	def onDeleteAction(self):
+		current_row, current_item = self.getClipDataByRow()
+		remove_id = current_item["_id"]
+		async_process = dict(
+			question = "Delete?",
+			data = {"remove_id":remove_id, "remove_row":current_row}
+		)
+		self.main.outgoingSignalForWorker.emit(async_process)
+		
+	def onAddStarAction(self):
+		current_row, current_item = self.getClipDataByRow()
+		del current_item["_id"]
+		async_process = dict(
+			question = "Star?",
+			data = {"mode":"add","clip":current_item}
+		)
+		self.main.outgoingSignalForWorker.emit(async_process)
+		
+	def onIncommingDelete(self,remove_row):
+		self.takeItem(remove_row) #TODO move to RESPONDED_UPDATE_EVENT
+		
+class FriendListWidget(QListWidget, ListWidgetStyleMixin):
+	def __init__(self, parent = None):
+		super(FriendListWidget, self).__init__(parent)
+		self.parent = parent
+		self.doStyling()
 
 class PanelStackedWidget(StackedWidgetFader):
 	def __init__(self, icon_size, parent = None,):
@@ -148,64 +199,16 @@ class PanelStackedWidget(StackedWidgetFader):
 		self.addPanels()
 	
 	def doPanels(self):
-		def _do_main_list_widget():
-			self.main_list_widget  = QListWidget() #SUBCLAS INSTEAD OF INSTANTIATING
-			self.main_list_widget.setIconSize(self.icon_size) #http://www.qtcentre.org/threads/8733-Size-of-an-Icon #http://nullege.com/codes/search/PySide.QtGui.QListWidget.setIconSize
-			self.main_list_widget.setAlternatingRowColors(True) #http://stackoverflow.com/questions/23213929/qt-qlistwidget-item-with-alternating-colors
-			self.main_list_widget.setStatusTip('Double-click a clip to copy, or right-click for more options.')
-			#set right click menu
-			self.main_list_widget.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
-			#delete action
-			delete_action = QAction(QIcon("images/close.png"), '&Delete', self.main_list_widget) #delete.setText("Delete")
-			delete_action.triggered.connect(self.onDeleteFromMainListWidgetItem)
-			self.main_list_widget.addAction(delete_action)
-			#star action
-			star_action = QAction(QIcon("images/star.png"), '&Star', self.main_list_widget)
-			star_action.triggered.connect(self.onAddStarFromMainListWidgeItem)
-			self.main_list_widget.addAction(star_action)
-		
-		def _do_star_list_widget():
-			self.star_list_widget = StarListWidget(self)
 			
-		def _do_friends_list_widget():
-			self.friends_list_widget = QListWidget()
-			
-		_do_main_list_widget()
+		self.main_list_widget = MainListWidget(self)
 		
-		_do_star_list_widget()
+		self.star_list_widget = StarListWidget(self)
 		
-		_do_friends_list_widget()
-		
-		self.panels = [self.main_list_widget, self.star_list_widget, self.friends_list_widget]
+		self.friend_list_widget = FriendListWidget(self)
+				
+		self.panels = [self.main_list_widget, self.star_list_widget, self.friend_list_widget]
 		
 		#self.list_widgets = [self.main_list_widget, self.star_list_widget.self.friends_list_widget] #friend_list_widget
-	
-	def getClipDataByRow(self):
-		current_row = self.main_list_widget.currentRow()
-		current_item = self.main_list_widget.currentItem()
-		current_item = json.loads(current_item.data(QtCore.Qt.UserRole))
-		return current_row, current_item
-	
-	def onDeleteFromMainListWidgetItem(self):
-		current_row, current_item = self.getClipDataByRow()
-		remove_id = current_item["_id"]
-		async_process = dict(
-			question = "Delete?",
-			data = {"remove_id":remove_id, "remove_row":current_row}
-		)
-		self.main.outgoingSignalForWorker.emit(async_process)
-		
-	def onAddStarFromMainListWidgeItem(self):
-		current_row, current_item = self.getClipDataByRow()
-		del current_item["_id"]
-		async_process = dict(
-			question = "Star?",
-			data = {"mode":"add","clip":current_item}
-		)
-		self.main.outgoingSignalForWorker.emit(async_process)
-		
-	def onDeleteClipSlot(self,remove_row):
-		self.main_list_widget.takeItem(remove_row) #TODO move to RESPONDED_UPDATE_EVENT
 	
 	def addPanels(self):
 		for each in self.panels:
