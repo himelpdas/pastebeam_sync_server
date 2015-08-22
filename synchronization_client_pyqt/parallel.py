@@ -72,7 +72,12 @@ class WebsocketWorkerMixinForMain(object):
 		itm.setData(QtCore.Qt.UserRole, json.dumps(new_clip)) #json.dumps or else clip data (especially BSON's Binary)will be truncated by setData 
 		
 		#self.panel_stacked_widget.main_list_widget.addItem(itm) #or self.panel_stacked_widget.main_list_widget.addItem("some text") (different signature)
-		self.panel_stacked_widget.main_list_widget.insertItem(0,itm) #add to top #http://www.qtcentre.org/threads/44672-How-to-add-a-item-to-the-top-in-QListWidget
+		if new_clip.get("starred")==True:
+			list_widget = self.panel_stacked_widget.star_list_widget
+		else:
+			list_widget = self.panel_stacked_widget.main_list_widget
+		
+		list_widget.insertItem(0,itm) #add to top #http://www.qtcentre.org/threads/44672-How-to-add-a-item-to-the-top-in-QListWidget
 		
 		space = "&nbsp;"*8
 		timestamp_human = u'{dt:%I}:{dt:%M}:{dt:%S}{dt:%p}{space}<span style="color:grey">{dt.month}-{dt.day}-{dt.year}</span>'.format(space = space, dt=datetime.datetime.fromtimestamp(new_clip["timestamp_server"] ) ) #http://stackoverflow.com/questions/904928/python-strftime-date-without-leading-0
@@ -80,11 +85,11 @@ class WebsocketWorkerMixinForMain(object):
 		custom_label.setOpenExternalLinks(True) ##http://stackoverflow.com/questions/8427446/making-qlabel-behave-like-a-hyperlink
 		
 		#resize the listwidget item to fit the html Qlabel, using Qlabel's sizehint
-		self.panel_stacked_widget.main_list_widget.setItemWidget(itm, custom_label ) #add the label
+		list_widget.setItemWidget(itm, custom_label ) #add the label
 		itm.setSizeHint( custom_label.sizeHint() ) #resize
 		
 		#move the scrollbar to top
-		list_widget_scrollbar = self.panel_stacked_widget.main_list_widget.verticalScrollBar() #http://stackoverflow.com/questions/8698174/how-to-control-the-scroll-bar-with-qlistwidget
+		list_widget_scrollbar = list_widget.verticalScrollBar() #http://stackoverflow.com/questions/8698174/how-to-control-the-scroll-bar-with-qlistwidget
 		list_widget_scrollbar.setValue(0)
 					
 class WebsocketWorker(QtCore.QThread):
@@ -96,7 +101,7 @@ class WebsocketWorker(QtCore.QThread):
 	newClipSignalForMain = QtCore.Signal(dict)
 	statusSignalForMain = QtCore.Signal(tuple)
 	deleteClipSignalForMain = QtCore.Signal(int)
-	#addStarClipSignalForMain = QtCore.Signal()
+	StarClipSignalForMain = QtCore.Signal(dict)
 	clearListSignalForMain = QtCore.Signal()
 	session_id = uuid.uuid4()
 
@@ -150,17 +155,12 @@ class WebsocketWorker(QtCore.QThread):
 			data=data
 		)
 		
-		print 
-
 		self.OUTGOING_QUEUE.append(send)
 	
 	def run(self): #It arranges for the object’s run() method to be invoked in a separate thread of control.
 		#GEVENT OBJECTS CANNOT BE RUNNED OUTSIDE OF THIS THREAD, OR ELSE CONTEXT SWITCHING (COROUTINE YIELDING) WILL FAIL! THIS IS BECAUSE QTHREAD IS NOT MONKEY_PATCHABLE
 	
-		self.RESPONDED_UPDATE_EVENT = AsyncResult() #keep events separate, as other incomming events may interfere and crash the app! Though TCP/IP guarantees in-order sending and receiving, non-determanistic events like "new clips" will definitely fuck up the order!
-		self.RESPONDED_DELETE_EVENT = AsyncResult()
-		self.RESPONDED_UPLOAD_EVENT = AsyncResult()
-		self.RESPONDED_STAR_EVENT = AsyncResult()
+		self.RESPONDED_EVENT = AsyncResult() #keep events separate, as other incomming events may interfere and crash the app! Though TCP/IP guarantees in-order sending and receiving, non-determanistic events like "new clips" will definitely fuck up the order!
 		#self.RESPONDED_LIVING_EVENT = AsyncResult()
 		
 		self.RECONNECT = lambda: create_connection(URL("ws",DEFAULT_DOMAIN, DEFAULT_PORT, "ws", email=self.main.getLogin().get("email"), password=self.main.getLogin().get("password"), ) ) #The geventclient's websocket MUST be runned here, as running it in __init__ would put websocket in main thread
@@ -239,38 +239,34 @@ class WebsocketWorker(QtCore.QThread):
 				self.incommingSignalForMain.emit(each)
 				
 			#PRINT("new_clip", each)
-			if each["session_id"] != self.session_id: #do not allow setting from the same pc
+			if each["session_id"] != self.session_id and not each.get("starred"): #do not allow setting from the same pc
 				self.newClipSignalForMain.emit(each) #this will set the newest clip only, thanks to self.main.new_clip!!!
 				#container_names will NOT be reused as newClipSignalForMain will cause a new outgoing signal when the hashes change. This will result in unecessary uploads. The only way to resolve this is to make a hashtable
 				
 			self.statusSignalForMain.emit(("clip copied","good"))
 
 		#RESPONDED (Handle data in outgoing_greenlet since it was the one that is expecting a response in order to yield control)
-		elif answer == "Upload!":
-			self.RESPONDED_UPLOAD_EVENT.set(data) #true or false	
+		elif answer in ["Upload!", "Update!", "Delete!", "Star!"]:
+			self.RESPONDED_EVENT.set(received) #true or false	
 		
-		elif answer == "Update!":
-			self.RESPONDED_UPDATE_EVENT.set(data) #clip	id
-			
-		elif answer == "Delete!":
-			self.RESPONDED_DELETE_EVENT.set(data) #true or false
-		
-	def sendUntilAnswered(self, send, event_name):
+	def sendUntilAnswered(self, send):
 		while 1: #mimic do while to prevent waiting before send #TODO PREVENT DUPLICATE SENDS USING UUID
 		
-			self.WSOCK.send(json.dumps(send))
-			
-			ASYNC_EVENT = getattr(self, event_name)
-								
-			data_in = ASYNC_EVENT.wait(timeout=5) #AsyncResult.get will block until a result is set by another greenlet, after that get will not block anymore. NOTE- get will return exception! Use wait instead 
-			
-			print data_in
-			
-			if data_in != None:
-				setattr(self, event_name, AsyncResult()	)
-				break
+			expect = uuid.uuid4()
+				
+			send["echo"] = expect #prevents responses coming after 5 seconds from being accepted
 		
-		return data_in
+			self.WSOCK.send(json.dumps(send))
+						
+			received = self.RESPONDED_EVENT.wait(timeout=5) #AsyncResult.get will block until a result is set by another greenlet, after that get will not block anymore. NOTE- get will return exception! Use wait instead 
+			
+			inspect = received["echo"]
+			
+			if received != None and expect == inspect:
+				self.RESPONDED_EVENT = AsyncResult() #setattr(self, event_name, AsyncResult()	)
+				break
+						
+		return received["data"]
 
 	@workerLoopDecorator
 	def outgoingGreenlet(self):
@@ -297,7 +293,7 @@ class WebsocketWorker(QtCore.QThread):
 			container_exists = self.sendUntilAnswered(dict(
 				question = "Upload?",
 				data = container_name
-			), "RESPONDED_UPLOAD_EVENT")
+			))
 			
 			if container_exists == False:
 
@@ -309,24 +305,23 @@ class WebsocketWorker(QtCore.QThread):
 			
 			self.statusSignalForMain.emit(("updating", "sync"))
 
-			data_in = self.sendUntilAnswered(send, "RESPONDED_UPDATE_EVENT")
+			data_in = self.sendUntilAnswered(send)
 								
 			self.statusSignalForMain.emit(("updated", "good"))
 
 				
 		elif question=="Delete?":
 			
-			data_in = self.sendUntilAnswered(send, "RESPONDED_DELETE_EVENT")
+			data_in = self.sendUntilAnswered(send)
 			
 			if data_in["success"] == True:
 				self.deleteClipSignalForMain.emit(data_in["remove_row"])
 					
 		elif question=="Star?":
 		
-			data_in = self.sendUntilAnswered(send, "RESPONDED_STAR_EVENT")
+			data_in = self.sendUntilAnswered(send)
 			
-			if data_in["added"] == True:
-				self.addStarClipSignalForMain.emit()
+			#self.starClipSignalForMain.emit(data_in)
 				
 			
 	def downloadContainerIfNotExist(self, data):

@@ -47,17 +47,28 @@ def incommingGreenlet(wsock, timeout, OUTGOING_QUEUE): #these seem to run in ano
 		
 		data = delivered['data']
 		
+		print delivered
+		
+		response = {"echo":delivered["echo"]}
+		
 		if question == "Star?":
-			
-			star_id = data
-			
-			clips.find_one_and_update({"_id":star_id},{"bookmarked":True})
-			
-			OUTGOING_QUEUE.append(dict(
+		
+			mode = data["mode"]
+			clip = data["clip"]
+						
+			if mode=="add":
+				#success = bool(clips.find_one_and_update({"_id":data["_id"]},{"bookmarked":True}) )
+				clip["starred"]=True
+				clip_id = clips.insert_one(clip).inserted_id
+				action = "added"
+			elif mode=="delete":
+				action="deleted"
+				
+			response.update(dict(
 				answer="Star!",
-				data = {"added":True, "id": star_id}
+				data = dict(action=action, clip_id = clip_id)
 			))
-			
+							
 		if question == "Delete?":
 			
 			remove_id = data["remove_id"]
@@ -67,14 +78,14 @@ def incommingGreenlet(wsock, timeout, OUTGOING_QUEUE): #these seem to run in ano
 			
 			print "ROW ID: %s, DELETED: %s"%(remove_id,result)
 			
-			OUTGOING_QUEUE.append(dict(
+			response.update(dict(
 				answer="Delete!",
 				data = {
 					"success":bool(result),
 					"remove_row":remove_row
 				}
 			))
-			
+						
 		if question == "Upload?":
 				
 			container_name =  data
@@ -85,7 +96,7 @@ def incommingGreenlet(wsock, timeout, OUTGOING_QUEUE): #these seem to run in ano
 			
 			container_exists = os.path.isfile(file_path)
 			
-			OUTGOING_QUEUE.append(dict(
+			response.update(dict(
 				answer = "Upload!",
 				data = container_exists
 			))
@@ -106,7 +117,7 @@ def incommingGreenlet(wsock, timeout, OUTGOING_QUEUE): #these seem to run in ano
 				
 				new_clip_id = False #DO NOT SEND NONE as this NONE indicates bad connection to client (remember AsyncResult.wait() ) and will result in infinite loop
 															
-			OUTGOING_QUEUE.append(dict(
+			response.update(dict(
 				answer = "Update!",
 				data = new_clip_id
 			))
@@ -114,6 +125,8 @@ def incommingGreenlet(wsock, timeout, OUTGOING_QUEUE): #these seem to run in ano
 			PRINT("update", new_clip_id)
 			
 			#prev = hash
+		
+		OUTGOING_QUEUE.append(response)
 			
 		PRINT("incomming", "wait...")
 		sleep(0.1)

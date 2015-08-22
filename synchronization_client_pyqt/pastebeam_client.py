@@ -218,6 +218,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 		self.ws_worker.statusSignalForMain.connect(self.onSetStatusSlot)
 		self.ws_worker.deleteClipSignalForMain.connect(self.panel_stacked_widget.onDeleteClipSlot)
 		self.ws_worker.clearListSignalForMain.connect(self.panel_stacked_widget.main_list_widget.clear)
+		#self.ws_worker.starClipSignalForMain.connect(self.panel_star_widget.onStarClipSlot) #connect his with my
 		self.ws_worker.start()
 			
 	def setupClip(self):
