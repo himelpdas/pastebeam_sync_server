@@ -124,7 +124,7 @@ class StackedWidgetFader(QStackedWidget):
 	def setFadeDuration(self, duration):
 		self.duration = duration
 		
-class ListWidgetStyleMixin(object):
+class ListWidgetCommonsMixin(object):
 
 	def doStyling(self, status="Double-click a clip to copy, or right-click for more options."):
 		self.setIconSize(self.parent.icon_size) #http://www.qtcentre.org/threads/8733-Size-of-an-Icon #http://nullege.com/codes/search/PySide.QtGui.QListWidget.setIconSize
@@ -132,13 +132,13 @@ class ListWidgetStyleMixin(object):
 		self.setStatusTip(status)
 
 
-class StarListWidget(QListWidget, ListWidgetStyleMixin):
+class StarListWidget(QListWidget, ListWidgetCommonsMixin):
 	def __init__(self, parent = None):
 		super(StarListWidget, self).__init__(parent)
 		self.parent = parent
 		self.doStyling()
 		
-class MainListWidget(QListWidget, ListWidgetStyleMixin):
+class MainListWidget(QListWidget, ListWidgetCommonsMixin):
 	def __init__(self, parent = None):
 		super(MainListWidget, self).__init__(parent)
 		self.parent = parent
@@ -176,14 +176,14 @@ class MainListWidget(QListWidget, ListWidgetStyleMixin):
 		del current_item["_id"]
 		async_process = dict(
 			question = "Star?",
-			data = {"mode":"add","clip":current_item}
+			data = current_item
 		)
 		self.main.outgoingSignalForWorker.emit(async_process)
 		
 	def onIncommingDelete(self,remove_row):
-		self.takeItem(remove_row) #TODO move to RESPONDED_UPDATE_EVENT
+		self.takeItem(remove_row) #POSSIBLE RACE CONDITION
 		
-class FriendListWidget(QListWidget, ListWidgetStyleMixin):
+class FriendListWidget(QListWidget, ListWidgetCommonsMixin):
 	def __init__(self, parent = None):
 		super(FriendListWidget, self).__init__(parent)
 		self.parent = parent

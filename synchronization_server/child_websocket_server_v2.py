@@ -52,21 +52,14 @@ def incommingGreenlet(wsock, timeout, OUTGOING_QUEUE): #these seem to run in ano
 		response = {"echo":delivered["echo"]}
 		
 		if question == "Star?":
-		
-			mode = data["mode"]
-			clip = data["clip"]
 						
-			if mode=="add":
-				#success = bool(clips.find_one_and_update({"_id":data["_id"]},{"bookmarked":True}) )
-				clip["starred"]=True
-				clip_id = clips.insert_one(clip).inserted_id
-				action = "added"
-			elif mode=="delete":
-				action="deleted"
-				
+			#success = bool(clips.find_one_and_update({"_id":data["_id"]},{"bookmarked":True}) )
+			data["starred"]=True
+			clip_id = clips.insert_one(data).inserted_id
+
 			response.update(dict(
 				answer="Star!",
-				data = dict(action=action, clip_id = clip_id)
+				data = clip_id
 			))
 							
 		if question == "Delete?":

@@ -71,7 +71,6 @@ class WebsocketWorkerMixinForMain(object):
 		#PRINT("thumb on new_clip.data", new_clip["clip_display"])
 		itm.setData(QtCore.Qt.UserRole, json.dumps(new_clip)) #json.dumps or else clip data (especially BSON's Binary)will be truncated by setData 
 		
-		#self.panel_stacked_widget.main_list_widget.addItem(itm) #or self.panel_stacked_widget.main_list_widget.addItem("some text") (different signature)
 		if new_clip.get("starred")==True:
 			list_widget = self.panel_stacked_widget.star_list_widget
 		else:
@@ -97,8 +96,8 @@ class WebsocketWorker(QtCore.QThread):
 	#This is the signal that will be emitted during the processing.
 	#By including int as an argument, it lets the signal know to expect
 	#an integer argument when emitting.
-	incommingSignalForMain = QtCore.Signal(dict)
-	newClipSignalForMain = QtCore.Signal(dict)
+	incommingClipsSignalForMain = QtCore.Signal(dict)
+	setClipSignalForMain = QtCore.Signal(dict)
 	statusSignalForMain = QtCore.Signal(tuple)
 	deleteClipSignalForMain = QtCore.Signal(int)
 	StarClipSignalForMain = QtCore.Signal(dict)
@@ -236,12 +235,14 @@ class WebsocketWorker(QtCore.QThread):
 			for each in data:
 			
 				self.downloadContainerIfNotExist(each) #TODO MOVE THIS TO AFTER ONDOUBLE CLICK TO SAVE BANDWIDTH #MUST download container first, as it may not exist locally if new clip is from another device
-				self.incommingSignalForMain.emit(each)
+				self.incommingClipsSignalForMain.emit(each)
 				
-			#PRINT("new_clip", each)
-			if each["session_id"] != self.session_id and not each.get("starred"): #do not allow setting from the same pc
-				self.newClipSignalForMain.emit(each) #this will set the newest clip only, thanks to self.main.new_clip!!!
-				#container_names will NOT be reused as newClipSignalForMain will cause a new outgoing signal when the hashes change. This will result in unecessary uploads. The only way to resolve this is to make a hashtable
+			lastest = each
+			not_this_device = lastest["session_id"] != self.session_id
+			from_my_devices = not lastest.get("starred")
+			if from_my_devices and not_this_device: #do not allow setting from the same pc
+				self.setClipSignalForMain.emit(lastest) #this will set the newest clip only, thanks to self.main.new_clip!!!
+				#container_names will NOT be reused as setClipSignalForMain will cause a new outgoing signal when the hashes change. This will result in unecessary uploads. The only way to resolve this is to make a hashtable
 				
 			self.statusSignalForMain.emit(("clip copied","good"))
 

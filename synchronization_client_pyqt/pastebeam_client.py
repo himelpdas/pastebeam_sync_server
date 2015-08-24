@@ -213,8 +213,8 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 		self.setupClip()
 		
 		self.ws_worker = WebsocketWorker(self)
-		self.ws_worker.incommingSignalForMain.connect(self.onIncommingSlot)
-		self.ws_worker.newClipSignalForMain.connect(self.onSetNewClipSlot)
+		self.ws_worker.incommingClipsSignalForMain.connect(self.onIncommingSlot)
+		self.ws_worker.setClipSignalForMain.connect(self.onSetNewClipSlot)
 		self.ws_worker.statusSignalForMain.connect(self.onSetStatusSlot)
 		self.ws_worker.deleteClipSignalForMain.connect(self.panel_stacked_widget.main_list_widget.onIncommingDelete)
 		self.ws_worker.clearListSignalForMain.connect(self.panel_stacked_widget.main_list_widget.clear)
