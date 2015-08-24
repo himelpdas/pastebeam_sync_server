@@ -124,52 +124,56 @@ class StackedWidgetFader(QStackedWidget):
 	def setFadeDuration(self, duration):
 		self.duration = duration
 		
-class ListWidgetCommonsMixin(object):
+class CommonListWidget(QListWidget):
+	def __init__(self, parent = None):
+		super(CommonListWidget, self).__init__(parent)
+		self.parent = parent
+		self.main = parent.main
+		self.doStyling()
+		#delete action
+		self.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
+		self.doDeleteAction()
+		self.doUncommon()
 
 	def doStyling(self, status="Double-click a clip to copy, or right-click for more options."):
 		self.setIconSize(self.parent.icon_size) #http://www.qtcentre.org/threads/8733-Size-of-an-Icon #http://nullege.com/codes/search/PySide.QtGui.QListWidget.setIconSize
 		self.setAlternatingRowColors(True) #http://stackoverflow.com/questions/23213929/qt-qlistwidget-item-with-alternating-colors
 		self.setStatusTip(status)
-
-
-class StarListWidget(QListWidget, ListWidgetCommonsMixin):
-	def __init__(self, parent = None):
-		super(StarListWidget, self).__init__(parent)
-		self.parent = parent
-		self.doStyling()
-		
-class MainListWidget(QListWidget, ListWidgetCommonsMixin):
-	def __init__(self, parent = None):
-		super(MainListWidget, self).__init__(parent)
-		self.parent = parent
-		self.main = parent.main
-		
-		self.doStyling()
-		self.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
-		#delete action
+	
+	def doDeleteAction(self):
 		delete_action = QAction(QIcon("images/close.png"), '&Delete', self) #delete.setText("Delete")
 		delete_action.triggered.connect(self.onDeleteAction)
 		self.addAction(delete_action)
-		#star action
-		star_action = QAction(QIcon("images/star.png"), '&Star', self)
-		star_action.triggered.connect(self.onAddStarAction)
-		self.addAction(star_action)
 		
-	
-	def getClipDataByRow(self):
-		current_row = self.currentRow()
-		current_item = self.currentItem()
-		current_item = json.loads(current_item.data(QtCore.Qt.UserRole))
-		return current_row, current_item
-	
 	def onDeleteAction(self):
 		current_row, current_item = self.getClipDataByRow()
 		remove_id = current_item["_id"]
 		async_process = dict(
 			question = "Delete?",
-			data = {"remove_id":remove_id, "remove_row":current_row}
+			data = {"remove_id":remove_id, "remove_row":current_row, "list_widget_name":self.__class__.__name__}
 		)
 		self.main.outgoingSignalForWorker.emit(async_process)
+		
+	def getClipDataByRow(self):
+		current_row = self.currentRow()
+		current_item = self.currentItem()
+		current_item = json.loads(current_item.data(QtCore.Qt.UserRole))
+		return current_row, current_item
+
+
+class StarListWidget(CommonListWidget):
+	def doUncommon(self):
+		pass
+		
+class MainListWidget(CommonListWidget):
+	def doUncommon(self):
+		self.doStarAction()
+
+	def doStarAction(self):
+		#star action
+		star_action = QAction(QIcon("images/star.png"), '&Star', self)
+		star_action.triggered.connect(self.onAddStarAction)
+		self.addAction(star_action)
 		
 	def onAddStarAction(self):
 		current_row, current_item = self.getClipDataByRow()
@@ -180,14 +184,9 @@ class MainListWidget(QListWidget, ListWidgetCommonsMixin):
 		)
 		self.main.outgoingSignalForWorker.emit(async_process)
 		
-	def onIncommingDelete(self,remove_row):
-		self.takeItem(remove_row) #POSSIBLE RACE CONDITION
-		
-class FriendListWidget(QListWidget, ListWidgetCommonsMixin):
-	def __init__(self, parent = None):
-		super(FriendListWidget, self).__init__(parent)
-		self.parent = parent
-		self.doStyling()
+class FriendListWidget(CommonListWidget):
+	def doUncommon(self):
+		pass
 
 class PanelStackedWidget(StackedWidgetFader):
 	def __init__(self, icon_size, parent = None,):
@@ -222,6 +221,16 @@ class PanelStackedWidget(StackedWidgetFader):
 
 	def switchToFriendListWidget(self):
 		self.setCurrentIndex(2)
+		
+	def onIncommingDelete(self,location):
+		list_widget_name, remove_row = location
+		
+		if list_widget_name == "MainListWidget":
+			self.main_list_widget.takeItem(remove_row) #POSSIBLE RACE CONDITION
+		elif list_widget_name == "StarListWidget":
+			self.star_list_widget.takeItem(remove_row)
+		elif list_widget_name == "FriendListWidget":
+			self.friend_list_widget.takeItem(remove_row)
 		
 class MainStackedWidget(StackedWidgetFader):
 	#https://wiki.python.org/moin/PyQt/Fading%20Between%20Widgets

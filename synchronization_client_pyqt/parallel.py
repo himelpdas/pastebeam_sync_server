@@ -99,7 +99,7 @@ class WebsocketWorker(QtCore.QThread):
 	incommingClipsSignalForMain = QtCore.Signal(dict)
 	setClipSignalForMain = QtCore.Signal(dict)
 	statusSignalForMain = QtCore.Signal(tuple)
-	deleteClipSignalForMain = QtCore.Signal(int)
+	deleteClipSignalForMain = QtCore.Signal(list)
 	StarClipSignalForMain = QtCore.Signal(dict)
 	clearListSignalForMain = QtCore.Signal()
 	session_id = uuid.uuid4()
@@ -316,7 +316,7 @@ class WebsocketWorker(QtCore.QThread):
 			data_in = self.sendUntilAnswered(send)
 			
 			if data_in["success"] == True:
-				self.deleteClipSignalForMain.emit(data_in["remove_row"])
+				self.deleteClipSignalForMain.emit(data_in["location"])
 					
 		elif question=="Star?":
 		

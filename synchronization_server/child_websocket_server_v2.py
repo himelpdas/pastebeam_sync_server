@@ -66,7 +66,10 @@ def incommingGreenlet(wsock, timeout, OUTGOING_QUEUE): #these seem to run in ano
 			
 			remove_id = data["remove_id"]
 			remove_row = data["remove_row"]
-			
+			list_widget_name = data["list_widget_name"]
+					
+			location = list_widget_name, remove_row
+
 			result  = clips.delete_one({"_id":remove_id}).deleted_count
 			
 			print "ROW ID: %s, DELETED: %s"%(remove_id,result)
@@ -75,7 +78,7 @@ def incommingGreenlet(wsock, timeout, OUTGOING_QUEUE): #these seem to run in ano
 				answer="Delete!",
 				data = {
 					"success":bool(result),
-					"remove_row":remove_row
+					"location":location
 				}
 			))
 						
