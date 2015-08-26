@@ -236,6 +236,11 @@ class PanelStackedWidget(StackedWidgetFader):
 			self.star_list_widget.takeItem(remove_row)
 		elif list_widget_name == "FriendListWidget":
 			self.friend_list_widget.takeItem(remove_row)
+			
+	def clearAllLists(self):
+		for each in self.panels:
+			each.clear()
+		
 		
 class MainStackedWidget(StackedWidgetFader):
 	#https://wiki.python.org/moin/PyQt/Fading%20Between%20Widgets

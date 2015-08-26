@@ -227,7 +227,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 		self.ws_worker.setClipSignalForMain.connect(self.onSetNewClipSlot)
 		self.ws_worker.statusSignalForMain.connect(self.onSetStatusSlot)
 		self.ws_worker.deleteClipSignalForMain.connect(self.panel_stacked_widget.onIncommingDelete)
-		self.ws_worker.clearListSignalForMain.connect(self.panel_stacked_widget.main_list_widget.clear)
+		self.ws_worker.clearListSignalForMain.connect(self.panel_stacked_widget.clearAllLists)
 		#self.ws_worker.starClipSignalForMain.connect(self.panel_star_widget.onStarClipSlot) #connect his with my
 		self.ws_worker.start()
 			
@@ -545,15 +545,10 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 			return
 			
 		del selected_clip['_id'] #this is an id from an old clip from server. must remove or else key error will occur on server when trying to insert new clip 
-		#if os.name=="nt" and selected_clip["clip_type"] == "files":
-		#	selected_clip["file_names"] = map(lambda each_name: each_name.encode(sys.getfilesystemencoding()), selected_clip["file_names"]) #undo ms filename encoding back to ascii #http://stackoverflow.com/questions/10180765/open-file-with-a-unicode-filename
-		#	selected_clip["clip_display"] = map(lambda each_name: each_name.encode(sys.getfilesystemencoding()), selected_clip["clip_display"])
-		#self.outgoingSignalForWorker.emit(selected_clip)
+
 		self.onSetNewClipSlot(selected_clip)
 		
 		self.previous_hash = hash #or else onClipChangeSlot will react and a duplicate new list item will occur.
-		#PRINT("thumb on item.data", selected_clip["clip_display"])
-		#self.setClip()
 		
 	@staticmethod
 	def truncateTextLines(txt, max_lines=15):

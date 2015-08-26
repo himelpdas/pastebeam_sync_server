@@ -241,7 +241,6 @@ class WebsocketWorker(QtCore.QThread):
 				
 			lastest = each
 			
-			
 			not_this_device = lastest["session_id"] != self.session_id
 			is_star = lastest.get("starred")
 
