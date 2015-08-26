@@ -132,8 +132,10 @@ class CommonListWidget(QListWidget):
 		self.doStyling()
 		#delete action
 		self.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
-		self.doDeleteAction()
-		self.doUncommon()
+		
+		self.doUncommon() #do uncommon here
+		
+		self.doDeleteAction() #Put delete last
 
 	def doStyling(self, status="Double-click a clip to copy, or right-click for more options."):
 		self.setIconSize(self.parent.icon_size) #http://www.qtcentre.org/threads/8733-Size-of-an-Icon #http://nullege.com/codes/search/PySide.QtGui.QListWidget.setIconSize
@@ -141,8 +143,11 @@ class CommonListWidget(QListWidget):
 		self.setStatusTip(status)
 	
 	def doDeleteAction(self):
-		delete_action = QAction(QIcon("images/close.png"), '&Delete', self) #delete.setText("Delete")
+		separator = QAction(self)
+		separator.setSeparator(True) #http://www.qtcentre.org/threads/21838-Separator-in-context-menu
+		delete_action = QAction(QIcon("images/trash.png"), '&Delete', self) #delete.setText("Delete")
 		delete_action.triggered.connect(self.onDeleteAction)
+		self.addAction(separator)
 		self.addAction(delete_action)
 		
 	def onDeleteAction(self):
