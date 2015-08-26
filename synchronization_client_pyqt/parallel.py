@@ -197,7 +197,6 @@ class WebsocketWorker(QtCore.QThread):
 				try: #TODO INVOKE CLIP READING ON STARTUP! AFTER CONNECTION
 					self.WSOCK = self.RECONNECT()
 					self.clearListSignalForMain.emit() #clear list on reconnect or else a new list will be sent on top of previous
-					#self.statusSignalForMain.emit(("connected", "good"))
 				except: #previous try will handle later
 					pass #block thread until there is a connection
 		return closure
@@ -241,13 +240,19 @@ class WebsocketWorker(QtCore.QThread):
 				self.incommingClipsSignalForMain.emit(each)
 				
 			lastest = each
+			
+			
 			not_this_device = lastest["session_id"] != self.session_id
-			from_my_devices = not lastest.get("starred")
-			if from_my_devices and not_this_device: #do not allow setting from the same pc
+			is_star = lastest.get("starred")
+
+			if not_this_device and not is_star: #do not allow setting from the same pc
 				self.setClipSignalForMain.emit(lastest) #this will set the newest clip only, thanks to self.main.new_clip!!!
 				#container_names will NOT be reused as setClipSignalForMain will cause a new outgoing signal when the hashes change. This will result in unecessary uploads. The only way to resolve this is to make a hashtable
 				
-			self.statusSignalForMain.emit(("clip copied","good"))
+			if is_star:
+				self.statusSignalForMain.emit(("starred", "good"))	
+			else:
+				self.statusSignalForMain.emit(("clip copied","good"))
 
 		#RESPONDED (Handle data in outgoing_greenlet since it was the one that is expecting a response in order to yield control)
 		elif answer in ["Upload!", "Update!", "Delete!", "Star!"]:
@@ -316,10 +321,15 @@ class WebsocketWorker(QtCore.QThread):
 				
 		elif question=="Delete?":
 			
+			self.statusSignalForMain.emit(("deleting", "trash"))
+			
 			data_in = self.sendUntilAnswered(send)
 			
 			if data_in["success"] == True:
 				self.deleteClipSignalForMain.emit(data_in["location"])
+				self.statusSignalForMain.emit(("deleted", "good"))
+			else:
+				self.statusSignalForMain.emit(("already deleted", "warn"))
 					
 		elif question=="Star?":
 		
@@ -328,8 +338,6 @@ class WebsocketWorker(QtCore.QThread):
 			
 			if data_in["success"] == False:
 				self.statusSignalForMain.emit((data_in["reason"], "warn"))
-			else:
-				self.statusSignalForMain.emit(("starred", "good"))
 			
 			#self.starClipSignalForMain.emit(data_in)
 				
