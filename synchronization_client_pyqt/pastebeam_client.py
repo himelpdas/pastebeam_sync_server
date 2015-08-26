@@ -131,8 +131,13 @@ class UIMixin(QtGui.QMainWindow, AccountMixin, LockoutMixin): #handles menubar a
 		accountAction.setStatusTip('Edit login info')
 		accountAction.triggered.connect(self.showAccountDialogs) #accountAction.triggered.connect(QtGui.qApp.quit) #does not trigger closeEvent()
 		
+		settingsAction = QtGui.QAction(QtGui.QIcon("images/settings.png"), "&Settings", self)
+		settingsAction.setStatusTip('Edit settings')
+		
 		editMenu = menubar.addMenu('&Edit')
 		editMenu.addAction(accountAction)	
+		editMenu.addSeparator()
+		editMenu.addAction(settingsAction)	
 		
 		self.menu_lockables = [lockoutAction, editMenu]
 		
