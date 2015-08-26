@@ -123,9 +123,12 @@ class WebsocketWorker(QtCore.QThread):
 		
 		data = async_process["data"]
 		question = async_process["question"]
-		
+				
 		if question == "Delete?":
 			pass #nothing to process
+			
+		if question == "Star?":
+			pass
 		
 		if question == "Update?": #do cpu intesive data modification before sending
 
@@ -148,7 +151,7 @@ class WebsocketWorker(QtCore.QThread):
 		data["timestamp_client"] = time.time()	
 		
 		data["session_id"] = self.session_id
-		
+				
 		send = dict(
 			question = question,
 			data=data
@@ -320,7 +323,13 @@ class WebsocketWorker(QtCore.QThread):
 					
 		elif question=="Star?":
 		
+			self.statusSignalForMain.emit(("starring", "star"))
 			data_in = self.sendUntilAnswered(send)
+			
+			if data_in["success"] == False:
+				self.statusSignalForMain.emit((data_in["reason"], "warn"))
+			else:
+				self.statusSignalForMain.emit(("starred", "good"))
 			
 			#self.starClipSignalForMain.emit(data_in)
 				

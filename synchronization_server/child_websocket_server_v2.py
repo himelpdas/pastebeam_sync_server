@@ -54,12 +54,24 @@ def incommingGreenlet(wsock, timeout, OUTGOING_QUEUE): #these seem to run in ano
 		if question == "Star?":
 						
 			#success = bool(clips.find_one_and_update({"_id":data["_id"]},{"bookmarked":True}) )
-			data["starred"]=True
-			clip_id = clips.insert_one(data).inserted_id
+			
+			exists = bool(clips.find_one({"hash":data["hash"],"starred":True}) ) #find_one returns None if none found
+			if not exists:
+				data["starred"]=True
+				data['timestamp_server'] = time.time()
+				reason = clips.insert_one(data).inserted_id
+				success = True
+			else:
+				reason = "already starred"
+				success = False
 
 			response.update(dict(
 				answer="Star!",
-				data = clip_id
+				data = {
+					"reason" : reason,
+					"success" : success
+				}
+					
 			))
 							
 		if question == "Delete?":
