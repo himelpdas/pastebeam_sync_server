@@ -110,7 +110,7 @@ class WebsocketWorker(QtCore.QThread):
 		QtCore.QThread.__init__(self)
 				
 		self.main = main
-		self.TEMP_DIR = self.main.TEMP_DIR
+		self.CONTAINER_DIR = self.main.CONTAINER_DIR
 		self.main.outgoingSignalForWorker.connect(self.onOutgoingSlot) #we have to use slots as gevent cannot talk to separate threads that weren't monkey_patched (QThreads are not monkey_patched since they are not pure python)
 		
 		self.OUTGOING_QUEUE = deque() #must use alternative Queue for non standard library thread and greenlets
@@ -135,7 +135,7 @@ class WebsocketWorker(QtCore.QThread):
 			if not data.get("container_name"): ##CHECK HERE IF CONTAINER EXISTS IN OTHER ITEMS
 				file_names = data["file_names"]
 				self.statusSignalForMain.emit(("encrypting", "lock"))
-				with encompress.Encompress(password = "nigger", directory = self.TEMP_DIR, file_names_encrypt = file_names) as container_name: 					
+				with encompress.Encompress(password = "nigger", directory = self.CONTAINER_DIR, file_names_encrypt = file_names) as container_name: 					
 					
 					data["container_name"] = container_name
 					PRINT("encompress", container_name)
@@ -290,7 +290,7 @@ class WebsocketWorker(QtCore.QThread):
 		if question == "Update?":
 					
 			container_name = data_out["container_name"]
-			container_path = os.path.join(self.TEMP_DIR, container_name)
+			container_path = os.path.join(self.CONTAINER_DIR, container_name)
 							
 			self.statusSignalForMain.emit(("uploading", "upload"))
 			#first check if upload needed before updating
@@ -336,7 +336,7 @@ class WebsocketWorker(QtCore.QThread):
 			
 	def downloadContainerIfNotExist(self, data):
 		container_name = data["container_name"]
-		container_path = os.path.join(self.TEMP_DIR, container_name)
+		container_path = os.path.join(self.CONTAINER_DIR, container_name)
 		print container_path
 		
 		if os.path.isfile(container_path):
