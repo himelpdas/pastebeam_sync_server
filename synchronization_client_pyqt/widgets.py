@@ -162,7 +162,7 @@ class CommonListWidget(QListWidget):
 	def getClipDataByRow(self):
 		current_row = self.currentRow()
 		current_item = self.currentItem()
-		current_item = json.loads(current_item.data(QtCore.Qt.UserRole))
+		current_item = json.loads(current_item.data(QtCore.Qt.UserRole)) #http://stackoverflow.com/questions/25452125/is-it-possible-to-add-a-hidden-value-to-every-item-of-qlistwidget
 		return current_row, current_item
 		
 	def onItemDoubleClickSlot(self, clicked):
@@ -172,7 +172,7 @@ class CommonListWidget(QListWidget):
 		current_item = self.item(0)
 		#current_clip = json.loads(current_item.data(QtCore.Qt.UserRole))
 		
-		selected_clip = json.loads(selected_item.data(QtCore.Qt.UserRole)) #http://stackoverflow.com/questions/25452125/is-it-possible-to-add-a-hidden-value-to-every-item-of-qlistwidget
+		selected_clip = json.loads(selected_item.data(QtCore.Qt.UserRole)) 
 		
 		hash, prev = selected_clip["hash"], self.main.previous_hash
 		
