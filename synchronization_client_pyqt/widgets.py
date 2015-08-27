@@ -164,6 +164,30 @@ class CommonListWidget(QListWidget):
 		current_item = self.currentItem()
 		current_item = json.loads(current_item.data(QtCore.Qt.UserRole))
 		return current_row, current_item
+		
+	def onItemDoubleClickSlot(self, clicked):
+		selected_row =  clicked.row()
+		selected_item = self.item(selected_row)
+		
+		current_item = self.item(0)
+		#current_clip = json.loads(current_item.data(QtCore.Qt.UserRole))
+		
+		selected_clip = json.loads(selected_item.data(QtCore.Qt.UserRole)) #http://stackoverflow.com/questions/25452125/is-it-possible-to-add-a-hidden-value-to-every-item-of-qlistwidget
+		
+		hash, prev = selected_clip["hash"], self.main.previous_hash
+		
+		if hash == prev:
+			return
+			
+		#convert back to device clip
+		del selected_clip["_id"] #this is an id from an old clip from server. must remove or else key error will occur on server when trying to insert new clip 
+		selected_clip.pop("starred", None) 
+		selected_clip.pop("friend", None) 
+		
+		self.main.onSetNewClipSlot(selected_clip)
+		
+		#self.previous_hash = hash #or else onClipChangeSlot will react and a duplicate new list item will occur.
+	
 
 
 class StarListWidget(CommonListWidget):

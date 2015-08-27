@@ -36,7 +36,8 @@ class UIMixin(QtGui.QMainWindow, AccountMixin, LockoutMixin): #handles menubar a
 		#self.doLockoutWidget()
 				
 		self.panel_stacked_widget = PanelStackedWidget(QtCore.QSize(PixmapThumbnail.Px,PixmapThumbnail.Px), self)
-		self.panel_stacked_widget.main_list_widget.doubleClicked.connect(self.onItemDoubleClickSlot) #textChanged() is emited whenever the contents of the widget changes (even if its from the app itself) whereas textEdited() is emited only when the user changes the text using mouse and keyboard (so it is not emitted when you call QLineEdit::setText()).
+		for each in self.panel_stacked_widget.panels:
+			each.doubleClicked.connect(each.onItemDoubleClickSlot) #textChanged() is emited whenever the contents of the widget changes (even if its from the app itself) whereas textEdited() is emited only when the user changes the text using mouse and keyboard (so it is not emitted when you call QLineEdit::setText()).
 		
 		self.search = QLineEdit()
 		self.search.textEdited.connect(self.onSearchEditedSlot)
@@ -528,28 +529,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 
 				
 			self.clipboard.setMimeData(mimeData)
-			
-		
-	def onItemDoubleClickSlot(self, clicked):
-		selected_row =  clicked.row()
-		selected_item = self.panel_stacked_widget.main_list_widget.item(selected_row)
-		
-		current_item = self.panel_stacked_widget.main_list_widget.item(0)
-		#current_clip = json.loads(current_item.data(QtCore.Qt.UserRole))
-		
-		selected_clip = json.loads(selected_item.data(QtCore.Qt.UserRole)) #http://stackoverflow.com/questions/25452125/is-it-possible-to-add-a-hidden-value-to-every-item-of-qlistwidget
-		
-		hash, prev = selected_clip["hash"], self.previous_hash
-		
-		if hash == prev:
-			return
-			
-		del selected_clip['_id'] #this is an id from an old clip from server. must remove or else key error will occur on server when trying to insert new clip 
-
-		self.onSetNewClipSlot(selected_clip)
-		
-		self.previous_hash = hash #or else onClipChangeSlot will react and a duplicate new list item will occur.
-		
+				
 	@staticmethod
 	def truncateTextLines(txt, max_lines=15):
 		line_count = txt.count("\n")

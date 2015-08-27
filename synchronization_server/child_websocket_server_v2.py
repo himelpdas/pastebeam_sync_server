@@ -115,7 +115,7 @@ def incommingGreenlet(wsock, timeout, OUTGOING_QUEUE): #these seem to run in ano
 				
 			data['timestamp_server'] = time.time()
 			
-			prev = (list(clips.find({"starred":{"$ne":True}}).sort('_id',pymongo.DESCENDING).limit( 1 ) ) or [{}]).pop() #cannot bool iterators, so must convert to list, and then pop the row
+			prev = (list(clips.find({"starred":{"$ne":True}}).sort('_id',pymongo.DESCENDING).limit( 1 ) ) or [{}]).pop() #do not consider starred clips or friends #cannot bool iterators, so must convert to list, and then pop the row
 			
 			if prev.get("hash") != data.get("hash"):
 			
