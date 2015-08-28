@@ -249,7 +249,7 @@ def handle_upload():
 
 	upload    = request.files.get('upload')
 	
-	name, ext = os.path.splitext(upload.filename)
+	#name, ext = os.path.splitext(upload.filename)
 	"""
 	if ext not in (".txt",'.bmp','.png','.jpg','.jpeg', '.py'):
 		result = 'File extension not allowed.'
