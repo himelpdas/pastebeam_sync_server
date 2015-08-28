@@ -77,6 +77,7 @@ class WebsocketWorkerMixinForMain(object):
 			list_widget = self.panel_stacked_widget.main_list_widget
 		
 		list_widget.insertItem(0,itm) #add to top #http://www.qtcentre.org/threads/44672-How-to-add-a-item-to-the-top-in-QListWidget
+		list_widget.takeItem(5)
 		
 		space = "&nbsp;"*8
 		timestamp_human = u'{dt:%I}:{dt:%M}:{dt:%S}{dt:%p}{space}<span style="color:grey">{dt.month}-{dt.day}-{dt.year}</span>'.format(space = space, dt=datetime.datetime.fromtimestamp(new_clip["timestamp_server"] ) ) #http://stackoverflow.com/questions/904928/python-strftime-date-without-leading-0

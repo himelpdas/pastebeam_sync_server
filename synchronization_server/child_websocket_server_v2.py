@@ -61,6 +61,12 @@ def incommingGreenlet(wsock, timeout, OUTGOING_QUEUE): #these seem to run in ano
 				data['timestamp_server'] = time.time()
 				reason = clips.insert_one(data).inserted_id
 				success = True
+
+				#delete old crap
+				tmp_free_user_limit = 5
+				old = clips.find({"starred":True}).sort('_id',pymongo.DESCENDING)[tmp_free_user_limit:]
+				clips.delete_many({"_id":{'$in': map(lambda each: each["_id"], old) }  }   )
+				
 			else:
 				reason = "already starred"
 				success = False
@@ -121,6 +127,11 @@ def incommingGreenlet(wsock, timeout, OUTGOING_QUEUE): #these seem to run in ano
 			
 				new_clip_id = clips.insert_one(data).inserted_id
 				
+				#delete old crap
+				tmp_free_user_limit = 5
+				old = clips.find({"starred":{"$ne":True}}).sort('_id',pymongo.DESCENDING)[tmp_free_user_limit:]
+				clips.delete_many({"_id":{'$in': map(lambda each: each["_id"], old) }  }   )
+				
 			else:
 				
 				new_clip_id = False #DO NOT SEND NONE as this NONE indicates bad connection to client (remember AsyncResult.wait() ) and will result in infinite loop
@@ -169,7 +180,7 @@ def outgoingGreenlet(wsock, timeout, OUTGOING_QUEUE):
 			
 			except UnboundLocalError:
 				server_previous_row = {}
-				server_latest_clips = [each for each in clips.find().sort('_id',pymongo.DESCENDING).limit( 5 )] #returns an iterator but we want a list	
+				server_latest_clips = [each for each in clips.find().sort('_id',pymongo.DESCENDING)]#.limit( 5 )] #returns an iterator but we want a list	
 			
 		else:
 			print send
