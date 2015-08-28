@@ -256,7 +256,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 			
 			PRINT("on clip change pmap", (hash,prev))
 			if hash == prev:
-				self.onSetStatusSlot(("image copied","good"))
+				#self.onSetStatusSlot(("image copied","good"))
 				return
 				
 			#secure_hash = hashlib.new("ripemd160", hash + "ACCOUNT_SALT").hexdigest() #use pdkbf2 #to prevent rainbow table attacks of known files and their hashes, will also cause decryption to fail if file name is changed
