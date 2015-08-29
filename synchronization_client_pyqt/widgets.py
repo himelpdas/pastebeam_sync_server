@@ -133,14 +133,21 @@ class CommonListWidget(QListWidget):
 		#delete action
 		self.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
 		
+		self.doCopyAction()
+		
 		self.doUncommon() #do uncommon here
 		
 		self.doDeleteAction() #Put delete last
 
-	def doStyling(self, status="Double-click a clip to copy, or right-click for more options."):
+	def doStyling(self, status="Double-click an item to copy it, or right-click it for more options."):
 		self.setIconSize(self.parent.icon_size) #http://www.qtcentre.org/threads/8733-Size-of-an-Icon #http://nullege.com/codes/search/PySide.QtGui.QListWidget.setIconSize
 		self.setAlternatingRowColors(True) #http://stackoverflow.com/questions/23213929/qt-qlistwidget-item-with-alternating-colors
 		self.setStatusTip(status)
+	
+	def doCopyAction(self):
+		copy_action = QAction(QIcon("images/copy.png"), "&Copy", self)
+		copy_action.triggered.connect(self.onCopyActionSlot)
+		self.addAction(copy_action)
 	
 	def doDeleteAction(self):
 		separator = QAction(self)
@@ -165,27 +172,28 @@ class CommonListWidget(QListWidget):
 		current_item = json.loads(current_item.data(QtCore.Qt.UserRole)) #http://stackoverflow.com/questions/25452125/is-it-possible-to-add-a-hidden-value-to-every-item-of-qlistwidget
 		return current_row, current_item
 		
-	def onItemDoubleClickSlot(self, clicked):
-		selected_row =  clicked.row()
-		selected_item = self.item(selected_row)
+	def onCopyActionSlot(self):
+		self.onItemDoubleClickSlot(self.currentItem())
 		
-		current_item = self.item(0)
+	def onItemDoubleClickSlot(self, double_clicked_item):
+		
+		#current_item = self.item(0)
 		#current_clip = json.loads(current_item.data(QtCore.Qt.UserRole))
 		
-		selected_clip = json.loads(selected_item.data(QtCore.Qt.UserRole)) 
+		double_clicked_clip = json.loads(double_clicked_item.data(QtCore.Qt.UserRole)) 
 		
-		hash, prev = selected_clip["hash"], self.main.previous_hash
+		hash, prev = double_clicked_clip["hash"], self.main.previous_hash
 		
 		if hash == prev:
 			self.main.onSetStatusSlot(("already copied","warn"))
 			return
 			
 		#convert back to device clip
-		del selected_clip["_id"] #this is an id from an old clip from server. must remove or else key error will occur on server when trying to insert new clip 
-		selected_clip.pop("starred", None) 
-		selected_clip.pop("friend", None) 
+		del double_clicked_clip["_id"] #this is an id from an old clip from server. must remove or else key error will occur on server when trying to insert new clip 
+		double_clicked_clip.pop("starred", None) 
+		double_clicked_clip.pop("friend", None) 
 		
-		self.main.onSetNewClipSlot(selected_clip)
+		self.main.onSetNewClipSlot(double_clicked_clip)
 		
 		#self.previous_hash = hash #or else onClipChangeSlot will react and a duplicate new list item will occur.
 	

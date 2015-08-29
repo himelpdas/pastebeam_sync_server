@@ -37,11 +37,11 @@ class UIMixin(QtGui.QMainWindow, AccountMixin, LockoutMixin): #handles menubar a
 				
 		self.panel_stacked_widget = PanelStackedWidget(QtCore.QSize(PixmapThumbnail.Px,PixmapThumbnail.Px), self)
 		for each in self.panel_stacked_widget.panels:
-			each.doubleClicked.connect(each.onItemDoubleClickSlot) #textChanged() is emited whenever the contents of the widget changes (even if its from the app itself) whereas textEdited() is emited only when the user changes the text using mouse and keyboard (so it is not emitted when you call QLineEdit::setText()).
+			each.itemDoubleClicked.connect(each.onItemDoubleClickSlot) #textChanged() is emited whenever the contents of the widget changes (even if its from the app itself) whereas textEdited() is emited only when the user changes the text using mouse and keyboard (so it is not emitted when you call QLineEdit::setText()).
 		
 		self.search = QLineEdit()
 		self.search.textEdited.connect(self.onSearchEditedSlot)
-		search_tip = "Search through your clips (preview text only)."
+		search_tip = "Search through your items (preview text only)."
 		self.search.setStatusTip(search_tip)
 		
 		search_icon = QLabel() #http://www.iconarchive.com/show/super-mono-3d-icons-by-double-j-design/search-icon.html
