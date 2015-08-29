@@ -177,7 +177,7 @@ class CommonListWidget(QListWidget):
 		hash, prev = selected_clip["hash"], self.main.previous_hash
 		
 		if hash == prev:
-			self.main.onSetStatusSlot(("Already in your clipboard","warn"))
+			self.main.onSetStatusSlot(("already copied","warn"))
 			return
 			
 		#convert back to device clip
