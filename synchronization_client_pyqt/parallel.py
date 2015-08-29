@@ -81,7 +81,7 @@ class WebsocketWorkerMixinForMain(object):
 		
 		space = "&nbsp;"*8
 		timestamp_human = u'{dt:%I}:{dt:%M}:{dt:%S}{dt:%p}{space}<span style="color:grey">{dt.month}-{dt.day}-{dt.year}</span>'.format(space = space, dt=datetime.datetime.fromtimestamp(new_clip["timestamp_server"] ) ) #http://stackoverflow.com/questions/904928/python-strftime-date-without-leading-0
-		custom_label = QLabel(u"<html><b>{host_name}</b>{space}{timestamp}<pre>{text}</pre></html>".format(space = space, host_name = new_clip["host_name"], timestamp = timestamp_human, text=txt ) )
+		custom_label = QLabel(u"<b>{host_name}</b>{space}{timestamp}<pre>{text}</pre>".format(space = space, host_name = new_clip["host_name"], timestamp = timestamp_human, text=txt ) )
 		custom_label.setOpenExternalLinks(True) ##http://stackoverflow.com/questions/8427446/making-qlabel-behave-like-a-hyperlink
 		
 		#resize the listwidget item to fit the html Qlabel, using Qlabel's sizehint

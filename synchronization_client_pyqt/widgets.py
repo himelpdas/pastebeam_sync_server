@@ -18,7 +18,7 @@ class AccountMixin(object):
 		login = self.getLogin()
 		
 		email, e = QInputDialog.getText(self, 'Account', 
-			'<html>Enter your <b>email</b>:</html>', 
+			'Enter your <b>email</b>:', 
 			text = login.get("email"),
 		)
 		
@@ -26,7 +26,7 @@ class AccountMixin(object):
 			return
 		
 		password, p = QInputDialog.getText(self, 'Account', 
-			'<html>Enter your <b>password</b>:</html>', 
+			'Enter your <b>password</b>:', 
 			text = login.get("password"),
 			echo=QLineEdit.Password
 		)
