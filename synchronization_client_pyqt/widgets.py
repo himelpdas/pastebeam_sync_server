@@ -148,6 +148,9 @@ class CommonListWidget(QListWidget):
 		copy_action = QAction(QIcon("images/copy.png"), "&Copy", self)
 		copy_action.triggered.connect(self.onCopyActionSlot)
 		self.addAction(copy_action)
+		separator = QAction(self)
+		separator.setSeparator(True)
+		self.addAction(separator)
 	
 	def doDeleteAction(self):
 		separator = QAction(self)
@@ -196,8 +199,6 @@ class CommonListWidget(QListWidget):
 		self.main.onSetNewClipSlot(double_clicked_clip)
 		
 		#self.previous_hash = hash #or else onClipChangeSlot will react and a duplicate new list item will occur.
-	
-
 
 class StarListWidget(CommonListWidget):
 	def doUncommon(self):
@@ -205,7 +206,16 @@ class StarListWidget(CommonListWidget):
 		
 class MainListWidget(CommonListWidget):
 	def doUncommon(self):
+		self.doShareAction()
 		self.doStarAction()
+		
+	def doShareAction(self):
+		share_action = QAction(QIcon("images/share.png"), "S&hare", self)
+		share_menu = QMenu()
+		sample_friend = QAction("Himel", self)
+		share_menu.addAction(sample_friend)
+		share_action.setMenu(share_menu)
+		self.addAction(share_action)
 
 	def doStarAction(self):
 		#star action
