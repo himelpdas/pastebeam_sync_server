@@ -134,9 +134,15 @@ class UIMixin(QtGui.QMainWindow, AccountMixin, LockoutMixin): #handles menubar a
 		
 		settingsAction = QtGui.QAction(QtGui.QIcon("images/settings.png"), "&Settings", self)
 		settingsAction.setStatusTip('Edit settings')
+		settingsAction.triggered.connect(lambda:SettingsDialog.show(self))
+		
+		contactsAction = QAction(QIcon("images/contacts.png"), "&Contacts", self)
+		contactsAction.setStatusTip("Edit your contacts")
+		#contactsAction.triggered.connect(AddressBook.show)
 		
 		editMenu = menubar.addMenu('&Edit')
 		editMenu.addAction(accountAction)	
+		editMenu.addAction(contactsAction)	
 		editMenu.addSeparator()
 		editMenu.addAction(settingsAction)	
 		

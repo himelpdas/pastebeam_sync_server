@@ -82,6 +82,163 @@ class LockoutMixin(object):
 			each.setEnabled(False)
 		self.stacked_widget.switchToLockoutWidget()
 		
+class SettingsDialog(QDialog): #http://www.qtcentre.org/threads/37058-modal-QWidget
+
+	@classmethod
+	def show(cls, parent):
+		cls(parent)
+	
+	def __init__(self, parent = None, f = 0):
+		super(self.__class__, self).__init__()
+		self.main = parent
+		self.current_login = self.getLogin()
+		self.setWindowTitle("Settings")
+		self.doAccountWidget()
+		self.doControlsWidget()
+		self.doTabWidget()
+		self.doOkCancelWidget()
+		self.doSettingsLayout()
+		self.setLayout(self.settings_layout)
+		self.exec_()
+		
+	def doAccountWidget(self):		
+		email_hbox = QHBoxLayout()
+		email_label = QLabel("Email:")
+		self.email_line = QLineEdit(self.current_login.get("email"))
+		email_hbox.addWidget(email_label)
+		email_hbox.addWidget(self.email_line)
+		email_widget = QWidget()
+		email_widget.setLayout(email_hbox)
+		
+		password_hbox = QHBoxLayout()
+		password_label = QLabel("Password:")
+		self.password_line = QLineEdit(self.current_login.get("password"))
+		self.password_line.setEchoMode(QLineEdit.Password)
+		password_hbox.addWidget(password_label)
+		password_hbox.addWidget(self.password_line)
+		password_widget = QWidget()
+		password_widget.setLayout(password_hbox)
+		
+		register_link = QLabel("<a href='#'>Register</a>")
+		seperator = QLabel("|")
+		forgot_link = QLabel("<a href='#'>Forgot password?</a>")
+		links_hbox = QHBoxLayout()
+		links_hbox.addWidget(register_link)
+		links_hbox.addWidget(seperator)
+		links_hbox.addWidget(forgot_link)
+		links_hbox.setAlignment(QtCore.Qt.AlignRight)
+		links_widget = QWidget()
+		links_widget.setLayout(links_hbox)
+		
+		account_vbox = QVBoxLayout()
+		account_vbox.addWidget(email_widget)
+		account_vbox.addWidget(password_widget)
+		account_vbox.addWidget(links_widget)
+		
+		self.account_widget = QWidget()		
+		self.account_widget.setLayout(account_vbox)
+		
+	def doControlsWidget(self):
+		line0_label = QLabel("Device Name:")
+		line0_line = QLineEdit()
+		line0_hbox = QHBoxLayout()
+		line0_hbox.addWidget(line0_label)
+		line0_hbox.addWidget(line0_line)
+		line0_widget = QWidget()
+		line0_widget.setLayout(line0_hbox)
+		
+		sync_label = QLabel("Sync system clipboard with all your devices")
+		sync_check = QCheckBox()
+		sync_hbox  = QHBoxLayout()
+		sync_hbox.addWidget(sync_label)
+		sync_hbox.addWidget(sync_check)
+		sync_widget = QWidget()
+		sync_widget.setLayout(sync_hbox)
+	
+		checkoff1_label = QLabel("Run PasteBeam on start-up")
+		checkoff1_check = QCheckBox()
+		checkoff1_hbox = QHBoxLayout()
+		checkoff1_hbox.addWidget(checkoff1_label)
+		checkoff1_hbox.addWidget(checkoff1_check)
+		checkoff1_widget = QWidget()
+		checkoff1_widget.setLayout(checkoff1_hbox)
+		
+		checkoff2_label = QLabel("Check for updates")
+		checkoff2_check = QCheckBox()
+		checkoff2_hbox = QHBoxLayout()
+		checkoff2_hbox.addWidget(checkoff2_label)
+		checkoff2_hbox.addWidget(checkoff2_check)
+		checkoff2_widget = QWidget()
+		checkoff2_widget.setLayout(checkoff2_hbox)
+		
+		controls1_hbox = QHBoxLayout()
+		controls1_hbox.addWidget(checkoff1_widget)
+		controls1_hbox.addWidget(checkoff2_widget)
+		controls1_widget = QWidget()
+		controls1_widget.setLayout(controls1_hbox)
+		
+		master_vbox = QVBoxLayout()
+		master_vbox.addWidget(line0_widget)
+		master_vbox.addWidget(sync_widget)
+		master_vbox.addWidget(controls1_widget)
+		
+		self.controls_widget = QWidget()
+		self.controls_widget.setLayout(master_vbox)
+		
+	def doTabWidget(self):
+		self.tab_widget = QTabWidget()
+		self.tab_widget.addTab(self.account_widget, QIcon("images/account"), "Account")
+		self.tab_widget.addTab(self.controls_widget, QIcon("images/controls"), "Controls")
+		
+	def doOkCancelWidget(self):
+		ok_button = QPushButton("Ok")
+		ok_button.clicked.connect(self.onOkButtonClickedSlot)
+		cancel_button = QPushButton("Cancel")
+		cancel_button.clicked.connect(self.onCancelButtonClickedSlot)
+		okcancel_vbox = QVBoxLayout()
+		okcancel_vbox.addWidget(ok_button)
+		okcancel_vbox.addWidget(cancel_button)
+		self.okcancel_widget = QWidget()
+		self.okcancel_widget.setLayout(okcancel_vbox)
+	
+	def doSettingsLayout(self):
+		self.settings_layout = QHBoxLayout()
+		self.settings_layout.addWidget(self.tab_widget)
+		self.settings_layout.addWidget(self.okcancel_widget)
+		
+	def onOkButtonClickedSlot(self):
+		self.setAccountInfoToKeyring()
+		self.done(1)
+			
+	def onCancelButtonClickedSlot(self):
+		
+		self.done(0)
+		
+	@staticmethod
+	def getLogin():
+		ring = keyring.get_password("pastebeam","account")
+		login = json.loads(ring) if ring else {} #todo store email locally, and access only password!
+		return login
+
+	def setAccountInfoToKeyring(self):
+		
+		login = self.getLogin()
+		
+		typed_email = self.email_line.text()
+		typed_password = self.password_line.text()
+		
+		if not typed_email and typed_password: #TODO STRONGER VALIDATION HERE
+			return
+		
+		keyring.set_password("pastebeam","account",json.dumps({
+			"email":typed_email, 
+			"password":typed_password,
+		}))
+		
+		if hasattr(self.main, "ws_worker") and hasattr(self.main.ws_worker, "WSOCK"): #maybe not initialized yet
+			self.main.ws_worker.WSOCK.close()
+			self.main.ws_worker.KEEP_RUNNING = 1
+				
 class FaderWidget(QWidget):
 
 	def __init__(self, old_widget, new_widget, duration = 333):
