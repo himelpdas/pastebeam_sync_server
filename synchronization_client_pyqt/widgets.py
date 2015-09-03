@@ -4,7 +4,7 @@ import bson.json_util as json
 
 from PySide.QtGui import *
 from PySide import QtCore
-
+"""
 class AccountMixin(object):
 
 	@staticmethod
@@ -42,6 +42,7 @@ class AccountMixin(object):
 		if hasattr(self, "ws_worker") and hasattr(self.ws_worker, "WSOCK"): #maybe not initialized yet
 			self.ws_worker.WSOCK.close()
 			self.ws_worker.KEEP_RUNNING = 1
+"""
 			
 class LockoutMixin(object):
 
@@ -82,7 +83,28 @@ class LockoutMixin(object):
 			each.setEnabled(False)
 		self.stacked_widget.switchToLockoutWidget()
 		
-class SettingsDialog(QDialog): #http://www.qtcentre.org/threads/37058-modal-QWidget
+class OkCancelWidgetMixin(object):
+	def doOkCancelWidget(self):
+		ok_button = QPushButton("Ok")
+		ok_button.clicked.connect(self.onOkButtonClickedSlot)
+		cancel_button = QPushButton("Cancel")
+		cancel_button.clicked.connect(self.onCancelButtonClickedSlot)
+		okcancel_hbox = QHBoxLayout()
+		okcancel_hbox.addStretch(1)
+		okcancel_hbox.addWidget(ok_button)
+		okcancel_hbox.addWidget(cancel_button)
+		self.okcancel_widget = QWidget()
+		self.okcancel_widget.setLayout(okcancel_hbox)
+		
+	def onOkButtonClickedSlot(self):
+		self.done(1)
+			
+	def onCancelButtonClickedSlot(self):
+		
+		self.done(0)
+
+		
+class SettingsDialog(QDialog, OkCancelWidgetMixin): #http://www.qtcentre.org/threads/37058-modal-QWidget
 
 	@classmethod
 	def show(cls, parent):
@@ -91,10 +113,11 @@ class SettingsDialog(QDialog): #http://www.qtcentre.org/threads/37058-modal-QWid
 	def __init__(self, parent = None, f = 0):
 		super(self.__class__, self).__init__()
 		self.main = parent
-		self.current_login = self.getLogin()
+		self.current_login = self.main.getLogin()
 		self.setWindowTitle("Settings")
 		self.doAccountWidget()
-		self.doControlsWidget()
+		self.doSystemWidget()
+		self.doStartupWidget()
 		self.doTabWidget()
 		self.doOkCancelWidget()
 		self.doSettingsLayout()
@@ -138,71 +161,63 @@ class SettingsDialog(QDialog): #http://www.qtcentre.org/threads/37058-modal-QWid
 		self.account_widget = QWidget()		
 		self.account_widget.setLayout(account_vbox)
 		
-	def doControlsWidget(self):
-		line0_label = QLabel("Device Name:")
-		line0_line = QLineEdit()
-		line0_hbox = QHBoxLayout()
-		line0_hbox.addWidget(line0_label)
-		line0_hbox.addWidget(line0_line)
-		line0_widget = QWidget()
-		line0_widget.setLayout(line0_hbox)
+	def doSystemWidget(self):
+		device_name_label = QLabel("Device Name:")
+		device_name_line = QLineEdit()
+		device_name_hbox = QHBoxLayout()
+		device_name_hbox.addWidget(device_name_label)
+		device_name_hbox.addWidget(device_name_line)
+		device_name_widget = QWidget()
+		device_name_widget.setLayout(device_name_hbox)
 		
-		sync_label = QLabel("Sync system clipboard with all your devices")
+		sync_label = QLabel("Automatically check for updates")
 		sync_check = QCheckBox()
 		sync_hbox  = QHBoxLayout()
 		sync_hbox.addWidget(sync_label)
 		sync_hbox.addWidget(sync_check)
 		sync_widget = QWidget()
 		sync_widget.setLayout(sync_hbox)
-	
-		checkoff1_label = QLabel("Run PasteBeam on start-up")
-		checkoff1_check = QCheckBox()
-		checkoff1_hbox = QHBoxLayout()
-		checkoff1_hbox.addWidget(checkoff1_label)
-		checkoff1_hbox.addWidget(checkoff1_check)
-		checkoff1_widget = QWidget()
-		checkoff1_widget.setLayout(checkoff1_hbox)
-		
-		checkoff2_label = QLabel("Check for updates")
-		checkoff2_check = QCheckBox()
-		checkoff2_hbox = QHBoxLayout()
-		checkoff2_hbox.addWidget(checkoff2_label)
-		checkoff2_hbox.addWidget(checkoff2_check)
-		checkoff2_widget = QWidget()
-		checkoff2_widget.setLayout(checkoff2_hbox)
-		
-		controls1_hbox = QHBoxLayout()
-		controls1_hbox.addWidget(checkoff1_widget)
-		controls1_hbox.addWidget(checkoff2_widget)
-		controls1_widget = QWidget()
-		controls1_widget.setLayout(controls1_hbox)
 		
 		master_vbox = QVBoxLayout()
-		master_vbox.addWidget(line0_widget)
+		master_vbox.addWidget(device_name_widget)
 		master_vbox.addWidget(sync_widget)
-		master_vbox.addWidget(controls1_widget)
 		
-		self.controls_widget = QWidget()
-		self.controls_widget.setLayout(master_vbox)
+		self.system_widget = QWidget()
+		self.system_widget.setLayout(master_vbox)
+		
+	def doStartupWidget(self):
+		
+		run_label = QLabel("Run PasteBeam")
+		run_check = QCheckBox()
+		run_hbox = QHBoxLayout()
+		run_hbox.addWidget(run_label)
+		run_hbox.addWidget(run_check)
+		run_widget = QWidget()
+		run_widget.setLayout(run_hbox)
+		
+		updates_label = QLabel("Check for updates")
+		updates_check = QCheckBox()
+		updates_hbox = QHBoxLayout()
+		updates_hbox.addWidget(updates_label)
+		updates_hbox.addWidget(updates_check)
+		updates_widget = QWidget()
+		updates_widget.setLayout(updates_hbox)		
+		
+		self.startup_layout = QVBoxLayout()
+		self.startup_layout.addWidget(run_widget)
+		self.startup_layout.addWidget(updates_widget)
+		
+		self.startup_widget = QWidget()
+		self.startup_widget.setLayout(self.startup_layout)
 		
 	def doTabWidget(self):
 		self.tab_widget = QTabWidget()
 		self.tab_widget.addTab(self.account_widget, QIcon("images/account"), "Account")
-		self.tab_widget.addTab(self.controls_widget, QIcon("images/controls"), "Controls")
-		
-	def doOkCancelWidget(self):
-		ok_button = QPushButton("Ok")
-		ok_button.clicked.connect(self.onOkButtonClickedSlot)
-		cancel_button = QPushButton("Cancel")
-		cancel_button.clicked.connect(self.onCancelButtonClickedSlot)
-		okcancel_vbox = QVBoxLayout()
-		okcancel_vbox.addWidget(ok_button)
-		okcancel_vbox.addWidget(cancel_button)
-		self.okcancel_widget = QWidget()
-		self.okcancel_widget.setLayout(okcancel_vbox)
+		self.tab_widget.addTab(self.system_widget, QIcon("images/system"), "System")
+		self.tab_widget.addTab(self.startup_widget, QIcon("images/controls"), "Startup")
 	
 	def doSettingsLayout(self):
-		self.settings_layout = QHBoxLayout()
+		self.settings_layout = QVBoxLayout()
 		self.settings_layout.addWidget(self.tab_widget)
 		self.settings_layout.addWidget(self.okcancel_widget)
 		
@@ -213,16 +228,10 @@ class SettingsDialog(QDialog): #http://www.qtcentre.org/threads/37058-modal-QWid
 	def onCancelButtonClickedSlot(self):
 		
 		self.done(0)
-		
-	@staticmethod
-	def getLogin():
-		ring = keyring.get_password("pastebeam","account")
-		login = json.loads(ring) if ring else {} #todo store email locally, and access only password!
-		return login
 
 	def setAccountInfoToKeyring(self):
 		
-		login = self.getLogin()
+		login = self.main.getLogin()
 		
 		typed_email = self.email_line.text()
 		typed_password = self.password_line.text()
@@ -238,6 +247,61 @@ class SettingsDialog(QDialog): #http://www.qtcentre.org/threads/37058-modal-QWid
 		if hasattr(self.main, "ws_worker") and hasattr(self.main.ws_worker, "WSOCK"): #maybe not initialized yet
 			self.main.ws_worker.WSOCK.close()
 			self.main.ws_worker.KEEP_RUNNING = 1
+			
+class ContactsDialog(QDialog, OkCancelWidgetMixin):
+	
+	@classmethod
+	def show(cls, parent):
+		cls(parent)
+	
+	def __init__(self, parent):
+		super(self.__class__, self).__init__(parent)
+		self.main = parent
+		self.doAddContactWidget()
+		self.doListWidget()
+		self.doOkCancelWidget()
+		self.doContactsWidget()
+		self.setLayout(self.contacts_layout)
+		self.exec_()
+		
+	def doAddContactWidget(self):
+		email_label = QLabel("Friend's<br>Email:")
+		email_line = QLineEdit()
+		email_hbox = QHBoxLayout()
+		email_hbox.addWidget(email_label)
+		email_hbox.addWidget(email_line)
+		email_widget = QWidget()
+		email_widget.setLayout(email_hbox)
+		
+		nickname_label = QLabel("Nickname<br>(Optional):")
+		nickname_line = QLineEdit()
+		nickname_hbox = QHBoxLayout()
+		nickname_hbox.addWidget(nickname_label)
+		nickname_hbox.addWidget(nickname_line)
+		nickname_widget = QWidget()
+		nickname_widget.setLayout(nickname_hbox)
+
+		lines_vbox = QVBoxLayout()
+		lines_vbox.addWidget(email_widget)
+		lines_vbox.addWidget(nickname_widget)
+		lines_widget = QWidget()
+		lines_widget.setLayout(lines_vbox)
+		
+		add_button = QPushButton("Add Friend")
+		add_user_hbox = QHBoxLayout()
+		add_user_hbox.addWidget(lines_widget)
+		add_user_hbox.addWidget(add_button)
+		self.add_user_widget = QWidget()
+		self.add_user_widget.setLayout(add_user_hbox)		
+		
+	def doListWidget(self):
+		self.contacts_list_widget = QListWidget()
+		
+	def doContactsWidget(self):
+		self.contacts_layout = QVBoxLayout()
+		self.contacts_layout.addWidget(self.add_user_widget)
+		self.contacts_layout.addWidget(self.contacts_list_widget)
+		self.contacts_layout.addWidget(self.okcancel_widget)
 				
 class FaderWidget(QWidget):
 

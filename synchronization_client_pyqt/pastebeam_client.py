@@ -14,7 +14,7 @@ from widgets import *
 
 import platform, distutils
 
-class UIMixin(QtGui.QMainWindow, AccountMixin, LockoutMixin): #handles menubar and statusbar, which qwidget did not do
+class UIMixin(QtGui.QMainWindow, LockoutMixin,): #AccountMixin): #handles menubar and statusbar, which qwidget did not do
 	#SLOT IS A QT TERM MEANING EVENT
 	def initUI(self):			   
 		
@@ -127,21 +127,24 @@ class UIMixin(QtGui.QMainWindow, AccountMixin, LockoutMixin): #handles menubar a
 		
 		fileMenu.addAction(exitAction)
 		
+		"""
 		accountAction = QtGui.QAction(QtGui.QIcon("images/account.png"), '&Account', self)	#http://ubuntuforums.org/archive/index.php/t-724672.htmls	
 		#accountAction.setShortcut('Ctrl+Q')
 		accountAction.setStatusTip('Edit login info')
 		accountAction.triggered.connect(self.showAccountDialogs) #accountAction.triggered.connect(QtGui.qApp.quit) #does not trigger closeEvent()
+		"""
 		
 		settingsAction = QtGui.QAction(QtGui.QIcon("images/settings.png"), "&Settings", self)
 		settingsAction.setStatusTip('Edit settings')
 		settingsAction.triggered.connect(lambda:SettingsDialog.show(self))
 		
 		contactsAction = QAction(QIcon("images/contacts.png"), "&Contacts", self)
+		contactsAction.triggered.connect(lambda:ContactsDialog.show(self))
 		contactsAction.setStatusTip("Edit your contacts")
 		#contactsAction.triggered.connect(AddressBook.show)
 		
 		editMenu = menubar.addMenu('&Edit')
-		editMenu.addAction(accountAction)	
+		#editMenu.addAction(accountAction)	
 		editMenu.addAction(contactsAction)	
 		editMenu.addSeparator()
 		editMenu.addAction(settingsAction)	
@@ -237,6 +240,12 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 		self.ws_worker.clearListSignalForMain.connect(self.panel_stacked_widget.clearAllLists)
 		#self.ws_worker.starClipSignalForMain.connect(self.panel_star_widget.onStarClipSlot) #connect his with my
 		self.ws_worker.start()
+			
+	@staticmethod
+	def getLogin():
+		ring = keyring.get_password("pastebeam","account")
+		login = json.loads(ring) if ring else {} #todo store email locally, and access only password!
+		return login
 			
 	def setupClip(self):
 		self.previous_hash = {}
