@@ -262,9 +262,15 @@ class ContactsDialog(QDialog, OkCancelWidgetMixin):
 		self.doOkCancelWidget()
 		self.doContactsWidget()
 		self.setLayout(self.contacts_layout)
+		self.resizeMinWindowSizeForListWidget()
 		self.exec_()
+	
+	def resizeMinWindowSizeForListWidget(self):
+		default_height = self.sizeHint().height()
+		new_height = default_height *1.15
+		self.setMinimumHeight(new_height)
 		
-	def doAddContactWidget(self):
+	def doAddContactWidget(self):	
 		email_label = QLabel("Friend's<br>Email:")
 		email_line = QLineEdit()
 		email_hbox = QHBoxLayout()
@@ -295,10 +301,24 @@ class ContactsDialog(QDialog, OkCancelWidgetMixin):
 		self.add_user_widget.setLayout(add_user_hbox)		
 		
 	def doListWidget(self):
+		contacts_list_label = QLabel("Contact list:")
+		contacts_list = QListWidget()
+		for letter in range(65,91):
+			contacts_list.addItem("%s@yahoo.com"%chr(letter))
+		contacts_list_delete = QPushButton("Delete")
+		contacts_list_layout = QVBoxLayout()
+		contacts_list_layout.addWidget(contacts_list_label)
+		contacts_list_layout.addWidget(contacts_list)
+		contacts_list_layout.addWidget(contacts_list_delete)
 		self.contacts_list_widget = QListWidget()
+		self.contacts_list_widget.setLayout(contacts_list_layout)
 		
 	def doContactsWidget(self):
+		how_label = QLabel("For your security, clips from other PasteBeam users are automatically blocked without notice. To unblock a friend, add his email to your contacts list here. Likewise, for him to receive your clips, he must add your login email to his own contacts list.")
+		how_label.setWordWrap(True)
+		
 		self.contacts_layout = QVBoxLayout()
+		self.contacts_layout.addWidget(how_label)
 		self.contacts_layout.addWidget(self.add_user_widget)
 		self.contacts_layout.addWidget(self.contacts_list_widget)
 		self.contacts_layout.addWidget(self.okcancel_widget)
