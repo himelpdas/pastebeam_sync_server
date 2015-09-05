@@ -245,7 +245,8 @@ class SettingsDialog(QDialog, OkCancelWidgetMixin): #http://www.qtcentre.org/thr
 		}))
 		
 		if hasattr(self.main, "ws_worker") and hasattr(self.main.ws_worker, "WSOCK"): #maybe not initialized yet
-			self.main.ws_worker.WSOCK.close()
+			if self.main.ws_worker.WSOCK:
+				self.main.ws_worker.WSOCK.close()
 			self.main.ws_worker.KEEP_RUNNING = 1
 			
 class ContactsDialog(QDialog, OkCancelWidgetMixin):
