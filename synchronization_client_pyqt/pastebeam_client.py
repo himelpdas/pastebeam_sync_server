@@ -12,7 +12,7 @@ from functions import *
 
 from widgets import *
 
-import platform, distutils
+import platform, distutils.dir_util, distutils.errors, distutils.file_util #distutil over shututil http://stackoverflow.com/questions/15034151/copy-directory-contents-into-a-directory-with-python #import error on linux http://stackoverflow.com/questions/19097235/backing-up-copying-an-entire-folder-tree-in-batch-or-python
 
 class UIMixin(QtGui.QMainWindow, LockoutMixin,): #AccountMixin): #handles menubar and statusbar, which qwidget did not do
 	#SLOT IS A QT TERM MEANING EVENT
@@ -331,7 +331,7 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 				clip_type = "html",
 			)
 			
-		elif mimeData.hasText():
+		elif mimeData.hasText() and not mimeData.hasUrls(): #linux appears to provide text for files, so make sure it is not a file or else this will overrie it
 		
 			original = mimeData.text().encode("utf8")
 			
