@@ -114,7 +114,7 @@ class SettingsDialog(QDialog, OkCancelWidgetMixin): #http://www.qtcentre.org/thr
 		super(self.__class__, self).__init__()
 		self.main = parent
 		self.current_login = self.main.getLogin()
-		self.setWindowTitle("Settings")
+		self.setWindowTitle("Edit Settings")
 		self.doAccountWidget()
 		self.doSystemWidget()
 		self.doStartupWidget()
@@ -258,6 +258,7 @@ class ContactsDialog(QDialog, OkCancelWidgetMixin):
 	def __init__(self, parent):
 		super(self.__class__, self).__init__(parent)
 		self.main = parent
+		self.setWindowTitle('Edit Contacts')	
 		self.doAddContactWidget()
 		self.doListWidget()
 		self.doOkCancelWidget()
@@ -315,11 +316,11 @@ class ContactsDialog(QDialog, OkCancelWidgetMixin):
 		self.contacts_list_widget.setLayout(contacts_list_layout)
 		
 	def doContactsWidget(self):
-		how_label = QLabel("For your security, clips from other PasteBeam users are automatically blocked without notice. To unblock a friend, add his email to your contacts list here. Likewise, for him to receive your clips, he must add your login email to his own contacts list.")
-		how_label.setWordWrap(True)
+		#how_label = QLabel("For your security, clips from other PasteBeam users are automatically blocked without notice. To unblock a friend, add his email to your contacts list here. Likewise, for him to receive your clips, he must add your login email to his own contacts list.")
+		#how_label.setWordWrap(True)
 		
 		self.contacts_layout = QVBoxLayout()
-		self.contacts_layout.addWidget(how_label)
+		#self.contacts_layout.addWidget(how_label)
 		self.contacts_layout.addWidget(self.add_user_widget)
 		self.contacts_layout.addWidget(self.contacts_list_widget)
 		self.contacts_layout.addWidget(self.okcancel_widget)

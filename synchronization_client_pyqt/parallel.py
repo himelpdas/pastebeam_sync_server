@@ -17,7 +17,8 @@ from PySide import QtCore
 
 import encompress
 
-DEFAULT_DOMAIN = "192.168.0.191"
+#DEFAULT_DOMAIN = "192.168.0.191"
+DEFAULT_DOMAIN = "192.168.0.7"
 DEFAULT_PORT = 8084
 
 class WebsocketWorkerMixinForMain(object):

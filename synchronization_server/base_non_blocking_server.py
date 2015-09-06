@@ -22,7 +22,7 @@ debug(True)
 
 client=pymongo.MongoClient()
 collection = client.test_database #collection
-clips = collection.clips #database
+clips = collection.clips #databasecontacts = collection.contacts
 accounts = collection.accounts
 
 """

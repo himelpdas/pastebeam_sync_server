@@ -11,8 +11,11 @@ import uuid, time
 from bottle import Bottle, static_file
 app = Bottle()
 
-UPLOAD_DIR="C:\\Users\\Himel\\Desktop\\test\\uploads"
-
+if os.name=="nt":
+	UPLOAD_DIR="C:\\Users\\Himel\\Desktop\\test\\uploads"
+else:
+	UPLOAD_DIR="/home/das/Projects/junk"
+	
 def PRINT(label, data):
 	print "\n%s: %s"%(label.capitalize(), data)
 
@@ -50,6 +53,10 @@ def incommingGreenlet(wsock, timeout, OUTGOING_QUEUE): #these seem to run in ano
 		print delivered
 		
 		response = {"echo":delivered["echo"]}
+
+		if question == "Contacts?":
+			
+			contacts.insert(data)
 		
 		if question == "Star?":
 						

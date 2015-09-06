@@ -9,8 +9,11 @@ import uuid
 from bottle import Bottle, static_file
 app = Bottle()
 
-UPLOAD_DIR="C:\\Users\\Himel\\Desktop\\test\\uploads"
-
+if os.name == "nt":
+	UPLOAD_DIR="C:\\Users\\Himel\\Desktop\\test\\uploads"
+else:
+	UPLOAD_DIR="/home/das/Projects/junk/"
+	
 @app.route('/echo')
 def test_async_websocket():
 	wsock = request.environ.get('wsgi.websocket')
