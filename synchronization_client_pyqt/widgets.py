@@ -258,7 +258,7 @@ class ContactsDialog(QDialog, OkCancelWidgetMixin):
 	def __init__(self, parent):
 		super(self.__class__, self).__init__(parent)
 		self.main = parent
-		self.setWindowTitle('Edit Contacts')	
+		self.setWindowTitle('Edit Contacts')
 		self.doAddContactWidget()
 		self.doListWidget()
 		self.doOkCancelWidget()
@@ -266,6 +266,19 @@ class ContactsDialog(QDialog, OkCancelWidgetMixin):
 		self.setLayout(self.contacts_layout)
 		self.resizeMinWindowSizeForListWidget()
 		self.exec_()
+		
+	def onAddButtonClickSlot(self):
+		email = self.email_line.text()
+		if not email:
+			return
+		nickname  = self.nickname_line.text()
+		if nickname:
+			view = "{nickname} <{email}>".format(email=email,nickname=nickname)
+		else:
+			view = email
+
+		
+		self.contacts_list.addItem(view)
 	
 	def resizeMinWindowSizeForListWidget(self):
 		default_height = self.sizeHint().height()
@@ -274,7 +287,7 @@ class ContactsDialog(QDialog, OkCancelWidgetMixin):
 		
 	def doAddContactWidget(self):	
 		email_label = QLabel("Friend's<br>Email:")
-		email_line = QLineEdit()
+		self.email_line = email_line = QLineEdit()
 		email_hbox = QHBoxLayout()
 		email_hbox.addWidget(email_label)
 		email_hbox.addWidget(email_line)
@@ -282,7 +295,7 @@ class ContactsDialog(QDialog, OkCancelWidgetMixin):
 		email_widget.setLayout(email_hbox)
 		
 		nickname_label = QLabel("Nickname<br>(Optional):")
-		nickname_line = QLineEdit()
+		self.nickname_line = nickname_line = QLineEdit()
 		nickname_hbox = QHBoxLayout()
 		nickname_hbox.addWidget(nickname_label)
 		nickname_hbox.addWidget(nickname_line)
@@ -296,6 +309,7 @@ class ContactsDialog(QDialog, OkCancelWidgetMixin):
 		lines_widget.setLayout(lines_vbox)
 		
 		add_button = QPushButton("Add Friend")
+		add_button.clicked.connect(self.onAddButtonClickSlot)
 		add_user_hbox = QHBoxLayout()
 		add_user_hbox.addWidget(lines_widget)
 		add_user_hbox.addWidget(add_button)
@@ -304,13 +318,13 @@ class ContactsDialog(QDialog, OkCancelWidgetMixin):
 		
 	def doListWidget(self):
 		contacts_list_label = QLabel("Contact list:")
-		contacts_list = QListWidget()
-		for letter in range(65,91):
-			contacts_list.addItem("%s@yahoo.com"%chr(letter))
+		self.contacts_list = QListWidget()
+		#for letter in range(65,91):
+		#	self.contacts_list.addItem("%s@yahoo.com"%chr(letter))
 		contacts_list_delete = QPushButton("Delete")
 		contacts_list_layout = QVBoxLayout()
 		contacts_list_layout.addWidget(contacts_list_label)
-		contacts_list_layout.addWidget(contacts_list)
+		contacts_list_layout.addWidget(self.contacts_list)
 		contacts_list_layout.addWidget(contacts_list_delete)
 		self.contacts_list_widget = QListWidget()
 		self.contacts_list_widget.setLayout(contacts_list_layout)

@@ -26,7 +26,7 @@ class UIMixin(QtGui.QMainWindow, LockoutMixin,): #AccountMixin): #handles menuba
 		self.initStatusBar()
 		
 		self.setCentralWidget(self.stacked_widget)
-		self.setGeometry(300, 300, 1024, 768)
+		self.setGeometry(10, 10, 800, 600)
 		self.setWindowTitle('PasteBeam 1.0.0')	
 		
 		self.show()	
@@ -527,16 +527,19 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 				urls = []
 				
 				for each_path in file_paths_decrypt:
-					if os.name=="nt":
-						each_path = each_path.replace("\\","/").replace("c:","C:")
-						#each_path = each_path.decode(sys.getfilesystemencoding()) #windows uses mbcs encoding, not utf8 like *nix, so something like a chinese character will result in file operations raising WindowsErrors #http://stackoverflow.com/questions/10180765/open-file-with-a-unicode-filename
-
-					each_path = "file:///"+each_path
+					#if os.name=="nt":
+					#	each_path = each_path.replace("\\","/").replace("c:","C:")
+					#	#each_path = each_path.decode(sys.getfilesystemencoding()) #windows uses mbcs encoding, not utf8 like *nix, so something like a chinese character will result in file operations raising WindowsErrors #http://stackoverflow.com/questions/10180765/open-file-with-a-unicode-filename
+					#else:
+					#	each_path=each_path[1:]
+										
+					#each_path = "file:///"+each_path
 					
 					QUrl = QtCore.QUrl()
-					QUrl.setUrl(each_path)
+					#QUrl.setUrl(each_path)
 					#QUrl.setPath(each_path)
-					QUrl.toEncoded()
+					QUrl = QUrl.fromLocalFile(each_path) #Returns a QUrl representation of localFile #http://stackoverflow.com/questions/6062382/pyqt-copy-file-to-clipboard
+					#QUrl.toEncoded()
 					urls.append(QUrl)
 												
 				PRINT("SETTING URLS", urls)
