@@ -18,7 +18,7 @@ class UIMixin(QtGui.QMainWindow, LockoutMixin,): #AccountMixin): #handles menuba
 	#SLOT IS A QT TERM MEANING EVENT
 	def initUI(self):			   
 		
-		self.stacked_widget = MainStackedWidget()
+		self.stacked_widget = LockoutStackedWidget()
 		
 		self.initPanel()
 		self.initLockoutWidget()
@@ -467,8 +467,10 @@ class Main(WebsocketWorkerMixinForMain, UIMixin):
 		
 		prepare["hash"]= hash
 		
-		async_process = dict(question="Update?", data=prepare)
+		prepare["container_name"] = self.panel_stacked_widget.getMatchingContainerForHash(hash)
 		
+		async_process = dict(question="Update?", data=prepare)
+				
 		self.outgoingSignalForWorker.emit(async_process)
 		
 		self.previous_hash = hash

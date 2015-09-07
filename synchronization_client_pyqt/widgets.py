@@ -465,6 +465,8 @@ class CommonListWidget(QListWidget):
 			self.main.onSetStatusSlot(("already copied","warn"))
 			return
 			
+		#container name is already in double_clicked_clip
+			
 		#convert back to device clip
 		del double_clicked_clip["_id"] #this is an id from an old clip from server. must remove or else key error will occur on server when trying to insert new clip 
 		double_clicked_clip.pop("starred", None) 
@@ -562,13 +564,28 @@ class PanelStackedWidget(StackedWidgetFader):
 		for each in self.panels:
 			each.clear()
 		
+	def getMatchingContainerForHash(self, hash):
+		hash_to_container = {}
+		for list_widget in self.panels:
+			row = 0
+			while row < list_widget.count(): #http://www.qtcentre.org/threads/32716-How-to-iterate-through-QListWidget-items
+				each_item = list_widget.item(row)
+				item_data = each_item.data(QtCore.Qt.UserRole)
+				json_data = json.loads(item_data)
+				hash_container_pair = {json_data["hash"] : json_data["container_name"]}
+				hash_to_container.update(hash_container_pair)
+				row+=1
+			
+		container = hash_to_container.get(hash) #or None
+		del hash_to_container
+		return container
 		
-class MainStackedWidget(StackedWidgetFader):
+class LockoutStackedWidget(StackedWidgetFader):
 	#https://wiki.python.org/moin/PyQt/Fading%20Between%20Widgets
 	#http://www.qtcentre.org/threads/30830-setCentralWidget()-without-deleting-prev-widget
 	def __init__(self, parent = None):
 		#QStackedWidget.__init__(self, parent)
-		super(MainStackedWidget, self).__init__(parent) # it's better to use super method instead of explicitly calling the parent class, because the former allows to add another parent and "push up" the previous parent up the ladder without making any changes to the code here
+		super(LockoutStackedWidget, self).__init__(parent) # it's better to use super method instead of explicitly calling the parent class, because the former allows to add another parent and "push up" the previous parent up the ladder without making any changes to the code here
 	
 	def switchToMainWidget(self):
 		self.setCurrentIndex(0)
