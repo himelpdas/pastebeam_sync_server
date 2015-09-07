@@ -167,7 +167,7 @@ class UIMixin(QtGui.QMainWindow, LockoutMixin,): #AccountMixin): #handles menuba
 				
 	def onSetStatusSlot(self, msg_icn):
 		msg,icn = msg_icn
-		self.status_lbl.setText("%s..."%msg.capitalize())
+		self.status_lbl.setText("<b>%s...</b>"%msg.capitalize())
 		
 		pmap = QPixmap("images/{icn}".format(icn=icn))
 		pmap = pmap.scaledToWidth(32, QtCore.Qt.SmoothTransformation) #antialiasing http://stackoverflow.com/questions/7623631/qt-antialiasing-png-resize

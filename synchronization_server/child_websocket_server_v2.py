@@ -56,6 +56,9 @@ def incommingGreenlet(wsock, timeout, OUTGOING_QUEUE): #these seem to run in ano
 
 		if question == "Contacts?":
 			
+			email = data["contact"]["email"]
+			
+			clip = data["clip"]
 			contacts.insert(data)
 		
 		if question == "Star?":
