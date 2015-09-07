@@ -2,6 +2,8 @@ import keyring
 
 import bson.json_util as json
 
+from functions import *
+
 from PySide.QtGui import *
 from PySide import QtCore
 """
@@ -258,6 +260,7 @@ class ContactsDialog(QDialog, OkCancelWidgetMixin):
 	def __init__(self, parent):
 		super(self.__class__, self).__init__(parent)
 		self.main = parent
+		self.added_contacts_list = []
 		self.setWindowTitle('Edit Contacts')
 		self.doAddContactWidget()
 		self.doListWidget()
@@ -269,7 +272,8 @@ class ContactsDialog(QDialog, OkCancelWidgetMixin):
 		
 	def onAddButtonClickSlot(self):
 		email = self.email_line.text()
-		if not email:
+		if not email or not validators.email(email):
+			#show error
 			return
 		nickname  = self.nickname_line.text()
 		if nickname:
@@ -277,8 +281,14 @@ class ContactsDialog(QDialog, OkCancelWidgetMixin):
 		else:
 			view = email
 
-		
+		#view = "<b>%s</b>"%view #make it bold to differentate from the ones already there.
+		self.added_contacts_list.append(view)
 		self.contacts_list.addItem(view)
+	
+	def onOkButtonClickedSlot(self):
+		self.main.panel_stacked_widget.main_list_widget.contacts_list.extend(self.added_contacts_list)
+		self.main.panel_stacked_widget.main_list_widget.doShareSubActions()
+		super(self.__class__,self).onOkButtonClickedSlot()
 	
 	def resizeMinWindowSizeForListWidget(self):
 		default_height = self.sizeHint().height()
@@ -384,6 +394,7 @@ class StackedWidgetFader(QStackedWidget):
 class CommonListWidget(QListWidget):
 	def __init__(self, parent = None):
 		super(CommonListWidget, self).__init__(parent)
+		self.contacts_list = []
 		self.parent = parent
 		self.main = parent.main
 		self.doStyling()
@@ -391,6 +402,8 @@ class CommonListWidget(QListWidget):
 		self.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
 		
 		self.doCopyAction()
+		
+		self.doShareAction()
 		
 		self.doUncommon() #do uncommon here
 		
@@ -400,6 +413,10 @@ class CommonListWidget(QListWidget):
 		self.setIconSize(self.parent.icon_size) #http://www.qtcentre.org/threads/8733-Size-of-an-Icon #http://nullege.com/codes/search/PySide.QtGui.QListWidget.setIconSize
 		self.setAlternatingRowColors(True) #http://stackoverflow.com/questions/23213929/qt-qlistwidget-item-with-alternating-colors
 		self.setStatusTip(status)
+		
+	def doShareAction(self):
+		self.share_action = QAction(QIcon("images/share.png"), "S&hare", self)
+		self.addAction(self.share_action)
 	
 	def doCopyAction(self):
 		copy_action = QAction(QIcon("images/copy.png"), "&Copy", self)
@@ -463,16 +480,20 @@ class StarListWidget(CommonListWidget):
 		
 class MainListWidget(CommonListWidget):
 	def doUncommon(self):
-		self.doShareAction()
 		self.doStarAction()
+		self.doShareSubActions()
 		
-	def doShareAction(self):
-		share_action = QAction(QIcon("images/share.png"), "S&hare", self)
+	def doShareSubActions(self):
+		if not self.contacts_list:
+			self.share_action.setDisabled(True)
+			#ADD bubble explainin why
+		else:
+			self.share_action.setDisabled(False)
 		share_menu = QMenu()
-		sample_friend = QAction("Himel", self)
-		share_menu.addAction(sample_friend)
-		share_action.setMenu(share_menu)
-		self.addAction(share_action)
+		for name in self.contacts_list:
+			friend = QAction(name, self)
+			share_menu.addAction(name)
+			self.share_action.setMenu(share_menu)
 
 	def doStarAction(self):
 		#star action

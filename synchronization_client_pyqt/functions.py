@@ -8,6 +8,8 @@ from bson.binary import Binary
 
 import hashlib, uuid, time, sys, cgi, tempfile
 
+import validators
+
 from spooky import hash128
 
 from collections import deque
