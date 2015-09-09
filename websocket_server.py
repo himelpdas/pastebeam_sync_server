@@ -33,7 +33,7 @@ def test_async_websocket():
 		except WebSocketError:
 			break
 			
-def incommingGreenlet(wsock, timeout, OUTGOING_QUEUE): #these seem to run in another namespace, you must pass them global or inner variables
+def incommingGreenlet(wsock, timeout, USER_ID, OUTGOING_QUEUE): #these seem to run in another namespace, you must pass them global or inner variables
 
 	#client_previous_clip = get_latest_row_and_clips()['latest_row'] or {} #SHOULD CHECK SERVER TO AVOID RACE CONDITIONS? #too much bandwidth if receiving row itself, only text and hash are fine (data)
 	
@@ -66,22 +66,25 @@ def incommingGreenlet(wsock, timeout, OUTGOING_QUEUE): #these seem to run in ano
 			#success = bool(clips.find_one_and_update({"_id":data["_id"]},{"bookmarked":True}) )
 			
 			exists = bool(clips.find_one({
-				"hash":data["hash"],"starred":True,
-				"owner_id":USER_ID,
+				"hash":data["hash"],"starred":True, #it may be multiple hashes exists across different users
+				"owner_id":USER_ID, #so enforce with user_id
 			})) #find_one returns None if none found
 			if not exists:
+				#create star
 				data["owner_id"]=USER_ID
 				data["starred"]=True
 				data['timestamp_server'] = time.time()
 				reason = clips.insert_one(data).inserted_id
 				success = True
 
-				#delete old crap
+				#find old crap
 				tmp_free_user_limit = 5
 				old = clips.find({
 					"starred":True,
 					"owner_id":USER_ID,
 				}).sort('_id',pymongo.DESCENDING)[tmp_free_user_limit:]
+				
+				#delete old crap
 				clips.delete_many({"_id":{'$in': map(lambda each: each["_id"], old) }  }   )
 				
 			else:
@@ -105,7 +108,10 @@ def incommingGreenlet(wsock, timeout, OUTGOING_QUEUE): #these seem to run in ano
 					
 			location = list_widget_name, remove_row
 
-			result  = clips.delete_one({"_id":remove_id}).deleted_count
+			result  = clips.delete_one({
+				"_id":remove_id,
+				"owner_id":USER_ID, #Mongo ids are not secure alone, make sure the clip belongs to this user before deleting. USER_ID is not spoofable since it cannot not come from the attacker. http://stackoverflow.com/questions/11577450/are-mongodb-ids-guessable
+			}).deleted_count
 			
 			print "ROW ID: %s, DELETED: %s"%(remove_id,result)
 			
@@ -136,6 +142,7 @@ def incommingGreenlet(wsock, timeout, OUTGOING_QUEUE): #these seem to run in ano
 	
 		if question == "Update?":
 				
+			data["owner_id"]=USER_ID
 			data['timestamp_server'] = time.time()
 			
 			prev = (list(clips.find({
@@ -153,6 +160,7 @@ def incommingGreenlet(wsock, timeout, OUTGOING_QUEUE): #these seem to run in ano
 					"starred":{"$ne":True},
 					"owner_id":USER_ID,
 				}).sort('_id',pymongo.DESCENDING)[tmp_free_user_limit:]
+
 				#delete old crap
 				clips.delete_many({"_id":{'$in': map(lambda each: each["_id"], old) }  }   )
 				
@@ -176,7 +184,7 @@ def incommingGreenlet(wsock, timeout, OUTGOING_QUEUE): #these seem to run in ano
 
 	wsock.close() #OR IT WILL LEAVE THE GREENLET HANGING!
 	
-def outgoingGreenlet(wsock, timeout, OUTGOING_QUEUE):
+def outgoingGreenlet(wsock, timeout, USER_ID, OUTGOING_QUEUE):
 	
 	for second in xrange(timeout):
 	
@@ -255,7 +263,7 @@ def handle_websocket():
 		
 		USER_ID = checked_login["found"]["_id"]
 		
-		args = [wsock, timeout, OUTGOING_QUEUE] #Only objects in the main thread are visible to greenlets, all other cases, pass the objects as arguments to greenlet.
+		args = [wsock, timeout, USER_ID, OUTGOING_QUEUE] #Only objects in the main thread are visible to greenlets, all other cases, pass the objects as arguments to greenlet.
 
 		#send_update_command.set(None)
 				
@@ -308,6 +316,7 @@ def handle_upload():
 def handle_download(filename):
 	return static_file(filename, root=UPLOAD_DIR)
 	
+"""
 @app.get('/auth/<email>/<password>')
 def register(email,password):
 	response.content_type =  "application/json; charset=UTF8"
@@ -325,7 +334,7 @@ def register(email,password):
 	key_derivation = PBKDF2(password, random_bytes).encode("base64")
 	new_account_id = accounts.insert_one({"email":email, "key_derivation":key_derivation, "salt":random_bytes})
 	return {"success":True, "Reason":"Account %s successfully created!"%new_account_id}
-	
+"""
 if __name__ == "__main__":
 	#geventwebsocket implementation
 	from gevent.pywsgi import WSGIServer
