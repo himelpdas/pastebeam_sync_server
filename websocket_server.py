@@ -55,7 +55,7 @@ def incommingGreenlet(wsock, timeout, OUTGOING_QUEUE): #these seem to run in ano
 		response = {"echo":delivered["echo"]}
 
 		if question == "Contacts?":
-			
+			#IN PROGRESS
 			email = data["contact"]["email"]
 			
 			clip = data["clip"]
@@ -65,8 +65,12 @@ def incommingGreenlet(wsock, timeout, OUTGOING_QUEUE): #these seem to run in ano
 						
 			#success = bool(clips.find_one_and_update({"_id":data["_id"]},{"bookmarked":True}) )
 			
-			exists = bool(clips.find_one({"hash":data["hash"],"starred":True}) ) #find_one returns None if none found
+			exists = bool(clips.find_one({
+				"hash":data["hash"],"starred":True,
+				"owner_id":USER_ID,
+			})) #find_one returns None if none found
 			if not exists:
+				data["owner_id"]=USER_ID
 				data["starred"]=True
 				data['timestamp_server'] = time.time()
 				reason = clips.insert_one(data).inserted_id
@@ -74,7 +78,10 @@ def incommingGreenlet(wsock, timeout, OUTGOING_QUEUE): #these seem to run in ano
 
 				#delete old crap
 				tmp_free_user_limit = 5
-				old = clips.find({"starred":True}).sort('_id',pymongo.DESCENDING)[tmp_free_user_limit:]
+				old = clips.find({
+					"starred":True,
+					"owner_id":USER_ID,
+				}).sort('_id',pymongo.DESCENDING)[tmp_free_user_limit:]
 				clips.delete_many({"_id":{'$in': map(lambda each: each["_id"], old) }  }   )
 				
 			else:
@@ -131,21 +138,28 @@ def incommingGreenlet(wsock, timeout, OUTGOING_QUEUE): #these seem to run in ano
 				
 			data['timestamp_server'] = time.time()
 			
-			prev = (list(clips.find({"starred":{"$ne":True}}).sort('_id',pymongo.DESCENDING).limit( 1 ) ) or [{}]).pop() #do not consider starred clips or friends #cannot bool iterators, so must convert to list, and then pop the row
+			prev = (list(clips.find({
+				"starred":{"$ne":True},
+				"owner_id":USER_ID,
+			}).sort('_id',pymongo.DESCENDING).limit( 1 ) ) or [{}]).pop() #do not consider starred clips or friends #cannot bool iterators, so must convert to list, and then pop the row
 			
 			if prev.get("hash") != data.get("hash"):
 			
 				new_clip_id = clips.insert_one(data).inserted_id
 				
-				#delete old crap
+				#find old crap
 				tmp_free_user_limit = 5
-				old = clips.find({"starred":{"$ne":True}}).sort('_id',pymongo.DESCENDING)[tmp_free_user_limit:]
+				old = clips.find({
+					"starred":{"$ne":True},
+					"owner_id":USER_ID,
+				}).sort('_id',pymongo.DESCENDING)[tmp_free_user_limit:]
+				#delete old crap
 				clips.delete_many({"_id":{'$in': map(lambda each: each["_id"], old) }  }   )
 				
 			else:
 				
 				new_clip_id = False #DO NOT SEND NONE as this NONE indicates bad connection to client (remember AsyncResult.wait() ) and will result in infinite loop
-															
+
 			response.update(dict(
 				answer = "Update!",
 				data = new_clip_id
@@ -186,11 +200,14 @@ def outgoingGreenlet(wsock, timeout, OUTGOING_QUEUE):
 					)))
 					server_previous_row = server_latest_row #reset prev
 					
-				server_latest_clips = [each for each in clips.find({"_id":{"$gt":server_latest_row["_id"]}}).sort('_id',pymongo.DESCENDING).limit( 5 )] #DO NOT USE ASCENDING, USE DESCENDING AND THEN REVERSED THE LIST INSTEAD!... AS AFTER 50, THE LATEST CLIP ON DB WILL ALWAYS BE HIGHER THAN THE LATEST CLIP OF THE INITIAL 50 CLIPS SENT TO CLIENT. THIS WILL RESULT IN THE SENDING OF NEW CLIPS IN BATCHES OF 50 UNTIL THE LATEST CLIP MATCHES THAT ON DB.
+				server_latest_clips = [each for each in clips.find({
+					"_id":{"$gt":server_latest_row["_id"]},
+					"owner_id":USER_ID,
+				}).sort('_id',pymongo.DESCENDING).limit( 5 )] #DO NOT USE ASCENDING, USE DESCENDING AND THEN REVERSED THE LIST INSTEAD!... AS AFTER 50, THE LATEST CLIP ON DB WILL ALWAYS BE HIGHER THAN THE LATEST CLIP OF THE INITIAL 50 CLIPS SENT TO CLIENT. THIS WILL RESULT IN THE SENDING OF NEW CLIPS IN BATCHES OF 50 UNTIL THE LATEST CLIP MATCHES THAT ON DB.
 			
 			except UnboundLocalError:
 				server_previous_row = {}
-				server_latest_clips = [each for each in clips.find().sort('_id',pymongo.DESCENDING)]#.limit( 5 )] #returns an iterator but we want a list	
+				server_latest_clips = [each for each in clips.find({"owner_id":USER_ID,}).sort('_id',pymongo.DESCENDING)]#.limit( 5 )] #returns an iterator but we want a list	
 			
 		else:
 			print send
@@ -235,6 +252,8 @@ def handle_websocket():
 		timeout=40000
 				
 		OUTGOING_QUEUE = deque()
+		
+		USER_ID = checked_login["found"]["_id"]
 		
 		args = [wsock, timeout, OUTGOING_QUEUE] #Only objects in the main thread are visible to greenlets, all other cases, pass the objects as arguments to greenlet.
 
