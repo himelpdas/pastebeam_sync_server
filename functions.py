@@ -23,7 +23,7 @@ debug(True)
 
 client=pymongo.MongoClient()
 collection = client.test_database #collection
-clips = collection.clips #database
+clips = collection.clips #database #MAKE AN INDEX OF owner_id
 contacts = collection.contacts
 #accounts = collection.accounts #old way before web2py
 accounts = collection.auth_user

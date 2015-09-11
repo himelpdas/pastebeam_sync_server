@@ -56,10 +56,29 @@ def incommingGreenlet(wsock, timeout, USER_ID, OUTGOING_QUEUE): #these seem to r
 
 		if question == "Contacts?":
 			#IN PROGRESS
-			email = data["contact"]["email"]
-			
-			clip = data["clip"]
-			contacts.insert(data)
+			mode  = data["mode"]
+						
+			if mode == "get":
+				data = list( contacts.find({"owner_id":USER_ID}) )
+				success = "True"
+				
+			elif mode == "set":
+				emails = map(lambda contact: contact.split("<")[1].split(">")[0], contacts)
+				contacts = data["contacts"]
+				if not all(map(lambda email: validators.email(email)), emails):
+					success = False
+					data = "email validation failed"
+			else:
+				return
+				
+			response.update(dict(
+				answer = "Contacts!",
+				data = dict(
+					success = success,
+					data = data,
+					mode = mode
+				)
+			))
 		
 		if question == "Star?":
 						
