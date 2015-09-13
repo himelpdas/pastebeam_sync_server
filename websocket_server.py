@@ -56,28 +56,36 @@ def incommingGreenlet(wsock, timeout, USER_ID, OUTGOING_QUEUE): #these seem to r
 
 		if question == "Contacts?":
 			#IN PROGRESS
-			mode  = data["mode"]
-						
-			if mode == "get":
-				data = list( contacts.find({"owner_id":USER_ID}) )
-				success = "True"
-				
-			elif mode == "set":
-				emails = map(lambda contact: contact.split("<")[1].split(">")[0], contacts)
-				contacts = data["contacts"]
-				if not all(map(lambda email: validators.email(email)), emails):
-					success = False
-					data = "email validation failed"
+			emails_in = sorted(data["list"])
+			data_out = None
+			reason = None
+			success = False
+			
+			print emails_in
+			
+			try:
+				for each_email in emails_in:
+					assert validators.email(each_email) #this is a setter, so make sure it passes validation
+				else: #empty list, then this is a getter
+					found = contacts.find_one({"owner_id":USER_ID})
+					if found:
+						data_out = sorted(found["list"])
+						success = True
+			except AssertionError:
+				reason = "An email failed validation."
 			else:
-				return
-				
+				if not data_out:
+					data_out=emails_in
+					result = contacts.update_one({"owner_id":USER_ID}, {"$set":{"owner_id":USER_ID, "list" : emails_in}}, upsert=True) #upsert True will update (with arg2 )if filter (arg1) not found
+					success = True
+			
 			response.update(dict(
-				answer = "Contacts!",
-				data = dict(
-					success = success,
-					data = data,
-					mode = mode
-				)
+				answer="Contacts!",
+				data = {
+					"success":success,
+					"data":data_out,
+					"reason":reason
+				}
 			))
 		
 		if question == "Star?":
