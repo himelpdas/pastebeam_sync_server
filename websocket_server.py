@@ -90,9 +90,9 @@ def incommingGreenlet(wsock, timeout, USER_ID, OUTGOING_QUEUE): #these seem to r
 		
 		if question == "Star?":
 						
-			#success = bool(clips.find_one_and_update({"_id":data["_id"]},{"bookmarked":True}) )
+			#success = bool(MONGO_CLIPS.find_one_and_update({"_id":data["_id"]},{"bookmarked":True}) )
 			
-			exists = bool(clips.find_one({
+			exists = bool(MONGO_CLIPS.find_one({
 				"hash":data["hash"],"starred":True, #it may be multiple hashes exists across different users
 				"owner_id":USER_ID, #so enforce with user_id
 			})) #find_one returns None if none found
@@ -101,18 +101,18 @@ def incommingGreenlet(wsock, timeout, USER_ID, OUTGOING_QUEUE): #these seem to r
 				data["owner_id"]=USER_ID
 				data["starred"]=True
 				data['timestamp_server'] = time.time()
-				reason = clips.insert_one(data).inserted_id
+				reason = MONGO_CLIPS.insert_one(data).inserted_id
 				success = True
 
 				#find old crap
 				tmp_free_user_limit = 5
-				old = clips.find({
+				old = MONGO_CLIPS.find({
 					"starred":True,
 					"owner_id":USER_ID,
 				}).sort('_id',pymongo.DESCENDING)[tmp_free_user_limit:]
 				
 				#delete old crap
-				clips.delete_many({"_id":{'$in': map(lambda each: each["_id"], old) }  }   )
+				MONGO_CLIPS.delete_many({"_id":{'$in': map(lambda each: each["_id"], old) }  }   )
 				
 			else:
 				reason = "already starred"
@@ -135,8 +135,8 @@ def incommingGreenlet(wsock, timeout, USER_ID, OUTGOING_QUEUE): #these seem to r
 					
 			location = list_widget_name, remove_row
 
-			result  = clips.delete_one({
-				"_id":remove_id,
+			result  = MONGO_CLIPS.delete_one({
+				"_id":remove_id, #WARNING comes from user!
 				"owner_id":USER_ID, #Mongo ids are not secure alone, make sure the clip belongs to this user before deleting. USER_ID is not spoofable since it cannot not come from the attacker. http://stackoverflow.com/questions/11577450/are-mongodb-ids-guessable
 			}).deleted_count
 			
@@ -172,24 +172,24 @@ def incommingGreenlet(wsock, timeout, USER_ID, OUTGOING_QUEUE): #these seem to r
 			data["owner_id"]=USER_ID
 			data['timestamp_server'] = time.time()
 			
-			prev = (list(clips.find({
+			prev = (list(MONGO_CLIPS.find({
 				"starred":{"$ne":True},
 				"owner_id":USER_ID,
 			}).sort('_id',pymongo.DESCENDING).limit( 1 ) ) or [{}]).pop() #do not consider starred clips or friends #cannot bool iterators, so must convert to list, and then pop the row
 			
 			if prev.get("hash") != data.get("hash"):
 			
-				new_clip_id = clips.insert_one(data).inserted_id
+				new_clip_id = MONGO_CLIPS.insert_one(data).inserted_id
 				
 				#find old crap
 				tmp_free_user_limit = 5
-				old = clips.find({
+				old = MONGO_CLIPS.find({
 					"starred":{"$ne":True},
 					"owner_id":USER_ID,
 				}).sort('_id',pymongo.DESCENDING)[tmp_free_user_limit:]
 
 				#delete old crap
-				clips.delete_many({"_id":{'$in': map(lambda each: each["_id"], old) }  }   )
+				MONGO_CLIPS.delete_many({"_id":{'$in': map(lambda each: each["_id"], old) }  }   )
 				
 			else:
 				
@@ -235,14 +235,14 @@ def outgoingGreenlet(wsock, timeout, USER_ID, OUTGOING_QUEUE):
 					)))
 					server_previous_row = server_latest_row #reset prev
 					
-				server_latest_clips = [each for each in clips.find({
+				server_latest_clips = [each for each in MONGO_CLIPS.find({
 					"_id":{"$gt":server_latest_row["_id"]},
 					"owner_id":USER_ID,
 				}).sort('_id',pymongo.DESCENDING).limit( 5 )] #DO NOT USE ASCENDING, USE DESCENDING AND THEN REVERSED THE LIST INSTEAD!... AS AFTER 50, THE LATEST CLIP ON DB WILL ALWAYS BE HIGHER THAN THE LATEST CLIP OF THE INITIAL 50 CLIPS SENT TO CLIENT. THIS WILL RESULT IN THE SENDING OF NEW CLIPS IN BATCHES OF 50 UNTIL THE LATEST CLIP MATCHES THAT ON DB.
 			
 			except UnboundLocalError:
 				server_previous_row = {}
-				server_latest_clips = [each for each in clips.find({"owner_id":USER_ID,}).sort('_id',pymongo.DESCENDING)]#.limit( 5 )] #returns an iterator but we want a list	
+				server_latest_clips = [each for each in MONGO_CLIPS.find({"owner_id":USER_ID,}).sort('_id',pymongo.DESCENDING)]#.limit( 5 )] #returns an iterator but we want a list	
 			
 		else:
 			print send

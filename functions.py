@@ -13,7 +13,7 @@ from spooky import hash128
 #import hashlib
 
 import bson.json_util as json #can't use regular json module or else type error will occur for unknown types like ObjectID(...), use pymongo's bson module http://api.mongodb.org/python/current/api/bson/json_util.html
-import sys, os, time, uuid
+import sys, os, time, uuid, datetime
 
 import validators
 
@@ -25,10 +25,11 @@ debug(True)
 
 client=pymongo.MongoClient()
 collection = client.test_database #collection
-clips = collection.clips #database #MAKE AN INDEX OF owner_id
-contacts = collection.contacts
+MONGO_CLIPS = collection.clips #database #MAKE AN INDEX OF owner_id
+MONGO_CONTACTS = collection.contacts
 #accounts = collection.accounts #old way before web2py
-accounts = collection.auth_user
+MONGO_ACCOUNTS = collection.auth_user
+MONGO_INVITES =  collection.invites
 
 
 
@@ -59,7 +60,7 @@ def get_latest_row_and_clips():
 """
 def login(email, password):
 	print email
-	found = accounts.find_one({"email":email})
+	found = MONGO_ACCOUNTS.find_one({"email":email})
 	if not found:
 		return dict(success=False, reason = "Account not found")
 	key_derivation = PBKDF2(password, found["salt"]).encode("base64")
@@ -71,7 +72,7 @@ def login(email, password):
 
 def login(email, my_password):
 	print email
-	found = accounts.find_one({"email":email})
+	found = MONGO_ACCOUNTS.find_one({"email":email})
 	if not found:
 		return dict(success=False, reason = "Account not found")
 	web2py_key = found["password"]
