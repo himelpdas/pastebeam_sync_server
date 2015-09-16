@@ -33,8 +33,25 @@ def test_async_websocket():
 		except WebSocketError:
 			break
 			
-def incommingGreenlet(wsock, timeout, USER_ID, OUTGOING_QUEUE): #these seem to run in another namespace, you must pass them global or inner variables
+def incommingGreenlet(wsock, timeout, ACCOUNT, USER_ID, OUTGOING_QUEUE): #these seem to run in another namespace, you must pass them global or inner variables
 
+	def addClipAndDeleteOld(data, system):
+		data["owner_id"]=USER_ID
+		data["system"]=system
+		data['timestamp_server'] = time.time()
+		id = bool(MONGO_CLIPS.insert_one(data).inserted_id)
+
+		#find old crap
+		tmp_free_user_limit = 5
+		old = MONGO_CLIPS.find({
+			"system":system,
+			"owner_id":USER_ID,
+		}).sort('_id',pymongo.DESCENDING)[tmp_free_user_limit:]
+		
+		#delete old crap
+		MONGO_CLIPS.delete_many({"_id":{'$in': map(lambda each: each["_id"], old) }  }   )
+		
+		return id
 	#client_previous_clip = get_latest_row_and_clips()['latest_row'] or {} #SHOULD CHECK SERVER TO AVOID RACE CONDITIONS? #too much bandwidth if receiving row itself, only text and hash are fine (data)
 	
 	for second in xrange(timeout): #Even though greenlets don't use much memory, if the user disconnects, this server greenlet will run forever, and this "little memory" will become a big problem
@@ -53,6 +70,53 @@ def incommingGreenlet(wsock, timeout, USER_ID, OUTGOING_QUEUE): #these seem to r
 		print delivered
 		
 		response = {"echo":delivered["echo"]}
+		
+		success = reason = None
+		
+		if question == "Invite?":
+			
+			email = data["email"]
+									
+			previous_invite = MONGO_INVITES.find_one({"owner_id":USER_ID, "to":email})
+			
+			do_friend_request = False
+
+			if previous_invite:
+				now = datetime.datetime.utcnow()
+				delta =  now - previous_invite["date"]
+				days = delta.days
+				
+				if days >=2:
+					do_friend_request = True
+				else:
+					success = False
+					reason = "you can send an invite to this person once every 48 hours"
+			else:
+				do_friend_request = True
+
+			if do_friend_request:
+				MONGO_INVITES.insert_one({"owner_id":USER_ID, "to":email, "date":datetime.datetime.utcnow()})
+				
+				first_name = ACCOUNT["first_name"]
+				last_name = ACCOUNT["last_name"]
+				from_ = ACCOUNT["email"]
+				
+				data = {u'clip_display': "{first_name} {last_name} sent you a friend invite.".format(first_name = first_name.capitalize(), last_name = last_name.capitalize()), 
+				u'timestamp_server': datetime.datetime.utcnow(), u'clip_type': u'invite', "session_id":str(uuid.uuid4()), "hash":str(uuid.uuid4()), "system":"alert", u'host_name': from_} #uuid as a dummy hash
+				
+				success = bool(addClipAndDeleteOld(data, "alert"))
+				
+			if previous_invite: #delete old friend request
+				MONGO_INVITES.delete_one({"_id":previous_invite["_id"], "owner_id":USER_ID}) #owner_id not needed as this _id is not known by attacker, however it may be needed for indexing
+			
+		
+			response.update(dict(
+				answer="Contacts!",
+				data = {
+					"success":success,
+					"reason":reason
+				}
+			))
 
 		if question == "Contacts?":
 			#IN PROGRESS
@@ -67,7 +131,7 @@ def incommingGreenlet(wsock, timeout, USER_ID, OUTGOING_QUEUE): #these seem to r
 				for each_email in emails_in:
 					assert validators.email(each_email) #this is a setter, so make sure it passes validation
 				else: #empty list, then this is a getter
-					found = contacts.find_one({"owner_id":USER_ID})
+					found = MONGO_CONTACTS.find_one({"owner_id":USER_ID})
 					if found:
 						data_out = sorted(found["list"])
 						success = True
@@ -76,7 +140,7 @@ def incommingGreenlet(wsock, timeout, USER_ID, OUTGOING_QUEUE): #these seem to r
 			else:
 				if not data_out:
 					data_out=emails_in
-					result = contacts.update_one({"owner_id":USER_ID}, {"$set":{"owner_id":USER_ID, "list" : emails_in}}, upsert=True) #upsert True will update (with arg2 )if filter (arg1) not found
+					result = MONGO_CONTACTS.update_one({"owner_id":USER_ID}, {"$set":{"owner_id":USER_ID, "list" : emails_in}}, upsert=True) #upsert True will update (with arg2 )if filter (arg1) not found
 					success = True
 			
 			response.update(dict(
@@ -93,27 +157,11 @@ def incommingGreenlet(wsock, timeout, USER_ID, OUTGOING_QUEUE): #these seem to r
 			#success = bool(MONGO_CLIPS.find_one_and_update({"_id":data["_id"]},{"bookmarked":True}) )
 			
 			exists = bool(MONGO_CLIPS.find_one({
-				"hash":data["hash"],"starred":True, #it may be multiple hashes exists across different users
+				"hash":data["hash"],"system":"starred", #it may be multiple hashes exists across different users
 				"owner_id":USER_ID, #so enforce with user_id
 			})) #find_one returns None if none found
 			if not exists:
-				#create star
-				data["owner_id"]=USER_ID
-				data["starred"]=True
-				data['timestamp_server'] = time.time()
-				reason = MONGO_CLIPS.insert_one(data).inserted_id
-				success = True
-
-				#find old crap
-				tmp_free_user_limit = 5
-				old = MONGO_CLIPS.find({
-					"starred":True,
-					"owner_id":USER_ID,
-				}).sort('_id',pymongo.DESCENDING)[tmp_free_user_limit:]
-				
-				#delete old crap
-				MONGO_CLIPS.delete_many({"_id":{'$in': map(lambda each: each["_id"], old) }  }   )
-				
+				success = bool(addClipAndDeleteOld(data, "starred"))
 			else:
 				reason = "already starred"
 				success = False
@@ -140,13 +188,16 @@ def incommingGreenlet(wsock, timeout, USER_ID, OUTGOING_QUEUE): #these seem to r
 				"owner_id":USER_ID, #Mongo ids are not secure alone, make sure the clip belongs to this user before deleting. USER_ID is not spoofable since it cannot not come from the attacker. http://stackoverflow.com/questions/11577450/are-mongodb-ids-guessable
 			}).deleted_count
 			
+			success=bool(result)
+			
 			print "ROW ID: %s, DELETED: %s"%(remove_id,result)
 			
 			response.update(dict(
 				answer="Delete!",
 				data = {
-					"success":bool(result),
-					"location":location
+					"success":success,
+					"location":location,
+					"reason":reason
 				}
 			))
 						
@@ -173,34 +224,27 @@ def incommingGreenlet(wsock, timeout, USER_ID, OUTGOING_QUEUE): #these seem to r
 			data['timestamp_server'] = time.time()
 			
 			prev = (list(MONGO_CLIPS.find({
-				"starred":{"$ne":True},
+				#"starred":{"$ne":True},
+				"system":"main",
 				"owner_id":USER_ID,
 			}).sort('_id',pymongo.DESCENDING).limit( 1 ) ) or [{}]).pop() #do not consider starred clips or friends #cannot bool iterators, so must convert to list, and then pop the row
 			
 			if prev.get("hash") != data.get("hash"):
 			
-				new_clip_id = MONGO_CLIPS.insert_one(data).inserted_id
-				
-				#find old crap
-				tmp_free_user_limit = 5
-				old = MONGO_CLIPS.find({
-					"starred":{"$ne":True},
-					"owner_id":USER_ID,
-				}).sort('_id',pymongo.DESCENDING)[tmp_free_user_limit:]
-
-				#delete old crap
-				MONGO_CLIPS.delete_many({"_id":{'$in': map(lambda each: each["_id"], old) }  }   )
-				
+				success = bool(addClipAndDeleteOld(data, "main"))
 			else:
 				
-				new_clip_id = False #DO NOT SEND NONE as this NONE indicates bad connection to client (remember AsyncResult.wait() ) and will result in infinite loop
+				success = False #DO NOT SEND NONE as this NONE indicates bad connection to client (remember AsyncResult.wait() ) and will result in infinite loop
 
 			response.update(dict(
 				answer = "Update!",
-				data = new_clip_id
+				data = {
+					"reason":reason,
+					"success":success
+				}
 			))
 			
-			PRINT("update", new_clip_id)
+			#PRINT("update", new_clip_id)
 			
 			#prev = hash
 		
@@ -211,7 +255,7 @@ def incommingGreenlet(wsock, timeout, USER_ID, OUTGOING_QUEUE): #these seem to r
 
 	wsock.close() #OR IT WILL LEAVE THE GREENLET HANGING!
 	
-def outgoingGreenlet(wsock, timeout, USER_ID, OUTGOING_QUEUE):
+def outgoingGreenlet(wsock, timeout, ACCOUNT, USER_ID, OUTGOING_QUEUE):
 	
 	for second in xrange(timeout):
 	
@@ -238,9 +282,9 @@ def outgoingGreenlet(wsock, timeout, USER_ID, OUTGOING_QUEUE):
 				server_latest_clips = [each for each in MONGO_CLIPS.find({
 					"_id":{"$gt":server_latest_row["_id"]},
 					"owner_id":USER_ID,
-				}).sort('_id',pymongo.DESCENDING).limit( 5 )] #DO NOT USE ASCENDING, USE DESCENDING AND THEN REVERSED THE LIST INSTEAD!... AS AFTER 50, THE LATEST CLIP ON DB WILL ALWAYS BE HIGHER THAN THE LATEST CLIP OF THE INITIAL 50 CLIPS SENT TO CLIENT. THIS WILL RESULT IN THE SENDING OF NEW CLIPS IN BATCHES OF 50 UNTIL THE LATEST CLIP MATCHES THAT ON DB.
+				}).sort('_id',pymongo.DESCENDING).limit( 1 )] #DO NOT USE ASCENDING, USE DESCENDING AND THEN REVERSED THE LIST INSTEAD!... AS AFTER 50, THE LATEST CLIP ON DB WILL ALWAYS BE HIGHER THAN THE LATEST CLIP OF THE INITIAL 50 CLIPS SENT TO CLIENT. THIS WILL RESULT IN THE SENDING OF NEW CLIPS IN BATCHES OF 50 UNTIL THE LATEST CLIP MATCHES THAT ON DB.
 			
-			except UnboundLocalError:
+			except UnboundLocalError: #no server previous row
 				server_previous_row = {}
 				server_latest_clips = [each for each in MONGO_CLIPS.find({"owner_id":USER_ID,}).sort('_id',pymongo.DESCENDING)]#.limit( 5 )] #returns an iterator but we want a list	
 			
@@ -290,7 +334,9 @@ def handle_websocket():
 		
 		USER_ID = checked_login["found"]["_id"]
 		
-		args = [wsock, timeout, USER_ID, OUTGOING_QUEUE] #Only objects in the main thread are visible to greenlets, all other cases, pass the objects as arguments to greenlet.
+		ACCOUNT = checked_login["found"]
+		
+		args = [wsock, timeout, ACCOUNT, USER_ID, OUTGOING_QUEUE] #Only objects in the main thread are visible to greenlets, all other cases, pass the objects as arguments to greenlet.
 
 		#send_update_command.set(None)
 				
