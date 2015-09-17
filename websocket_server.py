@@ -203,7 +203,7 @@ def incommingGreenlet(wsock, timeout, ACCOUNT, USER_ID, OUTGOING_QUEUE): #these 
 						
 		if question == "Upload?":
 				
-			container_name =  data
+			container_name =  data or ""
 			
 			PRINT("container_name", container_name)
 			
