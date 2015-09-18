@@ -88,6 +88,8 @@ def incommingGreenlet(wsock, timeout, ACCOUNT, USER_ID, OUTGOING_QUEUE): #these 
 				
 				if days >=2:
 					do_friend_request = True
+					#delete old friend request
+					MONGO_INVITES.delete_one({"_id":previous_invite["_id"], "owner_id":USER_ID}) #owner_id not needed as this _id is not known by attacker, however it may be needed for indexing
 				else:
 					success = False
 					reason = "you can send an invite to this person once every 48 hours"
@@ -102,13 +104,9 @@ def incommingGreenlet(wsock, timeout, ACCOUNT, USER_ID, OUTGOING_QUEUE): #these 
 				from_ = ACCOUNT["email"]
 				
 				data = {u'clip_display': "{first_name} {last_name} sent you a friend invite.".format(first_name = first_name.capitalize(), last_name = last_name.capitalize()), 
-				u'timestamp_server': datetime.datetime.utcnow(), u'clip_type': u'invite', "session_id":str(uuid.uuid4()), "hash":str(uuid.uuid4()), "system":"alert", u'host_name': from_} #uuid as a dummy hash
+				u'timestamp_server': datetime.datetime.utcnow(), u'clip_type': u'invite', "session_id":str(uuid.uuid4()), "hash":str(uuid.uuid4()), u'host_name': from_} #uuid as a dummy hash
 				
-				success = bool(addClipAndDeleteOld(data, "alert"))
-				
-			if previous_invite: #delete old friend request
-				MONGO_INVITES.delete_one({"_id":previous_invite["_id"], "owner_id":USER_ID}) #owner_id not needed as this _id is not known by attacker, however it may be needed for indexing
-			
+				success = bool(addClipAndDeleteOld(data, "alert"))			
 		
 			response.update(dict(
 				answer="Contacts!",
@@ -118,6 +116,52 @@ def incommingGreenlet(wsock, timeout, ACCOUNT, USER_ID, OUTGOING_QUEUE): #these 
 				}
 			))
 
+		if question == "Accept?":
+		
+			from_email = data.get("email")
+			
+			from_account = MONGO_ACCOUNTS.find_one({"email":from_email})
+			
+			try:
+				assert from_email, "Malformed request. (Error 126)"
+				assert from_account, "Invite sender not found. Maybe acccount was deleted? (Error 127)"
+					
+				from_id = from_account["_id"]
+				my_email = ACCOUNT["email"]
+					
+				#see if the email this user wants to add is in a corresponding invite
+				previous_invite = MONGO_INVITES.find_one({"owner_id":from_id, "to":my_email})
+				
+				assert previous_invite, "No invitation found" 
+
+				my_contacts = MONGO_CONTACTS.find_one({"owner_id":USER_ID})
+				
+				if not my_contacts:
+					MONGO_CONTACTS.insert_one({"owner_id":USER_ID, "list" : [from_email]})
+				else:
+					emails = my_contacts["list"]
+					emails.append(from_email)
+					result = MONGO_CONTACTS.update_one({"owner_id":USER_ID}, {"$set":{"owner_id":USER_ID, "list" : emails}}, upsert=True) #upsert True will update (with arg2 )if filter (arg1) not found
+				
+				tell_sender_document = {u'clip_display': "{first_name} {last_name} accepted your friend invite!".format(first_name = ACCOUNT["first_name"].capitalize(), last_name = ACCOUNT["last_name"].capitalize()), 
+				u'timestamp_server': datetime.datetime.utcnow(), u'clip_type': u'notify', "session_id":str(uuid.uuid4()), "hash":str(uuid.uuid4()), u'host_name': my_email} #uuid as a dummy hash
+		
+				success = bool(addClipAndDeleteOld(tell_sender_document, "alert"))
+				
+				success = True
+				reason = "Invite accepted." 
+			except AssertionError as e:
+				success = False
+				reason = e[0]
+			
+			response.update(dict(
+				answer="Accept!",
+				data = {
+					"success":success,
+					"reason":reason
+				}
+			))
+			
 		if question == "Contacts?":
 			#IN PROGRESS
 			emails_in = sorted(data["list"])
@@ -129,14 +173,14 @@ def incommingGreenlet(wsock, timeout, ACCOUNT, USER_ID, OUTGOING_QUEUE): #these 
 			
 			try:
 				for each_email in emails_in:
-					assert validators.email(each_email) #this is a setter, so make sure it passes validation
+					assert validators.email(each_email), "An email failed validation" #this is a setter, so make sure it passes validation
 				else: #empty list, then this is a getter
 					found = MONGO_CONTACTS.find_one({"owner_id":USER_ID})
 					if found:
 						data_out = sorted(found["list"])
 						success = True
-			except AssertionError:
-				reason = "An email failed validation."
+			except AssertionError as e:
+				reason = e[0]
 			else:
 				if not data_out:
 					data_out=emails_in
