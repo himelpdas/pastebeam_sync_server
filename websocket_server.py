@@ -1,3 +1,4 @@
+#TODO get sentry to track stacktraces
 from gevent import monkey; monkey.patch_all() #declare BEFORE all imports
 
 from functions import *
@@ -100,7 +101,7 @@ def incommingGreenlet(wsock, timeout, ACCOUNT, USER_ID, OUTGOING_QUEUE): #these 
 				last_name = ACCOUNT["last_name"]
 				
 				data = {u'clip_display': "{first_name} {last_name} sent you a friend invite.".format(first_name = first_name.capitalize(), last_name = last_name.capitalize()), 
-				u'timestamp_server': datetime.datetime.utcnow(), u'clip_type': u'invite', "session_id":str(uuid.uuid4()), "hash":str(uuid.uuid4()), u'host_name': from_} #uuid as a dummy hash
+				u'timestamp_server': datetime.datetime.utcnow(), u'clip_type': u'invite', "session_id":str(uuid.uuid4()), "hash":str(uuid.uuid4()), u'host_name': email_from} #uuid as a dummy hash
 				
 				success = bool(addClipAndDeleteOld(data, "alert"))
 
