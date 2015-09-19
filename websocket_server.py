@@ -75,38 +75,38 @@ def incommingGreenlet(wsock, timeout, ACCOUNT, USER_ID, OUTGOING_QUEUE): #these 
 		
 		if question == "Invite?":
 			
-			email = data["email"]
-									
-			previous_invite = MONGO_INVITES.find_one({"owner_id":USER_ID, "to":email})
+			email_to = data["email"].lower()
 			
-			do_friend_request = False
-
-			if previous_invite:
-				now = datetime.datetime.utcnow()
-				delta =  now - previous_invite["date"]
-				days = delta.days
-				
-				if days >=2:
-					do_friend_request = True
+			email_from = ACCOUNT["email"].lower()
+									
+			previous_invite = MONGO_INVITES.find_one({"owner_id":USER_ID, "to":email_to})
+			
+			try:
+			
+				assert email_from != email_to, "Cannot send an invite to yourself! (Error 88)"
+			
+				if previous_invite:
+					now = datetime.datetime.utcnow()
+					delta =  now - previous_invite["date"]
+					days = delta.days
+					
+					assert days >=2, "You can send an invite to this person once every 48 hours! (Error 95)"
 					#delete old friend request
 					MONGO_INVITES.delete_one({"_id":previous_invite["_id"], "owner_id":USER_ID}) #owner_id not needed as this _id is not known by attacker, however it may be needed for indexing
-				else:
-					success = False
-					reason = "you can send an invite to this person once every 48 hours"
-			else:
-				do_friend_request = True
 
-			if do_friend_request:
-				MONGO_INVITES.insert_one({"owner_id":USER_ID, "to":email, "date":datetime.datetime.utcnow()})
+				MONGO_INVITES.insert_one({"owner_id":USER_ID, "to":email_to, "date":datetime.datetime.utcnow()})
 				
 				first_name = ACCOUNT["first_name"]
 				last_name = ACCOUNT["last_name"]
-				from_ = ACCOUNT["email"]
 				
 				data = {u'clip_display': "{first_name} {last_name} sent you a friend invite.".format(first_name = first_name.capitalize(), last_name = last_name.capitalize()), 
 				u'timestamp_server': datetime.datetime.utcnow(), u'clip_type': u'invite', "session_id":str(uuid.uuid4()), "hash":str(uuid.uuid4()), u'host_name': from_} #uuid as a dummy hash
 				
-				success = bool(addClipAndDeleteOld(data, "alert"))			
+				success = bool(addClipAndDeleteOld(data, "alert"))
+
+			except AssertionError as e:
+				success = False
+				reason = e[0]
 		
 			response.update(dict(
 				answer="Contacts!",
@@ -118,7 +118,7 @@ def incommingGreenlet(wsock, timeout, ACCOUNT, USER_ID, OUTGOING_QUEUE): #these 
 
 		if question == "Accept?":
 		
-			from_email = data.get("email")
+			from_email = data["email"].lower()
 			
 			from_account = MONGO_ACCOUNTS.find_one({"email":from_email})
 			
@@ -127,7 +127,9 @@ def incommingGreenlet(wsock, timeout, ACCOUNT, USER_ID, OUTGOING_QUEUE): #these 
 				assert from_account, "Invite sender not found. Maybe acccount was deleted? (Error 127)"
 					
 				from_id = from_account["_id"]
-				my_email = ACCOUNT["email"]
+				my_email = ACCOUNT["email"].lower()
+					
+				assert from_email != my_email, "Cannot accept your own email (error 132)"
 					
 				#see if the email this user wants to add is in a corresponding invite
 				previous_invite = MONGO_INVITES.find_one({"owner_id":from_id, "to":my_email})
@@ -139,8 +141,8 @@ def incommingGreenlet(wsock, timeout, ACCOUNT, USER_ID, OUTGOING_QUEUE): #these 
 				if not my_contacts:
 					MONGO_CONTACTS.insert_one({"owner_id":USER_ID, "list" : [from_email]})
 				else:
-					emails = my_contacts["list"]
-					emails.append(from_email)
+					emails = set([my_contacts["list"]])
+					emails.add(from_email)
 					result = MONGO_CONTACTS.update_one({"owner_id":USER_ID}, {"$set":{"owner_id":USER_ID, "list" : emails}}, upsert=True) #upsert True will update (with arg2 )if filter (arg1) not found
 				
 				tell_sender_document = {u'clip_display': "{first_name} {last_name} accepted your friend invite!".format(first_name = ACCOUNT["first_name"].capitalize(), last_name = ACCOUNT["last_name"].capitalize()), 
@@ -166,8 +168,6 @@ def incommingGreenlet(wsock, timeout, ACCOUNT, USER_ID, OUTGOING_QUEUE): #these 
 			#IN PROGRESS
 			emails_in = sorted(data["list"])
 			data_out = None
-			reason = None
-			success = False
 			
 			print emails_in
 			
@@ -180,6 +180,7 @@ def incommingGreenlet(wsock, timeout, ACCOUNT, USER_ID, OUTGOING_QUEUE): #these 
 						data_out = sorted(found["list"])
 						success = True
 			except AssertionError as e:
+				success= False
 				reason = e[0]
 			else:
 				if not data_out:
