@@ -104,7 +104,7 @@ def incommingGreenlet(wsock, timeout, ACCOUNT, USER_ID, OUTGOING_QUEUE): #these 
 				if his_account:
 					his_id = his_account["_id"]
 					
-					data = {u'clip_display': "{first_name} {last_name} sent you a friend invite.".format(first_name = my_first_name.capitalize(), my_last_name = last_name.capitalize()), 
+					data = {u'clip_display': "{first_name} {last_name} sent you a friend invite.".format(first_name = my_first_name.capitalize(), last_name = my_last_name.capitalize()), 
 					u'timestamp_server': datetime.datetime.utcnow(), u'clip_type': u'invite', "session_id":str(uuid.uuid4()), "hash":str(uuid.uuid4()), u'host_name': email_from} #uuid as a dummy hash
 					
 					addClipAndDeleteOld(data, "alert", his_id)
