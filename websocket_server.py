@@ -34,26 +34,25 @@ def test_async_websocket():
 		except WebSocketError:
 			break
 			
+def addClipAndDeleteOld(data, system, owner_id):
+	data["owner_id"]=owner_id
+	data["system"]=system
+	data['timestamp_server'] = time.time()
+	id = bool(MONGO_CLIPS.insert_one(data).inserted_id)
+
+	#find old crap
+	tmp_free_user_limit = 5
+	old = MONGO_CLIPS.find({
+		"system":system,
+		"owner_id":owner_id,
+	}).sort('_id',pymongo.DESCENDING)[tmp_free_user_limit:]
+	
+	#delete old crap
+	MONGO_CLIPS.delete_many({"_id":{'$in': map(lambda each: each["_id"], old) }  }   )
+	
+	return id
+			
 def incommingGreenlet(wsock, timeout, ACCOUNT, USER_ID, OUTGOING_QUEUE): #these seem to run in another namespace, you must pass them global or inner variables
-
-	def addClipAndDeleteOld(data, system):
-		data["owner_id"]=USER_ID
-		data["system"]=system
-		data['timestamp_server'] = time.time()
-		id = bool(MONGO_CLIPS.insert_one(data).inserted_id)
-
-		#find old crap
-		tmp_free_user_limit = 5
-		old = MONGO_CLIPS.find({
-			"system":system,
-			"owner_id":USER_ID,
-		}).sort('_id',pymongo.DESCENDING)[tmp_free_user_limit:]
-		
-		#delete old crap
-		MONGO_CLIPS.delete_many({"_id":{'$in': map(lambda each: each["_id"], old) }  }   )
-		
-		return id
-	#client_previous_clip = get_latest_row_and_clips()['latest_row'] or {} #SHOULD CHECK SERVER TO AVOID RACE CONDITIONS? #too much bandwidth if receiving row itself, only text and hash are fine (data)
 	
 	for second in xrange(timeout): #Even though greenlets don't use much memory, if the user disconnects, this server greenlet will run forever, and this "little memory" will become a big problem
 
@@ -97,13 +96,21 @@ def incommingGreenlet(wsock, timeout, ACCOUNT, USER_ID, OUTGOING_QUEUE): #these 
 
 				MONGO_INVITES.insert_one({"owner_id":USER_ID, "to":email_to, "date":datetime.datetime.utcnow()})
 				
-				first_name = ACCOUNT["first_name"]
-				last_name = ACCOUNT["last_name"]
+				my_first_name = ACCOUNT["first_name"]
+				my_last_name = ACCOUNT["last_name"]
 				
-				data = {u'clip_display': "{first_name} {last_name} sent you a friend invite.".format(first_name = first_name.capitalize(), last_name = last_name.capitalize()), 
-				u'timestamp_server': datetime.datetime.utcnow(), u'clip_type': u'invite', "session_id":str(uuid.uuid4()), "hash":str(uuid.uuid4()), u'host_name': email_from} #uuid as a dummy hash
-				
-				success = bool(addClipAndDeleteOld(data, "alert"))
+				his_email = email_to
+				his_account = MONGO_ACCOUNTS.find_one({"email":his_email})
+				if his_account:
+					his_id = his_account["_id"]
+					
+					data = {u'clip_display': "{first_name} {last_name} sent you a friend invite.".format(first_name = my_first_name.capitalize(), my_last_name = last_name.capitalize()), 
+					u'timestamp_server': datetime.datetime.utcnow(), u'clip_type': u'invite', "session_id":str(uuid.uuid4()), "hash":str(uuid.uuid4()), u'host_name': email_from} #uuid as a dummy hash
+					
+					addClipAndDeleteOld(data, "alert", his_id)
+				else:
+					pass #EMAIL THIS PERSON TO JOIN
+				success = True
 
 			except AssertionError as e:
 				success = False
@@ -149,7 +156,7 @@ def incommingGreenlet(wsock, timeout, ACCOUNT, USER_ID, OUTGOING_QUEUE): #these 
 				tell_sender_document = {u'clip_display': "{first_name} {last_name} accepted your friend invite!".format(first_name = ACCOUNT["first_name"].capitalize(), last_name = ACCOUNT["last_name"].capitalize()), 
 				u'timestamp_server': datetime.datetime.utcnow(), u'clip_type': u'notify', "session_id":str(uuid.uuid4()), "hash":str(uuid.uuid4()), u'host_name': my_email} #uuid as a dummy hash
 		
-				success = bool(addClipAndDeleteOld(tell_sender_document, "alert"))
+				success = bool(addClipAndDeleteOld(tell_sender_document, "alert", USER_ID))
 				
 				success = True
 				reason = "Invite accepted." 
@@ -207,7 +214,7 @@ def incommingGreenlet(wsock, timeout, ACCOUNT, USER_ID, OUTGOING_QUEUE): #these 
 				"owner_id":USER_ID, #so enforce with user_id
 			})) #find_one returns None if none found
 			if not exists:
-				success = bool(addClipAndDeleteOld(data, "starred"))
+				success = bool(addClipAndDeleteOld(data, "starred", USER_ID))
 			else:
 				reason = "already starred"
 				success = False
@@ -277,7 +284,7 @@ def incommingGreenlet(wsock, timeout, ACCOUNT, USER_ID, OUTGOING_QUEUE): #these 
 			
 			if prev.get("hash") != data.get("hash"):
 			
-				success = bool(addClipAndDeleteOld(data, "main"))
+				success = bool(addClipAndDeleteOld(data, "main", USER_ID))
 			else:
 				
 				success = False #DO NOT SEND NONE as this NONE indicates bad connection to client (remember AsyncResult.wait() ) and will result in infinite loop
