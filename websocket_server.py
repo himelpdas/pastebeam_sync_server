@@ -147,14 +147,14 @@ def incommingGreenlet(wsock, timeout, MY_ACCOUNT, MY_ID, MY_EMAIL, OUTGOING_QUEU
 				#see if the email this user wants to add is in a corresponding invite
 				previous_invite = MONGO_INVITES.find_one({"owner_id":his_id, "to":MY_EMAIL})
 				
-				assert previous_invite, "No invitation found from this user! (Error 152)" 
+				assert previous_invite, "No invitation found from this user! (Error 152)"
 
 				MY_ACCOUNT = MONGO_ACCOUNTS.find_one({"_id":MY_ID})
-								
-				def _addEmailToContacts(id, account, add_email):
-					id = account["_id"]
+
+				def _addEmailToContacts(account, add_email):
+					_id = account["_id"]
 					contacts = list(set(account["contacts_list"] + [add_email] )  )
-					result = MONGO_ACCOUNTS.update_one({"_id":id}, {"$set":{"contacts_list" : contacts}}) #upsert True will update (with arg2 )if filter (arg1) not found
+					MONGO_ACCOUNTS.update_one({"_id":_id}, {"$set":{"contacts_list" : contacts}}) #upsert True will update (with arg2 )if filter (arg1) not found
 					
 				_addEmailToContacts(MY_ACCOUNT, his_email)
 				_addEmailToContacts(his_account, MY_EMAIL)
@@ -182,25 +182,27 @@ def incommingGreenlet(wsock, timeout, MY_ACCOUNT, MY_ID, MY_EMAIL, OUTGOING_QUEU
 					"reason":reason
 				}
 			))
-			
+
 		if question == "Contacts?":
 			#IN PROGRESS
-						
+
 			try:
-				modified_list = sorted(data["contacts_list"]) #Modified list will ALWAYS be less than or equal to contacts, since the only way to add contacts is via invites
-											
+				modified_list = data["contacts_list"] #Modified list will ALWAYS be less than or equal to contacts, since the only way to add contacts is via invites
+
 				MY_ACCOUNT = MONGO_ACCOUNTS.find_one({"_id":MY_ID}) #get the latest
-								
+
 				contacts_list = sorted(MY_ACCOUNT["contacts_list"])
-									
+
 				if modified_list != None: # [] is valid, None is just get
 
-					assert all( map(lambda each_email: validators.email(each_email) , modified_list) ), "An email failed validation. (Error 206)" #this is a setter, so make sure it passes validation				
-					
-					assert set(modified_list).issubset(contacts_list), "Illegal operation. (Error 209)" #make sure user's modified_list does not have anything that's not in original contacts list. IE hacker may want to add someone else's email who did not send hacker an invite 
-					
+					assert all( validators.email(each_email) for each_email in modified_list ), "An email failed validation. (Error 206)" #this is a setter, so make sure it passes validation				
+
+					assert set(modified_list).issubset(contacts_list), "Illegal operation. (Error 209)" #make sure user's modified_list does not have anything that's not in original contacts list. IE hacker may want to add someone else's email who did not send hacker an invite
+
+					modified_list = sorted(modified_list)
+
 					remove_emails = set([contacts_list]).difference(modified_list) #get the ones no longer in modified_list
-					
+
 					for his_email in remove_emails: #and remove them from the other guy
 						his_account = MONGO_ACCOUNTS.find_one({"email":his_email})
 						his_contacts = his_account["contacts"]
@@ -212,7 +214,8 @@ def incommingGreenlet(wsock, timeout, MY_ACCOUNT, MY_ID, MY_EMAIL, OUTGOING_QUEU
 					
 					contacts_list=modified_list
 					result = MONGO_ACCOUNTS.update_one({"_id":MY_ID}, {"$set":{"contacts_list" : modified_list}}) #upsert True will update (with arg2 )if filter (arg1) not found
-					success = True
+				
+				success = True
 			
 			except AssertionError as e:
 				success= False
@@ -247,9 +250,8 @@ def incommingGreenlet(wsock, timeout, MY_ACCOUNT, MY_ID, MY_EMAIL, OUTGOING_QUEU
 					"reason" : reason,
 					"success" : success
 				}
-					
 			))
-							
+
 		if question == "Delete?":
 			
 			remove_id = data["remove_id"]
@@ -292,7 +294,7 @@ def incommingGreenlet(wsock, timeout, MY_ACCOUNT, MY_ID, MY_EMAIL, OUTGOING_QUEU
 			))
 			
 			PRINT("container_exists", container_exists)
-	
+
 		if question == "Update?":
 				
 			data["owner_id"]=MY_ID
@@ -350,7 +352,7 @@ def outgoingGreenlet(wsock, timeout, MY_ACCOUNT, MY_ID, MY_EMAIL, OUTGOING_QUEUE
 					PRINT("sending new",server_latest_row.get('_id'))
 					wsock.send(json.dumps(dict(
 						answer = "Newest!", #when there is a new clip from an outside source, or deletion
-						data = server_latest_clips, 
+						data = server_latest_clips,
 					)))
 					server_previous_row = server_latest_row #reset prev
 					
@@ -374,7 +376,7 @@ def handle_websocket():
 	
 	gevent.sleep(1) #prevent many connections
 	
-	websocket_id = uuid.uuid4()
+	#websocket_id = uuid.uuid4()
 
 	try:		
 	
@@ -388,20 +390,16 @@ def handle_websocket():
 		checked_login = login(request.query.email, request.query.password)
 
 		if not checked_login['success']:
-			
 			wsock.send(json.dumps(dict(
 				answer = "Error!",
 				data = checked_login["reason"],
 			)))
-			
 			return
 		else:
 			wsock.send(json.dumps(dict(
 				answer = "Connected!",
 				data = checked_login["reason"],
 			)))
-			
-		
 
 		timeout=40000
 				

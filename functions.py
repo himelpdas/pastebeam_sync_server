@@ -40,11 +40,11 @@ MONGO_INVITES =  collection.invites
 
 #import pymongo; client=pymongo.MongoClient();collection = client.test_database;clips = collection.clips; clips.remove()
 
-def get_latest_row_and_clips(): 
+def get_latest_row_and_clips():
 	"""
 	if minimum_id:
 		query = { '_id': { '$gt': minimum_id } }
-	else: 
+	else:
 		query = None
 	"""
 	latest_clips = clips.find().sort('_id',pymongo.DESCENDING).limit( 50 ) #latest one on mongo #note find() returns a cursor object so nothing is really in memory yet, and sort is a not the in-memory built in sort that python uses
