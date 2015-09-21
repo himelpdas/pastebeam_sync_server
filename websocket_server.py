@@ -52,7 +52,7 @@ def addClipAndDeleteOld(data, system, owner_id):
 	
 	return id
 			
-def incommingGreenlet(wsock, timeout, ACCOUNT, USER_ID, OUTGOING_QUEUE): #these seem to run in another namespace, you must pass them global or inner variables
+def incommingGreenlet(wsock, timeout, MY_ACCOUNT, MY_ID, MY_EMAIL, OUTGOING_QUEUE): #these seem to run in another namespace, you must pass them global or inner variables
 	
 	for second in xrange(timeout): #Even though greenlets don't use much memory, if the user disconnects, this server greenlet will run forever, and this "little memory" will become a big problem
 
@@ -75,15 +75,13 @@ def incommingGreenlet(wsock, timeout, ACCOUNT, USER_ID, OUTGOING_QUEUE): #these 
 		
 		if question == "Invite?":
 			
-			email_to = data["email"].lower()
-			
-			email_from = ACCOUNT["email"].lower()
-									
-			previous_invite = MONGO_INVITES.find_one({"owner_id":USER_ID, "to":email_to})
+			his_email = data["email"].lower()
+												
+			previous_invite = MONGO_INVITES.find_one({"owner_id":MY_ID, "to":his_email})
 			
 			try:
 			
-				assert email_from != email_to, "Cannot send an invite to yourself! (Error 88)"
+				assert MY_EMAIL != his_email, "Cannot send an invite to yourself! (Error 88)"
 			
 				if previous_invite:
 					now = datetime.datetime.utcnow()
@@ -92,24 +90,32 @@ def incommingGreenlet(wsock, timeout, ACCOUNT, USER_ID, OUTGOING_QUEUE): #these 
 					
 					assert days >=2, "You can send an invite to this person once every 48 hours! (Error 95)"
 					#delete old friend request
-					MONGO_INVITES.delete_one({"_id":previous_invite["_id"], "owner_id":USER_ID}) #owner_id not needed as this _id is not known by attacker, however it may be needed for indexing
+					MONGO_INVITES.delete_one({"_id":previous_invite["_id"], "owner_id":MY_ID}) #owner_id not needed as this _id is not known by attacker, however it may be needed for indexing
 
-				MONGO_INVITES.insert_one({"owner_id":USER_ID, "to":email_to, "date":datetime.datetime.utcnow()})
+				MONGO_INVITES.insert_one({"owner_id":MY_ID, "to":his_email, "date":datetime.datetime.utcnow()})
 				
-				my_first_name = ACCOUNT["first_name"]
-				my_last_name = ACCOUNT["last_name"]
-				
-				his_email = email_to
+				his_email = his_email
 				his_account = MONGO_ACCOUNTS.find_one({"email":his_email})
 				if his_account:
 					his_id = his_account["_id"]
+					his_first_name, his_last_name = his_account["first_name"].capitalize(), his_account["last_name"].capitalize()
 					
-					data = {u'clip_display': "{first_name} {last_name} sent you a friend invite.".format(first_name = my_first_name.capitalize(), last_name = my_last_name.capitalize()), 
-					u'timestamp_server': datetime.datetime.utcnow(), u'clip_type': u'invite', "session_id":str(uuid.uuid4()), "hash":str(uuid.uuid4()), u'host_name': email_from} #uuid as a dummy hash
+					my_first_name, my_last_name = MY_ACCOUNT["first_name"].capitalize(), MY_ACCOUNT["last_name"].capitalize()
+					
+					reason = "{first_name} {last_name} sent you a contact invite.".format(first_name = my_first_name, last_name = my_last_name)
+					
+					data = {u'clip_display': reason, u'timestamp_server': datetime.datetime.utcnow(), u'clip_type': u'invite', "session_id":str(uuid.uuid4()), "hash":str(uuid.uuid4()), u'host_name': MY_EMAIL} #uuid as a dummy hash
 					
 					addClipAndDeleteOld(data, "alert", his_id)
+					
+					reason = "You sent {first_name} {last_name} a contact invite.".format(first_name = his_first_name, last_name = his_last_name)
+					
+					data = {u'clip_display': reason, u'timestamp_server': datetime.datetime.utcnow(), u'clip_type': u'notify', "session_id":str(uuid.uuid4()), "hash":str(uuid.uuid4()), u'host_name': his_email} #uuid as a dummy hash
+						
+					addClipAndDeleteOld(data, "alert", MY_ID)
 				else:
 					pass #EMAIL THIS PERSON TO JOIN
+				
 				success = True
 
 			except AssertionError as e:
@@ -126,40 +132,45 @@ def incommingGreenlet(wsock, timeout, ACCOUNT, USER_ID, OUTGOING_QUEUE): #these 
 
 		if question == "Accept?":
 		
-			from_email = data["email"].lower()
+			his_email = data["email"].lower()
 			
-			from_account = MONGO_ACCOUNTS.find_one({"email":from_email})
+			his_account = MONGO_ACCOUNTS.find_one({"email":his_email})
 			
 			try:
-				assert from_email, "Malformed request. (Error 126)"
-				assert from_account, "Invite sender not found. Maybe acccount was deleted? (Error 127)"
+				assert his_email, "Malformed request. (Error 126)"
+				assert his_account, "Invite sender not found. Maybe acccount was deleted? (Error 127)"
 					
-				from_id = from_account["_id"]
-				my_email = ACCOUNT["email"].lower()
+				his_id = his_account["_id"]
 					
-				assert from_email != my_email, "Cannot accept your own email (error 132)"
+				assert his_email != MY_EMAIL, "You cannot accept your own email (Error 132)"
 					
 				#see if the email this user wants to add is in a corresponding invite
-				previous_invite = MONGO_INVITES.find_one({"owner_id":from_id, "to":my_email})
+				previous_invite = MONGO_INVITES.find_one({"owner_id":his_id, "to":MY_EMAIL})
 				
-				assert previous_invite, "No invitation found" 
+				assert previous_invite, "No invitation found from this user! (Error 152)" 
 
-				my_contacts = MONGO_CONTACTS.find_one({"owner_id":USER_ID})
+				MY_ACCOUNT = MONGO_ACCOUNTS.find_one({"_id":MY_ID})
+								
+				def _addEmailToContacts(id, account, add_email):
+					id = account["_id"]
+					contacts = list(set(account["contacts_list"] + [add_email] )  )
+					result = MONGO_ACCOUNTS.update_one({"_id":id}, {"$set":{"contacts_list" : contacts}}) #upsert True will update (with arg2 )if filter (arg1) not found
+					
+				_addEmailToContacts(MY_ACCOUNT, his_email)
+				_addEmailToContacts(his_account, MY_EMAIL)
+			
+				reason = "{first_name} {last_name} accepted your contact invite!".format(first_name = his_account["first_name"].capitalize(), last_name = his_account["last_name"].capitalize() )
+				data = {u'clip_display': reason, u'timestamp_server': datetime.datetime.utcnow(), u'clip_type': u'notify', "session_id":None, "hash":str(uuid.uuid4()), u'host_name': MY_EMAIL} #uuid as a dummy hash
 				
-				if not my_contacts:
-					MONGO_CONTACTS.insert_one({"owner_id":USER_ID, "list" : [from_email]})
-				else:
-					emails = set([my_contacts["list"]])
-					emails.add(from_email)
-					result = MONGO_CONTACTS.update_one({"owner_id":USER_ID}, {"$set":{"owner_id":USER_ID, "list" : emails}}, upsert=True) #upsert True will update (with arg2 )if filter (arg1) not found
+				addClipAndDeleteOld(data, "alert", his_id)
+			
+				reason = "You accepted a contact invite from {first_name} {last_name}!".format(first_name = his_account["first_name"].capitalize(), last_name = his_account["last_name"].capitalize() )
+				data = {u'clip_display': reason, u'timestamp_server': datetime.datetime.utcnow(), u'clip_type': u'notify', "session_id":None, "hash":str(uuid.uuid4()), u'host_name': his_email} #uuid as a dummy hash
 				
-				tell_sender_document = {u'clip_display': "{first_name} {last_name} accepted your friend invite!".format(first_name = ACCOUNT["first_name"].capitalize(), last_name = ACCOUNT["last_name"].capitalize()), 
-				u'timestamp_server': datetime.datetime.utcnow(), u'clip_type': u'notify', "session_id":str(uuid.uuid4()), "hash":str(uuid.uuid4()), u'host_name': my_email} #uuid as a dummy hash
-		
-				success = bool(addClipAndDeleteOld(tell_sender_document, "alert", USER_ID))
-				
+				addClipAndDeleteOld(data, "alert", MY_ID)
+								
 				success = True
-				reason = "Invite accepted." 
+
 			except AssertionError as e:
 				success = False
 				reason = e[0]
@@ -174,33 +185,44 @@ def incommingGreenlet(wsock, timeout, ACCOUNT, USER_ID, OUTGOING_QUEUE): #these 
 			
 		if question == "Contacts?":
 			#IN PROGRESS
-			emails_in = sorted(data["list"])
-			data_out = None
-			
-			print emails_in
-			
+						
 			try:
-				for each_email in emails_in:
-					assert validators.email(each_email), "An email failed validation" #this is a setter, so make sure it passes validation
-				else: #empty list, then this is a getter
-					found = MONGO_CONTACTS.find_one({"owner_id":USER_ID})
-					if found:
-						data_out = sorted(found["list"])
-						success = True
+				modified_list = sorted(data["contacts_list"]) #Modified list will ALWAYS be less than or equal to contacts, since the only way to add contacts is via invites
+											
+				MY_ACCOUNT = MONGO_ACCOUNTS.find_one({"_id":MY_ID}) #get the latest
+								
+				contacts_list = sorted(MY_ACCOUNT["contacts_list"])
+									
+				if modified_list != None: # [] is valid, None is just get
+
+					assert all( map(lambda each_email: validators.email(each_email) , modified_list) ), "An email failed validation. (Error 206)" #this is a setter, so make sure it passes validation				
+					
+					assert set(modified_list).issubset(contacts_list), "Illegal operation. (Error 209)" #make sure user's modified_list does not have anything that's not in original contacts list. IE hacker may want to add someone else's email who did not send hacker an invite 
+					
+					remove_emails = set([contacts_list]).difference(modified_list) #get the ones no longer in modified_list
+					
+					for his_email in remove_emails: #and remove them from the other guy
+						his_account = MONGO_ACCOUNTS.find_one({"email":his_email})
+						his_contacts = his_account["contacts"]
+						try:
+							his_contacts.remove(MY_EMAIL)
+						except ValueError:
+							pass
+						result = MONGO_ACCOUNTS.update_one({"_id":his_id}, {"$set":{"contacts_list" : modified_list}})
+					
+					contacts_list=modified_list
+					result = MONGO_ACCOUNTS.update_one({"_id":MY_ID}, {"$set":{"contacts_list" : modified_list}}) #upsert True will update (with arg2 )if filter (arg1) not found
+					success = True
+			
 			except AssertionError as e:
 				success= False
 				reason = e[0]
-			else:
-				if not data_out:
-					data_out=emails_in
-					result = MONGO_CONTACTS.update_one({"owner_id":USER_ID}, {"$set":{"owner_id":USER_ID, "list" : emails_in}}, upsert=True) #upsert True will update (with arg2 )if filter (arg1) not found
-					success = True
 			
 			response.update(dict(
 				answer="Contacts!",
 				data = {
 					"success":success,
-					"data":data_out,
+					"data":contacts_list,
 					"reason":reason
 				}
 			))
@@ -211,10 +233,10 @@ def incommingGreenlet(wsock, timeout, ACCOUNT, USER_ID, OUTGOING_QUEUE): #these 
 			
 			exists = bool(MONGO_CLIPS.find_one({
 				"hash":data["hash"],"system":"starred", #it may be multiple hashes exists across different users
-				"owner_id":USER_ID, #so enforce with user_id
+				"owner_id":MY_ID, #so enforce with user_id
 			})) #find_one returns None if none found
 			if not exists:
-				success = bool(addClipAndDeleteOld(data, "starred", USER_ID))
+				success = bool(addClipAndDeleteOld(data, "starred", MY_ID))
 			else:
 				reason = "already starred"
 				success = False
@@ -238,7 +260,7 @@ def incommingGreenlet(wsock, timeout, ACCOUNT, USER_ID, OUTGOING_QUEUE): #these 
 
 			result  = MONGO_CLIPS.delete_one({
 				"_id":remove_id, #WARNING comes from user!
-				"owner_id":USER_ID, #Mongo ids are not secure alone, make sure the clip belongs to this user before deleting. USER_ID is not spoofable since it cannot not come from the attacker. http://stackoverflow.com/questions/11577450/are-mongodb-ids-guessable
+				"owner_id":MY_ID, #Mongo ids are not secure alone, make sure the clip belongs to this user before deleting. MY_ID is not spoofable since it cannot not come from the attacker. http://stackoverflow.com/questions/11577450/are-mongodb-ids-guessable
 			}).deleted_count
 			
 			success=bool(result)
@@ -273,18 +295,18 @@ def incommingGreenlet(wsock, timeout, ACCOUNT, USER_ID, OUTGOING_QUEUE): #these 
 	
 		if question == "Update?":
 				
-			data["owner_id"]=USER_ID
+			data["owner_id"]=MY_ID
 			data['timestamp_server'] = time.time()
 			
 			prev = (list(MONGO_CLIPS.find({
 				#"starred":{"$ne":True},
 				"system":"main",
-				"owner_id":USER_ID,
+				"owner_id":MY_ID,
 			}).sort('_id',pymongo.DESCENDING).limit( 1 ) ) or [{}]).pop() #do not consider starred clips or friends #cannot bool iterators, so must convert to list, and then pop the row
 			
 			if prev.get("hash") != data.get("hash"):
 			
-				success = bool(addClipAndDeleteOld(data, "main", USER_ID))
+				success = bool(addClipAndDeleteOld(data, "main", MY_ID))
 			else:
 				
 				success = False #DO NOT SEND NONE as this NONE indicates bad connection to client (remember AsyncResult.wait() ) and will result in infinite loop
@@ -308,7 +330,7 @@ def incommingGreenlet(wsock, timeout, ACCOUNT, USER_ID, OUTGOING_QUEUE): #these 
 
 	wsock.close() #OR IT WILL LEAVE THE GREENLET HANGING!
 	
-def outgoingGreenlet(wsock, timeout, ACCOUNT, USER_ID, OUTGOING_QUEUE):
+def outgoingGreenlet(wsock, timeout, MY_ACCOUNT, MY_ID, MY_EMAIL, OUTGOING_QUEUE):
 	
 	for second in xrange(timeout):
 	
@@ -334,12 +356,12 @@ def outgoingGreenlet(wsock, timeout, ACCOUNT, USER_ID, OUTGOING_QUEUE):
 					
 				server_latest_clips = [each for each in MONGO_CLIPS.find({
 					"_id":{"$gt":server_latest_row["_id"]},
-					"owner_id":USER_ID,
+					"owner_id":MY_ID,
 				}).sort('_id',pymongo.DESCENDING).limit( 1 )] #DO NOT USE ASCENDING, USE DESCENDING AND THEN REVERSED THE LIST INSTEAD!... AS AFTER 50, THE LATEST CLIP ON DB WILL ALWAYS BE HIGHER THAN THE LATEST CLIP OF THE INITIAL 50 CLIPS SENT TO CLIENT. THIS WILL RESULT IN THE SENDING OF NEW CLIPS IN BATCHES OF 50 UNTIL THE LATEST CLIP MATCHES THAT ON DB.
 			
 			except UnboundLocalError: #no server previous row
 				server_previous_row = {}
-				server_latest_clips = [each for each in MONGO_CLIPS.find({"owner_id":USER_ID,}).sort('_id',pymongo.DESCENDING)]#.limit( 5 )] #returns an iterator but we want a list	
+				server_latest_clips = [each for each in MONGO_CLIPS.find({"owner_id":MY_ID,}).sort('_id',pymongo.DESCENDING)]#.limit( 5 )] #returns an iterator but we want a list	
 			
 		else:
 			print send
@@ -385,11 +407,13 @@ def handle_websocket():
 				
 		OUTGOING_QUEUE = deque()
 		
-		USER_ID = checked_login["found"]["_id"]
+		MY_ID = checked_login["found"]["_id"]
 		
-		ACCOUNT = checked_login["found"]
+		MY_ACCOUNT = checked_login["found"]
 		
-		args = [wsock, timeout, ACCOUNT, USER_ID, OUTGOING_QUEUE] #Only objects in the main thread are visible to greenlets, all other cases, pass the objects as arguments to greenlet.
+		MY_EMAIL = MY_ACCOUNT["email"].lower()
+		
+		args = [wsock, timeout, MY_ACCOUNT, MY_ID, MY_EMAIL, OUTGOING_QUEUE] #Only objects in the main thread are visible to greenlets, all other cases, pass the objects as arguments to greenlet.
 
 		#send_update_command.set(None)
 				
