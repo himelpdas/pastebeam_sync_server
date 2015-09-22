@@ -92,14 +92,14 @@ def incommingGreenlet(wsock, timeout, MY_ACCOUNT, MY_ID, MY_EMAIL, OUTGOING_QUEU
 					#delete old friend request
 					MONGO_INVITES.delete_one({"_id":previous_invite["_id"], "owner_id":MY_ID}) #owner_id not needed as this _id is not known by attacker, however it may be needed for indexing
 
-				MONGO_INVITES.insert_one({"owner_id":MY_ID, "to":his_email, "date":datetime.datetime.utcnow()})
+				MONGO_INVITES.insert_one({"owner_id":MY_ID, "to":his_email, "used":False, "date":datetime.datetime.utcnow()})
 				
 				his_email = his_email
 				his_account = MONGO_ACCOUNTS.find_one({"email":his_email})
 				if his_account:
 					his_id = his_account["_id"]
 					his_first_name, his_last_name = his_account["first_name"].capitalize(), his_account["last_name"].capitalize()
-					
+
 					my_first_name, my_last_name = MY_ACCOUNT["first_name"].capitalize(), MY_ACCOUNT["last_name"].capitalize()
 					
 					reason = "{first_name} {last_name} sent you a contact invite.".format(first_name = my_first_name, last_name = my_last_name)
@@ -109,7 +109,7 @@ def incommingGreenlet(wsock, timeout, MY_ACCOUNT, MY_ID, MY_EMAIL, OUTGOING_QUEU
 					addClipAndDeleteOld(data, "alert", his_id)
 					
 					reason = "You sent {first_name} {last_name} a contact invite.".format(first_name = his_first_name, last_name = his_last_name)
-					
+
 					data = {u'clip_display': reason, u'timestamp_server': datetime.datetime.utcnow(), u'clip_type': u'notify', "session_id":str(uuid.uuid4()), "hash":str(uuid.uuid4()), u'host_name': his_email} #uuid as a dummy hash
 						
 					addClipAndDeleteOld(data, "alert", MY_ID)
@@ -142,12 +142,14 @@ def incommingGreenlet(wsock, timeout, MY_ACCOUNT, MY_ID, MY_EMAIL, OUTGOING_QUEU
 					
 				his_id = his_account["_id"]
 					
-				assert his_email != MY_EMAIL, "You cannot accept your own email (Error 132)"
+				assert his_email != MY_EMAIL, "You cannot accept your own email. (Error 132)"
 					
 				#see if the email this user wants to add is in a corresponding invite
 				previous_invite = MONGO_INVITES.find_one({"owner_id":his_id, "to":MY_EMAIL})
 				
 				assert previous_invite, "No invitation found from this user! (Error 152)"
+				
+				assert not previous_invite["used"], "Invitation had been already used. (Error 155)"
 
 				MY_ACCOUNT = MONGO_ACCOUNTS.find_one({"_id":MY_ID})
 
@@ -168,6 +170,8 @@ def incommingGreenlet(wsock, timeout, MY_ACCOUNT, MY_ID, MY_EMAIL, OUTGOING_QUEU
 				data = {u'clip_display': reason, u'timestamp_server': datetime.datetime.utcnow(), u'clip_type': u'notify', "session_id":None, "hash":str(uuid.uuid4()), u'host_name': his_email} #uuid as a dummy hash
 				
 				addClipAndDeleteOld(data, "alert", MY_ID)
+				
+				MONGO_INVITES.find_one_and_update({"_id":previous_invite["_id"]},{"$set":{"used":True}})
 								
 				success = True
 
@@ -201,16 +205,18 @@ def incommingGreenlet(wsock, timeout, MY_ACCOUNT, MY_ID, MY_EMAIL, OUTGOING_QUEU
 
 					modified_list = sorted(modified_list)
 
-					remove_emails = set([contacts_list]).difference(modified_list) #get the ones no longer in modified_list
+					remove_emails = set(contacts_list).difference(modified_list) #get the ones no longer in modified_list
 
 					for his_email in remove_emails: #and remove them from the other guy
-						his_account = MONGO_ACCOUNTS.find_one({"email":his_email})
-						his_contacts = his_account["contacts"]
 						try:
-							his_contacts.remove(MY_EMAIL)
-						except ValueError:
+							his_account = MONGO_ACCOUNTS.find_one({"email":his_email}) #if not found will raise typeerror
+							his_id = his_account["_id"]
+							his_contacts = his_account["contacts_list"]
+							his_contacts.remove(MY_EMAIL) #for any unknown reason the email is missing, just skip
+						except (TypeError, ValueError):
 							pass
-						result = MONGO_ACCOUNTS.update_one({"_id":his_id}, {"$set":{"contacts_list" : modified_list}})
+						else:
+							result = MONGO_ACCOUNTS.update_one({"_id":his_id}, {"$set":{"contacts_list" : modified_list}}) #remove him from your own lost
 					
 					contacts_list=modified_list
 					result = MONGO_ACCOUNTS.update_one({"_id":MY_ID}, {"$set":{"contacts_list" : modified_list}}) #upsert True will update (with arg2 )if filter (arg1) not found
