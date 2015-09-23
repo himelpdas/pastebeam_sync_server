@@ -52,10 +52,10 @@ def addClipAndDeleteOld(data, system, owner_id):
 	
 	return id
 			
-def incommingGreenlet(wsock, timeout, MY_ACCOUNT, MY_ID, MY_EMAIL, OUTGOING_QUEUE): #these seem to run in another namespace, you must pass them global or inner variables
+def incommingGreenlet(wsock, timeout, checkLogin, OUTGOING_QUEUE): #these seem to run in another namespace, you must pass them global or inner variables
 	
 	for second in xrange(timeout): #Even though greenlets don't use much memory, if the user disconnects, this server greenlet will run forever, and this "little memory" will become a big problem
-
+	
 		received = wsock.receive()
 		
 		if not received:
@@ -72,6 +72,11 @@ def incommingGreenlet(wsock, timeout, MY_ACCOUNT, MY_ID, MY_EMAIL, OUTGOING_QUEU
 		response = {"echo":delivered["echo"]}
 		
 		success = reason = None
+		
+		MY_ACCOUNT = checkLogin()["found"]
+		MY_ID = MY_ACCOUNT["_id"] #need to keep this the most updated, incomming greenlet is ideal since it blocks and will reduce db hits
+		MY_EMAIL = MY_ACCOUNT["email"].lower()
+		MY_FIRST_NAME, MY_LAST_NAME = MY_ACCOUNT["first_name"].capitalize(), MY_ACCOUNT["last_name"].capitalize()
 		
 		if question == "Invite?":
 			
@@ -99,10 +104,8 @@ def incommingGreenlet(wsock, timeout, MY_ACCOUNT, MY_ID, MY_EMAIL, OUTGOING_QUEU
 				if his_account:
 					his_id = his_account["_id"]
 					his_first_name, his_last_name = his_account["first_name"].capitalize(), his_account["last_name"].capitalize()
-
-					my_first_name, my_last_name = MY_ACCOUNT["first_name"].capitalize(), MY_ACCOUNT["last_name"].capitalize()
 					
-					reason = "{first_name} {last_name} sent you a contact invite.".format(first_name = my_first_name, last_name = my_last_name)
+					reason = "{first_name} {last_name} sent you a contact invite.".format(first_name = MY_FIRST_NAME, last_name = MY_LAST_NAME)
 					
 					data = {u'clip_display': reason, u'timestamp_server': datetime.datetime.utcnow(), u'clip_type': u'invite', "session_id":str(uuid.uuid4()), "hash":str(uuid.uuid4()), u'host_name': MY_EMAIL} #uuid as a dummy hash
 					
@@ -151,8 +154,6 @@ def incommingGreenlet(wsock, timeout, MY_ACCOUNT, MY_ID, MY_EMAIL, OUTGOING_QUEU
 				
 				assert not previous_invite["used"], "Invitation had been already used. (Error 155)"
 
-				MY_ACCOUNT = MONGO_ACCOUNTS.find_one({"_id":MY_ID})
-
 				def _addEmailToContacts(account, add_email):
 					_id = account["_id"]
 					contacts = list(set(account["contacts_list"] + [add_email] )  )
@@ -192,8 +193,6 @@ def incommingGreenlet(wsock, timeout, MY_ACCOUNT, MY_ID, MY_EMAIL, OUTGOING_QUEU
 
 			try:
 				modified_list = data["contacts_list"] #Modified list will ALWAYS be less than or equal to contacts, since the only way to add contacts is via invites
-
-				MY_ACCOUNT = MONGO_ACCOUNTS.find_one({"_id":MY_ID}) #get the latest
 
 				contacts_list = sorted(MY_ACCOUNT["contacts_list"])
 
@@ -338,7 +337,16 @@ def incommingGreenlet(wsock, timeout, MY_ACCOUNT, MY_ID, MY_EMAIL, OUTGOING_QUEU
 
 	wsock.close() #OR IT WILL LEAVE THE GREENLET HANGING!
 	
-def outgoingGreenlet(wsock, timeout, MY_ACCOUNT, MY_ID, MY_EMAIL, OUTGOING_QUEUE):
+def outgoingGreenlet(wsock, timeout, checkLogin, OUTGOING_QUEUE):
+	
+	login_result = checkLogin()
+	
+	MY_ID = login_result["found"]["_id"] #no point in getting from incomming greenlet since it'll close the connection if password changes. WARNING- connection will stay active if user happens to change password
+	
+	OUTGOING_QUEUE.append(dict(
+		answer = "Connected!",
+		data = login_result["reason"],
+	))
 	
 	for second in xrange(timeout):
 	
@@ -391,33 +399,25 @@ def handle_websocket():
 		if not wsock:
 			abort(400, 'Expected WebSocket request.')
 
+
+		def checkLogin(email=request.query.email, password = request.query.password):
 		
-		###Uncomment to enable Login
-		checked_login = login(request.query.email, request.query.password)
-
-		if not checked_login['success']:
-			wsock.send(json.dumps(dict(
-				answer = "Error!",
-				data = checked_login["reason"],
-			)))
-			return
-		else:
-			wsock.send(json.dumps(dict(
-				answer = "Connected!",
-				data = checked_login["reason"],
-			)))
-
+			###Uncomment to enable Login
+			result = login(email, password)
+			if not result['success']:
+				wsock.send(json.dumps(dict(
+					answer = "Error!",
+					data = result["reason"],
+				)))
+				wsock.close()
+				raise WebSocketError
+			return result
+	
 		timeout=40000
 				
 		OUTGOING_QUEUE = deque()
 		
-		MY_ID = checked_login["found"]["_id"]
-		
-		MY_ACCOUNT = checked_login["found"]
-		
-		MY_EMAIL = MY_ACCOUNT["email"].lower()
-		
-		args = [wsock, timeout, MY_ACCOUNT, MY_ID, MY_EMAIL, OUTGOING_QUEUE] #Only objects in the main thread are visible to greenlets, all other cases, pass the objects as arguments to greenlet.
+		args = [wsock, timeout, checkLogin, OUTGOING_QUEUE] #Only objects in the main thread are visible to greenlets, all other cases, pass the objects as arguments to greenlet.
 
 		#send_update_command.set(None)
 				
