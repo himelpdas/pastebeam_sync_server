@@ -54,7 +54,7 @@ def addClipAndDeleteOld(data, system, owner_id):
 			
 def incommingGreenlet(wsock, timeout, checkLogin, OUTGOING_QUEUE): #these seem to run in another namespace, you must pass them global or inner variables
 	
-	for second in xrange(timeout): #Even though greenlets don't use much memory, if the user disconnects, this server greenlet will run forever, and this "little memory" will become a big problem
+	for second in timeout: #Even though greenlets don't use much memory, if the user disconnects, this server greenlet will run forever, and this "little memory" will become a big problem
 	
 		received = wsock.receive()
 		
@@ -348,7 +348,7 @@ def outgoingGreenlet(wsock, timeout, checkLogin, OUTGOING_QUEUE):
 		data = login_result["reason"],
 	))
 	
-	for second in xrange(timeout):
+	for second in timeout:
 	
 		sleep(0.1)
 	
@@ -413,7 +413,7 @@ def handle_websocket():
 				raise WebSocketError
 			return result
 	
-		timeout=40000
+		timeout=xrange(40000)
 				
 		OUTGOING_QUEUE = deque()
 		
