@@ -13,9 +13,9 @@ from bottle import Bottle, static_file
 app = Bottle()
 
 if os.name=="nt":
-	UPLOAD_DIR="C:\\Users\\Himel\\Desktop\\test\\uploads"
+	UPLOAD_DIR=r"C:\Users\Himel\btsync\Coding\virtualenv\projects\PasteBeam\sync_server\.server"
 else:
-	UPLOAD_DIR="/home/das/Projects/junk"
+	UPLOAD_DIR="/media/sf_btsync/Coding/virtualenv/projects/PasteBeam/sync_server/.server"
 	
 def PRINT(label, data):
 	print "\n%s: %s"%(label.capitalize(), data)
