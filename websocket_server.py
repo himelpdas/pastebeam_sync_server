@@ -152,7 +152,7 @@ def incommingGreenlet(wsock, timeout, checkLogin, OUTGOING_QUEUE): #these seem t
 				
 				assert previous_invite, "No invitation found from this user! (Error 152)"
 				
-				assert not previous_invite["used"], "Invitation had been already used. (Error 155)"
+				assert not previous_invite["used"], "Invitation had been already used. Try sending a new invite. (Error 155)"
 
 				def _addEmailToContacts(account, add_email):
 					_id = account["_id"]
@@ -340,12 +340,13 @@ def incommingGreenlet(wsock, timeout, checkLogin, OUTGOING_QUEUE): #these seem t
 def outgoingGreenlet(wsock, timeout, checkLogin, OUTGOING_QUEUE):
 	
 	login_result = checkLogin()
-	
-	MY_ID = login_result["found"]["_id"] #no point in getting from incomming greenlet since it'll close the connection if password changes. WARNING- connection will stay active if user happens to change password
-	
+	MY_ACCOUNT = login_result["found"]
+	MY_ID = MY_ACCOUNT["_id"] #no point in getting from incomming greenlet since it'll close the connection if password changes. WARNING- connection will stay active if user happens to change password
+
+
 	OUTGOING_QUEUE.append(dict(
 		answer = "Connected!",
-		data = login_result["reason"],
+		data = {"initial_contacts": MY_ACCOUNT["contacts_list"]},
 	))
 	
 	for second in timeout:
