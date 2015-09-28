@@ -77,6 +77,9 @@ def incommingGreenlet(wsock, timeout, checkLogin, OUTGOING_QUEUE): #these seem t
 		MY_ID = MY_ACCOUNT["_id"] #need to keep this the most updated, incomming greenlet is ideal since it blocks and will reduce db hits
 		MY_EMAIL = MY_ACCOUNT["email"].lower()
 		MY_FIRST_NAME, MY_LAST_NAME = MY_ACCOUNT["first_name"].capitalize(), MY_ACCOUNT["last_name"].capitalize()
+
+		if question == "Publickey?":
+			pass
 		
 		if question == "Invite?":
 			
@@ -346,7 +349,11 @@ def outgoingGreenlet(wsock, timeout, checkLogin, OUTGOING_QUEUE):
 
 	OUTGOING_QUEUE.append(dict(
 		answer = "Connected!",
-		data = {"initial_contacts": MY_ACCOUNT["contacts_list"]},
+		data = {
+			"initial_contacts": MY_ACCOUNT["contacts_list"],
+			"rsa_private_key": MY_ACCOUNT["rsa_private_key"],
+			"rsa_pbkdf2_salt": MY_ACCOUNT["rsa_pbkdf2_salt"]
+		},
 	))
 	
 	for second in timeout:
