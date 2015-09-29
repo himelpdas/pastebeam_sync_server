@@ -17,9 +17,10 @@ import sys, os, time, uuid, datetime
 
 import validators
 
+from Crypto.PublicKey import RSA
+from Crypto import Random
 from Crypto.Protocol.KDF import PBKDF2
 from Crypto.Hash import HMAC,SHA512
-import Crypto.Random
 
 debug(True)
 
