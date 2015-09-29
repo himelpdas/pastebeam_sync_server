@@ -93,6 +93,7 @@ def incommingGreenlet(wsock, timeout, checkLogin, OUTGOING_QUEUE): #these seem t
                 success = addClipAndDeleteOld(data, "share", his_id)
             except AssertionError as e:
                 reason = e[0]
+
             response.update(dict(
                 answer="Share!",
                 data = {
