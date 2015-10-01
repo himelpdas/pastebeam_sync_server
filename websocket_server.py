@@ -53,7 +53,7 @@ def addClipAndDeleteOld(data, system, owner_id):
     return _id
             
 def incommingGreenlet(wsock, timeout, checkLogin, OUTGOING_QUEUE): #these seem to run in another namespace, you must pass them global or inner variables
-    
+    #"""Checks login every incoming request"""
     for second in timeout: #Even though greenlets don't use much memory, if the user disconnects, this server greenlet will run forever, and this "little memory" will become a big problem
     
         received = wsock.receive()
@@ -139,9 +139,11 @@ def incommingGreenlet(wsock, timeout, checkLogin, OUTGOING_QUEUE): #these seem t
 
                 MONGO_INVITES.insert_one({"owner_id":MY_ID, "to":his_email, "used":False, "date":datetime.datetime.utcnow()})
                 
-                his_email = his_email
                 his_account = MONGO_ACCOUNTS.find_one({"email":his_email})
                 if his_account:
+
+                    assert not ( (MY_EMAIL in his_account["contacts_list"]) and (his_email in MY_ACCOUNT["contacts_list"]) ), "You both are already in each other's contacts! (Error 145)" #basically a NAND gate. Allow if one or both are in each other's contacts (maybe one deleted by mistake?)
+
                     his_id = his_account["_id"]
                     his_first_name, his_last_name = his_account["first_name"].capitalize(), his_account["last_name"].capitalize()
                     
@@ -255,7 +257,7 @@ def incommingGreenlet(wsock, timeout, checkLogin, OUTGOING_QUEUE): #these seem t
                         except (TypeError, ValueError):
                             pass
                         else:
-                            result = MONGO_ACCOUNTS.update_one({"_id":his_id}, {"$set":{"contacts_list" : modified_list}}) #remove him from your own lost
+                            result = MONGO_ACCOUNTS.update_one({"_id":his_id}, {"$set":{"contacts_list" : his_contacts}}) #remove him from your own lost
                     
                     contacts_list=modified_list
                     result = MONGO_ACCOUNTS.update_one({"_id":MY_ID}, {"$set":{"contacts_list" : modified_list}}) #upsert True will update (with arg2 )if filter (arg1) not found
@@ -378,7 +380,7 @@ def incommingGreenlet(wsock, timeout, checkLogin, OUTGOING_QUEUE): #these seem t
     wsock.close() #OR IT WILL LEAVE THE GREENLET HANGING!
     
 def outgoingGreenlet(wsock, timeout, checkLogin, OUTGOING_QUEUE):
-    
+    #"""does not check login every iteration, so in the case of changed password, an attacker can get updates until websocket expires"""
     login_result = checkLogin()
     MY_ACCOUNT = login_result["found"]
     MY_ID = MY_ACCOUNT["_id"] #no point in getting from incomming greenlet since it'll close the connection if password changes. WARNING- connection will stay active if user happens to change password
