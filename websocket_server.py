@@ -80,11 +80,18 @@ def incommingGreenlet(wsock, timeout, checkLogin, OUTGOING_QUEUE): #these seem t
         MY_FIRST_NAME, MY_LAST_NAME = MY_ACCOUNT["first_name"].capitalize(), MY_ACCOUNT["last_name"].capitalize()
 
         if question == "Share?":
+            his_email = data["recipient"]
+            his_account = MONGO_ACCOUNTS.find_one({"email":his_email})
+            his_id = his_account["_id"]
+            his_name = "%s %s"%(his_account["first_name"].capitalize(), his_account["last_name"].capitalize())
             try:
-                his_email = data["recipient"]
-                his_account = MONGO_ACCOUNTS.find_one({"email":his_email})
-                his_id = his_account["_id"]
                 assert MY_EMAIL in his_account["contacts_list"], "You are not in this user's contacts! (Error 86)"
+
+                his_clips = MONGO_CLIPS.find({"owner_id":his_id})
+                assert not data["hash"] in map(lambda each_clip: each_clip["hash"],his_clips), "%s already has a clip you sent! (Error 90)"%his_name
+
+                print "faggot!!!!!!!!!!"
+                print data["hash"], map(lambda each_clip: each_clip["hash"],his_clips)
 
                 #final modifications before sending to recipient's clips
                 data["host_name"] = MY_EMAIL
@@ -93,6 +100,11 @@ def incommingGreenlet(wsock, timeout, checkLogin, OUTGOING_QUEUE): #these seem t
                 success = addClipAndDeleteOld(data, "share", his_id)
             except AssertionError as e:
                 reason = e[0]
+            else:
+                reason = "You sent a clip to %s"%his_name
+
+            data = {u'clip_display': reason, u'timestamp_server': datetime.datetime.utcnow(), u'clip_type': u'notify', "session_id":str(uuid.uuid4()), "hash":str(uuid.uuid4()), u'host_name': his_email} #uuid as a dummy hash
+            addClipAndDeleteOld(data, "alert", MY_ID)
 
             response.update(dict(
                 answer="Share!",
