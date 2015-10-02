@@ -90,9 +90,6 @@ def incommingGreenlet(wsock, timeout, checkLogin, OUTGOING_QUEUE): #these seem t
                 his_clips = MONGO_CLIPS.find({"owner_id":his_id})
                 assert not data["hash"] in map(lambda each_clip: each_clip["hash"],his_clips), "%s already has a clip you sent! (Error 90)"%his_name
 
-                print "faggot!!!!!!!!!!"
-                print data["hash"], map(lambda each_clip: each_clip["hash"],his_clips)
-
                 #final modifications before sending to recipient's clips
                 data["host_name"] = MY_EMAIL
                 data.pop("_id", None) #or else duplicate error
