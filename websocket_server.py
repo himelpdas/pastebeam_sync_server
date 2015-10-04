@@ -1,5 +1,7 @@
 #TODO get sentry to track stacktraces
 from gevent import monkey; monkey.patch_all() #declare BEFORE all imports
+import zmq.green as zmq
+
 
 from functions import *
 
@@ -52,17 +54,17 @@ def addClipAndDeleteOld(data, system, owner_id):
     
     return _id
             
-def incommingGreenlet(wsock, timeout, checkLogin, OUTGOING_QUEUE): #these seem to run in another namespace, you must pass them global or inner variables
+def incommingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher, OUTGOING_QUEUE): #these seem to run in another namespace, you must pass them global or inner variables
     #"""Checks login every incoming request"""
     for second in timeout: #Even though greenlets don't use much memory, if the user disconnects, this server greenlet will run forever, and this "little memory" will become a big problem
-    
+
         received = wsock.receive()
         
         if not received:
             raise WebSocketError
-            
+
         delivered = json.loads(received)
-        
+
         question  = delivered['question']
         
         data = delivered['data']
@@ -74,7 +76,7 @@ def incommingGreenlet(wsock, timeout, checkLogin, OUTGOING_QUEUE): #these seem t
         success = reason = None
 
         #MOVE THIS TO OUTSIDE THE LOOP
-        MY_ACCOUNT = checkLogin()["found"]
+        MY_ACCOUNT.update(checkLogin()["found"])
         MY_ID = MY_ACCOUNT["_id"] #need to keep this the most updated, incomming greenlet is ideal since it blocks and will reduce db hits
         MY_EMAIL = MY_ACCOUNT["email"].lower()
         MY_FIRST_NAME, MY_LAST_NAME = MY_ACCOUNT["first_name"].capitalize(), MY_ACCOUNT["last_name"].capitalize()
@@ -209,7 +211,9 @@ def incommingGreenlet(wsock, timeout, checkLogin, OUTGOING_QUEUE): #these seem t
                     _id = account["_id"]
                     contacts = list(set(account["contacts_list"] + [add_email] )  )
                     MONGO_ACCOUNTS.update_one({"_id":_id}, {"$set":{"contacts_list" : contacts}}) #upsert True will update (with arg2 )if filter (arg1) not found
-                    
+
+                    publisher.send_string("%s %s"%(add_email,json.dumps(contacts) ) )
+
                 _addEmailToContacts(MY_ACCOUNT, his_email)
                 _addEmailToContacts(his_account, MY_EMAIL)
             
@@ -388,12 +392,9 @@ def incommingGreenlet(wsock, timeout, checkLogin, OUTGOING_QUEUE): #these seem t
 
     wsock.close() #OR IT WILL LEAVE THE GREENLET HANGING!
     
-def outgoingGreenlet(wsock, timeout, checkLogin, OUTGOING_QUEUE):
+def outgoingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher, OUTGOING_QUEUE):
     #"""does not check login every iteration, so in the case of changed password, an attacker can get updates until websocket expires"""
-    login_result = checkLogin()
-    MY_ACCOUNT = login_result["found"]
     MY_ID = MY_ACCOUNT["_id"] #no point in getting from incomming greenlet since it'll close the connection if password changes. WARNING- connection will stay active if user happens to change password
-
 
     OUTGOING_QUEUE.append(dict(
         answer = "Connected!",
@@ -407,7 +408,7 @@ def outgoingGreenlet(wsock, timeout, checkLogin, OUTGOING_QUEUE):
     for second in timeout:
     
         sleep(0.1)
-    
+
         try:
                 
             send = OUTGOING_QUEUE.pop() #get all the queues first... raises index error when empty.
@@ -419,7 +420,7 @@ def outgoingGreenlet(wsock, timeout, checkLogin, OUTGOING_QUEUE):
                     server_latest_row = server_latest_clips[0]
             
                 if server_latest_row.get('_id') != server_previous_row.get('_id'): #change to Reload if signature of last 50 clips changed
-                    PRINT("sending new",server_latest_row.get('_id'))
+                    #PRINT("sending new",server_latest_row.get('_id'))
                     wsock.send(json.dumps(dict(
                         answer = "Newest!", #when there is a new clip from an outside source, or deletion
                         data = server_latest_clips,
@@ -441,6 +442,25 @@ def outgoingGreenlet(wsock, timeout, checkLogin, OUTGOING_QUEUE):
             
     wsock.close()
 
+def subscriber(timeout, MY_ACCOUNT, OUTGOING_QUEUE, port = 8883):
+    # Socket to talk to server
+    context = zmq.Context()
+    socket = context.socket(zmq.SUB)
+    socket.connect ("tcp://localhost:%s" % port)
+    topicfilter = MY_ACCOUNT["email"]
+    socket.setsockopt_string(zmq.SUBSCRIBE, topicfilter)
+    for second in timeout:
+        string = socket.recv_string()
+        print string
+        payload = json.loads(" ".join(string.split(" ")[1:]))
+        answer = {
+            "answer": "get_contacts!",
+            "data":payload,
+        }
+        OUTGOING_QUEUE.append(answer)
+        #gevent.sleep(0.1)
+
+
 @app.route('/ws')
 def handle_websocket():
     
@@ -457,7 +477,7 @@ def handle_websocket():
 
 
         def checkLogin(email=request.query.email, password = request.query.password):
-        
+
             ###Uncomment to enable Login
             result = login(email, password)
             if not result['success']:
@@ -472,14 +492,23 @@ def handle_websocket():
         timeout=xrange(40000)
                 
         OUTGOING_QUEUE = deque()
+
+        MY_ACCOUNT = checkLogin()["found"]
+
+        def setup_pub(port = 8882):
+            publisher_context = zmq.Context()
+            publisher_socket = publisher_context.socket(zmq.PUB)
+            publisher_socket.connect("tcp://localhost:%s" % port)
+            return publisher_socket
         
-        args = [wsock, timeout, checkLogin, OUTGOING_QUEUE] #Only objects in the main thread are visible to greenlets, all other cases, pass the objects as arguments to greenlet.
+        args = [wsock, timeout, MY_ACCOUNT, checkLogin, setup_pub(),OUTGOING_QUEUE] #Only objects in the main thread are visible to greenlets, all other cases, pass the objects as arguments to greenlet.
 
         #send_update_command.set(None)
                 
         greenlets = [
             gevent.spawn(incommingGreenlet, *args),
             gevent.spawn(outgoingGreenlet, *args),
+            gevent.spawn(subscriber, timeout, MY_ACCOUNT, OUTGOING_QUEUE),
         ]
         gevent.joinall(greenlets)
 
