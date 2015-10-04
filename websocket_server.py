@@ -85,10 +85,10 @@ def incommingGreenlet(wsock, timeout, checkLogin, OUTGOING_QUEUE): #these seem t
             his_id = his_account["_id"]
             his_name = "%s %s"%(his_account["first_name"].capitalize(), his_account["last_name"].capitalize())
             try:
-                assert MY_EMAIL in his_account["contacts_list"], "You are not in this user's contacts! (Error 86)"
+                assert MY_EMAIL in his_account["contacts_list"], "You are not in this user's contacts!"
 
                 his_clips = MONGO_CLIPS.find({"owner_id":his_id})
-                assert not data["hash"] in map(lambda each_clip: each_clip["hash"],his_clips), "%s already has a clip you sent! (Error 90)"%his_name
+                assert not data["hash"] in map(lambda each_clip: each_clip["hash"],his_clips), "%s already has a clip you sent!"%his_name
 
                 #final modifications before sending to recipient's clips
                 data["host_name"] = MY_EMAIL
