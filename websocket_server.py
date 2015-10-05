@@ -53,7 +53,14 @@ def addClipAndDeleteOld(data, system, owner_id):
     MONGO_CLIPS.delete_many({"_id":{'$in': map(lambda each: each["_id"], old) }  }   )
     
     return _id
-            
+
+def addAlert(for_account, reason, from_email=None, alert_type = u"notify",):
+    for_id = for_account["_id"]
+    if not from_email:
+        from_email = for_account["email"]
+    data = {u'clip_display': reason, u'timestamp_server': datetime.datetime.utcnow(), u'clip_type': alert_type, "session_id":str(uuid.uuid4()), "hash":str(uuid.uuid4()), u'host_name': from_email} #uuid as a dummy hash is needed so it is not ignored by client or server
+    addClipAndDeleteOld(data, "alert", for_id)
+
 def incommingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher, OUTGOING_QUEUE): #these seem to run in another namespace, you must pass them global or inner variables
     #"""Checks login every incoming request"""
     for second in timeout: #Even though greenlets don't use much memory, if the user disconnects, this server greenlet will run forever, and this "little memory" will become a big problem
@@ -75,7 +82,7 @@ def incommingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher, OUTGOIN
         
         success = reason = None
 
-        #MOVE THIS TO OUTSIDE THE LOOP
+        #TODO- move this back to handle_websocket, and disconnect all websockets via web2py and 0mq when user account changes
         MY_ACCOUNT.update(checkLogin()["found"])
         MY_ID = MY_ACCOUNT["_id"] #need to keep this the most updated, incomming greenlet is ideal since it blocks and will reduce db hits
         MY_EMAIL = MY_ACCOUNT["email"].lower()
@@ -102,8 +109,7 @@ def incommingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher, OUTGOIN
             else:
                 reason = "You sent a clip to %s"%his_name
 
-            data = {u'clip_display': reason, u'timestamp_server': datetime.datetime.utcnow(), u'clip_type': u'notify', "session_id":str(uuid.uuid4()), "hash":str(uuid.uuid4()), u'host_name': his_email} #uuid as a dummy hash
-            addClipAndDeleteOld(data, "alert", MY_ID)
+            addAlert(MY_ACCOUNT, reason, his_email)
 
             response.update(dict(
                 answer="Share!",
@@ -148,27 +154,20 @@ def incommingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher, OUTGOIN
                     #delete old friend request
                     MONGO_INVITES.delete_one({"_id":previous_invite["_id"], "owner_id":MY_ID}) #owner_id not needed as this _id is not known by attacker, however it may be needed for indexing
 
-                MONGO_INVITES.insert_one({"owner_id":MY_ID, "to":his_email, "used":False, "date":datetime.datetime.utcnow()})
+                MONGO_INVITES.insert_one({"owner_id":MY_ID, "to":his_email, "used":False, "date":datetime.datetime.utcnow()}) #TODO- add a clip when non-registered user joins
                 
                 his_account = MONGO_ACCOUNTS.find_one({"email":his_email})
                 if his_account:
 
                     assert not ( (MY_EMAIL in his_account["contacts_list"]) and (his_email in MY_ACCOUNT["contacts_list"]) ), "You both are already in each other's contacts! (Error 145)" #basically a NAND gate. Allow if one or both are in each other's contacts (maybe one deleted by mistake?)
 
-                    his_id = his_account["_id"]
                     his_first_name, his_last_name = his_account["first_name"].capitalize(), his_account["last_name"].capitalize()
                     
-                    reason = "{first_name} {last_name} sent you a contact invite.".format(first_name = MY_FIRST_NAME, last_name = MY_LAST_NAME)
-                    
-                    data = {u'clip_display': reason, u'timestamp_server': datetime.datetime.utcnow(), u'clip_type': u'invite', "session_id":str(uuid.uuid4()), "hash":str(uuid.uuid4()), u'host_name': MY_EMAIL} #uuid as a dummy hash
-                    
-                    addClipAndDeleteOld(data, "alert", his_id)
-                    
-                    reason = "You sent {first_name} {last_name} a contact invite.".format(first_name = his_first_name, last_name = his_last_name)
+                    reason = "{first_name} {last_name} sent you a contact invite!".format(first_name = MY_FIRST_NAME, last_name = MY_LAST_NAME)
+                    addAlert(his_account, reason, MY_EMAIL, alert_type=u"invite")
 
-                    data = {u'clip_display': reason, u'timestamp_server': datetime.datetime.utcnow(), u'clip_type': u'notify', "session_id":str(uuid.uuid4()), "hash":str(uuid.uuid4()), u'host_name': his_email} #uuid as a dummy hash
-                        
-                    addClipAndDeleteOld(data, "alert", MY_ID)
+                    reason = "You sent {first_name} {last_name} a contact invite!".format(first_name = his_first_name, last_name = his_last_name)
+                    addAlert(MY_ACCOUNT, reason, his_email)
                 else:
                     pass #EMAIL THIS PERSON TO JOIN
                 
@@ -212,7 +211,7 @@ def incommingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher, OUTGOIN
                     contacts = list(set(account["contacts_list"] + [add_email] )  )
                     MONGO_ACCOUNTS.update_one({"_id":_id}, {"$set":{"contacts_list" : contacts}}) #upsert True will update (with arg2 )if filter (arg1) not found
 
-                    publisher.send_string("%s %s"%(add_email,json.dumps(contacts) ) )
+                    publisher.send_string(u"%s %s"%(add_email,json.dumps(contacts) ) )
 
                 _addEmailToContacts(MY_ACCOUNT, his_email)
                 _addEmailToContacts(his_account, MY_EMAIL)
@@ -271,10 +270,11 @@ def incommingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher, OUTGOIN
                             pass
                         else:
                             result = MONGO_ACCOUNTS.update_one({"_id":his_id}, {"$set":{"contacts_list" : his_contacts}}) #remove him from your own lost
-                    
+                            publisher.send_string(u"%s %s"%(his_email,json.dumps(his_contacts) ) )
+
                     contacts_list=modified_list
                     result = MONGO_ACCOUNTS.update_one({"_id":MY_ID}, {"$set":{"contacts_list" : modified_list}}) #upsert True will update (with arg2 )if filter (arg1) not found
-                
+                    publisher.send_string(u"%s %s"%(MY_EMAIL,json.dumps(contacts_list) ) )
                 success = True
             
             except AssertionError as e:
@@ -442,20 +442,25 @@ def outgoingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher, OUTGOING
             
     wsock.close()
 
-def subscriber(timeout, MY_ACCOUNT, OUTGOING_QUEUE, port = 8883):
+def subscriber(wsock, timeout, MY_ACCOUNT, OUTGOING_QUEUE, port = 8883):
     # Socket to talk to server
     context = zmq.Context()
     socket = context.socket(zmq.SUB)
     socket.connect ("tcp://localhost:%s" % port)
     topicfilter = MY_ACCOUNT["email"]
     socket.setsockopt_string(zmq.SUBSCRIBE, topicfilter)
+    #listener
     for second in timeout:
         string = socket.recv_string()
         print string
-        payload = json.loads(" ".join(string.split(" ")[1:]))
+        payload = " ".join(string.split(" ")[1:])
+        if payload == "kill":
+            print "NIIIIIIIIIIIIIGGGGGGGGGGGGGGGGGEEEEEEEEEEEEEEEEEERRRRRRRRRRRRRRRRRRRRRRR"
+            wsock.close()
+        data = json.loads(payload)
         answer = {
             "answer": "get_contacts!",
-            "data":payload,
+            "data":data,
         }
         OUTGOING_QUEUE.append(answer)
         #gevent.sleep(0.1)
@@ -508,7 +513,7 @@ def handle_websocket():
         greenlets = [
             gevent.spawn(incommingGreenlet, *args),
             gevent.spawn(outgoingGreenlet, *args),
-            gevent.spawn(subscriber, timeout, MY_ACCOUNT, OUTGOING_QUEUE),
+            gevent.spawn(subscriber, wsock, timeout, MY_ACCOUNT, OUTGOING_QUEUE),
         ]
         gevent.joinall(greenlets)
 
