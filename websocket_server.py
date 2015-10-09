@@ -176,9 +176,9 @@ def incommingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher, OUTGOIN
             except AssertionError as e:
                 success = False
                 reason = e[0]
-        
+
             response.update(dict(
-                answer="Contacts!",
+                answer="Invite!",
                 data = {
                     "success":success,
                     "reason":reason
@@ -280,7 +280,9 @@ def incommingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher, OUTGOIN
             except AssertionError as e:
                 success= False
                 reason = e[0]
-            
+
+            #gevent.sleep(30) #test dialog
+
             response.update(dict(
                 answer="Contacts!",
                 data = {
@@ -326,6 +328,9 @@ def incommingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher, OUTGOIN
             }).deleted_count
             
             success=bool(result)
+
+            if not success:
+                reason = "already deleted"
             
             print "ROW ID: %s, DELETED: %s"%(remove_id,result)
             
@@ -350,7 +355,11 @@ def incommingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher, OUTGOIN
             
             response.update(dict(
                 answer = "Upload!",
-                data = container_exists
+                data = {
+                    "container_exists" : container_exists,
+                    "success":True,
+                    "reason":reason,
+                }
             ))
             
             PRINT("container_exists", container_exists)
@@ -372,7 +381,7 @@ def incommingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher, OUTGOIN
             else:
                 
                 success = False #DO NOT SEND NONE as this NONE indicates bad connection to client (remember AsyncResult.wait() ) and will result in infinite loop
-
+                reason = "already synced"
             response.update(dict(
                 answer = "Update!",
                 data = {
