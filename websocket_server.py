@@ -127,6 +127,7 @@ def incommingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher, OUTGOIN
                 his_public_key = his_account["rsa_public_key"]
             except AssertionError as e:
                 reason = e[0]
+                his_public_key = None
             response.update(dict(
                 answer="Publickey!",
                 data = {
@@ -287,7 +288,7 @@ def incommingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher, OUTGOIN
                 answer="Contacts!",
                 data = {
                     "success":success,
-                    "data":contacts_list,
+                    "contacts":contacts_list,
                     "reason":reason
                 }
             ))
@@ -464,7 +465,6 @@ def subscriber(wsock, timeout, MY_ACCOUNT, OUTGOING_QUEUE, port = 8883):
         print string
         payload = " ".join(string.split(" ")[1:])
         if payload == "kill":
-            print "NIIIIIIIIIIIIIGGGGGGGGGGGGGGGGGEEEEEEEEEEEEEEEEEERRRRRRRRRRRRRRRRRRRRRRR"
             wsock.close()
         data = json.loads(payload)
         answer = {
