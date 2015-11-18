@@ -28,6 +28,11 @@ MONGO_CLIPS = collection.clips  # database #MAKE AN INDEX OF owner_id. Essential
 MONGO_ACCOUNTS = collection.auth_user
 MONGO_INVITES = collection.invites
 
+import gridfs
+
+grid_collection = client.gridfs_example
+grid_fs = gridfs.GridFS(grid_collection)
+
 
 # import pymongo; client=pymongo.MongoClient();collection = client.test_database;clips = collection.clips; clips.remove()
 

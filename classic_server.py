@@ -26,7 +26,7 @@ def file_exists(filename):
 def handle_upload():
     #print "HANDLE HANDLE HANDLE"
     result = "OK"
-    save_path = UPLOAD_DIR
+    #save_path = UPLOAD_DIR
 
     upload    = request.files.get('upload')
 
@@ -36,15 +36,21 @@ def handle_upload():
         result = 'File extension not allowed.'
     else:
         upload.save(save_path, overwrite=False) # appends upload.filename automatically
-    """
+
     try:
         upload.save(save_path, overwrite=False) # appends upload.filename automatically
     except IOError:
         pass
+    """
+    grid_fs.put(upload.file, filename = upload.filename)
 
     response.content_type =  "application/json; charset=UTF8"
     return json.dumps({"upload_result":result})
 
 @app.get('/static/<filename>')
 def handle_download(filename):
-    return static_file(filename, root=UPLOAD_DIR)
+    gridout = grid_fs.get_last_version(filename) #http://goo.gl/ioQXfh #this used to be handled by static_file, but we're directly making the fileobject response ourselves
+    response.content_type = "application/octet-stream" #just in case, but not necessary since we're not using a browser
+    response.content_length = gridout.length
+    return gridout
+    #return static_file(filename, root=UPLOAD_DIR)
