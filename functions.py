@@ -1,100 +1,74 @@
 # -*- coding: utf8 -*-
 
-#NOTE- NGINX Proxy Buffering is not needed with async app servers, as according to the bottle websocket guide, since we have an unlimited number of greenlets that do not block. Proxy Buffering is needed for thread based app servers, which would open a new thread on slow clients (such as that is expected by websocket clients), and force too many open threads and crash the memory. Proxy Buffering will protect from this by writing the app server's response to disk, and close the nginx-to-app-server connection (nginx-to-slow-client is still open), to allow app-server to "service" other clients. Without buffering, this is the basis of DDOS attacks. When the client is ready to recieve, nginx will read from the buffer and send to client.
+# NOTE- NGINX Proxy Buffering is not needed with async app servers, as according to the bottle websocket guide, since we have an unlimited number of greenlets that do not block. Proxy Buffering is needed for thread based app servers, which would open a new thread on slow clients (such as that is expected by websocket clients), and force too many open threads and crash the memory. Proxy Buffering will protect from this by writing the app server's response to disk, and close the nginx-to-app-server connection (nginx-to-slow-client is still open), to allow app-server to "service" other clients. Without buffering, this is the basis of DDOS attacks. When the client is ready to recieve, nginx will read from the buffer and send to client.
+
+import logging
+logging.basicConfig()
+LOG = logging.getLogger("pastebeam")
+LOG.setLevel(logging.DEBUG)
 
 import gevent
-
 from bottle import route, abort, request, response, debug
-
 from time import sleep
 import pymongo
-#import mmh3
-from spooky import hash128
-#import hashlib
-
-import bson.json_util as json #can't use regular json module or else type error will occur for unknown types like ObjectID(...), use pymongo's bson module http://api.mongodb.org/python/current/api/bson/json_util.html
+import \
+    bson.json_util as json  # can't use regular json module or else type error will occur for unknown types like ObjectID(...), use pymongo's bson module http://api.mongodb.org/python/current/api/bson/json_util.html
 import sys, os, time, uuid, datetime
-
 import validators
-
 from Crypto.PublicKey import RSA
 from Crypto import Random
 from Crypto.Protocol.KDF import PBKDF2
-from Crypto.Hash import HMAC,SHA512
+from Crypto.Hash import HMAC, SHA512
 
 debug(True)
 
-client=pymongo.MongoClient()
-collection = client.test_database #collection
-MONGO_CLIPS = collection.clips #database #MAKE AN INDEX OF owner_id
-#MONGO_CONTACTS = collection.contacts
-#accounts = collection.accounts #old way before web2py
+client = pymongo.MongoClient()
+collection = client.test_database  # collection
+MONGO_CLIPS = collection.clips  # database #MAKE AN INDEX OF owner_id. Essentially a binary tree for super fast lookup, but for insertion it's terrible.
 MONGO_ACCOUNTS = collection.auth_user
-MONGO_INVITES =  collection.invites
+MONGO_INVITES = collection.invites
 
 
-
-"""
->>> users = collection.users
->>> users.insert(name=Himel, client_minimum_id = None)
-"""
-
-#import pymongo; client=pymongo.MongoClient();collection = client.test_database;clips = collection.clips; clips.remove()
+# import pymongo; client=pymongo.MongoClient();collection = client.test_database;clips = collection.clips; clips.remove()
 
 def get_latest_row_and_clips():
-	"""
-	if minimum_id:
-		query = { '_id': { '$gt': minimum_id } }
-	else:
-		query = None
-	"""
-	latest_clips = clips.find().sort('_id',pymongo.DESCENDING).limit( 50 ) #latest one on mongo #note find() returns a cursor object so nothing is really in memory yet, and sort is a not the in-memory built in sort that python uses
-	
-	latest_row = None
-	if latest_clips.count():
-		latest_row  = latest_clips[0]
-		
-	latest_row_and_clips = dict(latest_row=latest_row, latest_clips=latest_clips)
-		
-	return latest_row_and_clips
+    latest_clips = clips.find().sort('_id', pymongo.DESCENDING).limit(
+        50)  # latest one on mongo #note find() returns a cursor object so nothing is really in memory yet, and sort is a not the in-memory built in sort that python uses
 
-"""
-def login(email, password):
-	print email
-	found = MONGO_ACCOUNTS.find_one({"email":email})
-	if not found:
-		return dict(success=False, reason = "Account not found")
-	key_derivation = PBKDF2(password, found["salt"]).encode("base64")
-	if found["key_derivation"] != key_derivation:
-		return dict(success=False, reason = "Incorrect password", found = found)
-	else:
-		return dict(success=True, reason= "Passwords matched", found = found)
-"""	
+    latest_row = None
+    if latest_clips.count():
+        latest_row = latest_clips[0]
+
+    latest_row_and_clips = dict(latest_row=latest_row, latest_clips=latest_clips)
+
+    return latest_row_and_clips
+
 
 def login(email, my_password):
-	print email
-	found = MONGO_ACCOUNTS.find_one({"email":email})
-	if not found:
-		return dict(success=False, reason = "Account not found")
-	web2py_key = found["password"]
-	if not passwordMatchedWeb2pyKeyDerivation(my_password, web2py_key):
-		return dict(success=False, reason = "Incorrect password", found = found)
-	else:
-		return dict(success=True, reason= "Passwords matched", found = found)
-		
-		
-def passwordMatchedWeb2pyKeyDerivation(my_password, web2py_key):
-	#generates a key that matches the key generated by web2py's CRYPT validator when user first signed up, under the condition that the password is the same
-	method, salt, key = web2py_key.split("$") #web2py uses HMAC+SHA512 by default: u'pbkdf2(1000,20,sha512)$9b0873030107a7a9$81f5d44ca6e25da7eac8b78081380493ccde6a2d'
-	my_key = PBKDF2(my_password, salt, dkLen=20, count=1000, prf=lambda p, s: HMAC.new(p, s, SHA512).digest()).encode("hex") #http://codereview.stackexchange.com/questions/10746/canonical-python-symmetric-cryptography-example
-	return my_key == key
+    print email
+    found = MONGO_ACCOUNTS.find_one({"email": email})
+    if not found:
+        return dict(success=False, reason="Account not found")
+    web2py_key = found["password"]
+    if not passwordMatchedWeb2pyKeyDerivation(my_password, web2py_key):
+        return dict(success=False, reason="Incorrect password", found=found)
+    else:
+        return dict(success=True, reason="Passwords matched", found=found)
 
-response.content_type = 'application/json' #for http
+
+def passwordMatchedWeb2pyKeyDerivation(my_password, web2py_key):
+    # generates a key that matches the key generated by web2py's CRYPT validator when user first signed up, under the condition that the password is the same
+    method, salt, key = web2py_key.split(
+        "$")  # web2py uses HMAC+SHA512 by default: u'pbkdf2(1000,20,sha512)$9b0873030107a7a9$81f5d44ca6e25da7eac8b78081380493ccde6a2d'
+    my_key = PBKDF2(my_password, salt, dkLen=20, count=1000, prf=lambda p, s: HMAC.new(p, s, SHA512).digest()).encode(
+        "hex")  # http://codereview.stackexchange.com/questions/10746/canonical-python-symmetric-cryptography-example
+    return my_key == key
+
 
 @route('/test_async_long_polling')
 def test_async_long_polling():
-	#use boom or ab -c 20 -n 20 http://<host>:<port>
-	#if you get average response time of 8 seconds,
-	#that means the server is running asynchronously
-	sleep(8)
-	yield json.dumps(dict(test='ok'))
+    # use boom or ab -c 20 -n 20 http://<host>:<port>
+    # if you get average response time of 8 seconds,
+    # that means the server is running asynchronously
+    sleep(8)
+    yield json.dumps(dict(test='ok'))
