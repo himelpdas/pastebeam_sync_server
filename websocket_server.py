@@ -342,6 +342,17 @@ def incomingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher,
 
             location = list_widget_name, remove_row
 
+            clip_to_delete = MONGO_CLIPS.find_one({"_id":remove_id, "owner_id":MY_ID})
+
+            if clip_to_delete:
+                if not clip_to_delete["system"] == "alert":
+                    container_name = clip_to_delete["container_name"]
+                    all_file_versions = grid_fs.find({"filename":container_name})
+                    for each_file in all_file_versions:
+                        grid_fs.delete(each_file._id)
+            else:
+                LOG.info("already deleted: %s"%remove_id)
+
             result = MONGO_CLIPS.delete_one({
                 "_id": remove_id,  # WARNING comes from user!
                 "owner_id": MY_ID,

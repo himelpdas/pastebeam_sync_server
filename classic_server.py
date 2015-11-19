@@ -11,17 +11,6 @@ else:
 
 response.content_type = 'application/json'  # for http
 
-@app.get('/file_exists/<filename>')
-def file_exists(filename):
-    response.content_type =  "application/json; charset=UTF8"
-
-    file_path = os.path.join(UPLOAD_DIR,filename)
-    file_exists = os.path.isfile(file_path)
-
-    PRINT("file exists", file_exists)
-
-    return json.dumps({"result":file_exists})
-
 @app.post('/upload')
 def handle_upload():
     #print "HANDLE HANDLE HANDLE"

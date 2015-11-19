@@ -77,3 +77,6 @@ def test_async_long_polling():
     # that means the server is running asynchronously
     sleep(8)
     yield json.dumps(dict(test='ok'))
+
+
+#def deleteContainerForClip(clip_to_delete):
