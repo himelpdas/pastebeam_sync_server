@@ -46,14 +46,14 @@ def addClipAndDeleteOld(data, system, owner_id):
     return _id
 
 
-def addAlert(for_account, reason, from_email=None, alert_type=u"notify", ):
+def addNotification(for_account, reason, from_email=None, notification_type=u"confirmation", ):
     for_id = for_account["_id"]
     if not from_email:
         from_email = for_account["email"]
-    data = {u'clip_display': reason, u'timestamp_server': datetime.datetime.utcnow(), u'clip_type': alert_type,
+    data = {u'clip_display': reason, u'timestamp_server': datetime.datetime.utcnow(), u'clip_type': notification_type,
             "session_id": str(uuid.uuid4()), "hash": str(uuid.uuid4()),
             u'host_name': from_email}  # uuid as a dummy hash is needed so it is not ignored by client or server
-    addClipAndDeleteOld(data, "alert", for_id)
+    addClipAndDeleteOld(data, "notification", for_id)
 
 
 def incomingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher,
@@ -107,7 +107,7 @@ def incomingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher,
             else:
                 reason = "You sent a clip to %s" % his_name
 
-            addAlert(MY_ACCOUNT, reason, his_email)
+            addNotification(MY_ACCOUNT, reason, his_email)
 
             response.update(dict(
                 answer="Share!",
@@ -168,11 +168,11 @@ def incomingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher,
 
                     reason = "{first_name} {last_name} sent you a contact invite!".format(first_name=MY_FIRST_NAME,
                                                                                           last_name=MY_LAST_NAME)
-                    addAlert(his_account, reason, MY_EMAIL, alert_type=u"invite")
+                    addNotification(his_account, reason, MY_EMAIL, notification_type=u"invite")
 
                     reason = "You sent {first_name} {last_name} a contact invite!".format(first_name=his_first_name,
                                                                                           last_name=his_last_name)
-                    addAlert(MY_ACCOUNT, reason, his_email)
+                    addNotification(MY_ACCOUNT, reason, his_email)
                 else:
                     pass  # EMAIL THIS PERSON TO JOIN
 
@@ -226,18 +226,18 @@ def incomingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher,
                 reason = "{first_name} {last_name} accepted your contact invite!".format(
                     first_name=his_account["first_name"].capitalize(), last_name=his_account["last_name"].capitalize())
                 data = {u'clip_display': reason, u'timestamp_server': datetime.datetime.utcnow(),
-                        u'clip_type': u'notify', "session_id": None, "hash": str(uuid.uuid4()),
+                        u'clip_type': u'confirmation', "session_id": None, "hash": str(uuid.uuid4()),
                         u'host_name': MY_EMAIL}  # uuid as a dummy hash
 
-                addClipAndDeleteOld(data, "alert", his_id)
+                addClipAndDeleteOld(data, "notification", his_id)
 
                 reason = "You accepted a contact invite from {first_name} {last_name}!".format(
                     first_name=his_account["first_name"].capitalize(), last_name=his_account["last_name"].capitalize())
                 data = {u'clip_display': reason, u'timestamp_server': datetime.datetime.utcnow(),
-                        u'clip_type': u'notify', "session_id": None, "hash": str(uuid.uuid4()),
+                        u'clip_type': u'confirmation', "session_id": None, "hash": str(uuid.uuid4()),
                         u'host_name': his_email}  # uuid as a dummy hash
 
-                addClipAndDeleteOld(data, "alert", MY_ID)
+                addClipAndDeleteOld(data, "notification", MY_ID)
 
                 MONGO_INVITES.find_one_and_update({"_id": previous_invite["_id"]}, {"$set": {"used": True}})
 
@@ -345,7 +345,7 @@ def incomingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher,
             clip_to_delete = MONGO_CLIPS.find_one({"_id":remove_id, "owner_id":MY_ID})
 
             if clip_to_delete:
-                if not clip_to_delete["system"] == "alert":
+                if not clip_to_delete["system"] == "notification":
                     container_name = clip_to_delete["container_name"]
                     all_file_versions = grid_fs.find({"filename":container_name})
                     for each_file in all_file_versions:
