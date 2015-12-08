@@ -323,7 +323,7 @@ def incomingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher,
             if not exists:
                 success = bool(addClipAndDeleteOld(data, "starred", MY_ID))
             else:
-                reason = "already starred"
+                reason = "Already starred"
                 success = False
 
             response.update(dict(
@@ -417,7 +417,7 @@ def incomingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher,
             else:
 
                 success = False  # DO NOT SEND NONE as this NONE indicates bad connection to client (remember AsyncResult.wait() ) and will result in infinite loop
-                reason = "already synced"
+                reason = "Already synced"
             response.update(dict(
                 answer="Update!",
                 data={
@@ -444,7 +444,7 @@ def outgoingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher, OUTGOING
         "_id"]  # no point in getting from incoming greenlet since it'll close the connection if password changes. WARNING- connection will stay active if user happens to change password
 
     OUTGOING_QUEUE.append(dict(
-        answer="Connected!",
+        answer="@connected",
         data={
             "initial_contacts": MY_ACCOUNT["contacts_list"],
             "rsa_private_key": MY_ACCOUNT["rsa_private_key"],
@@ -470,7 +470,7 @@ def outgoingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher, OUTGOING
                         '_id'):  # change to Reload if signature of last 50 clips changed
                     # PRINT("sending new",server_latest_row.get('_id'))
                     wsock.send(json.dumps(dict(
-                        answer="Newest!",  # when there is a new clip from an outside source, or deletion
+                        answer="@newest_clips",  # when there is a new clip from an outside source, or deletion
                         data=server_latest_clips,
                     )))
                     server_previous_row = server_latest_row  # reset prev
@@ -511,12 +511,12 @@ def subscriberGreenlet(wsock, timeout, MY_ACCOUNT, OUTGOING_QUEUE, port=8883):
         data = json.loads(payload)
         if action == "delete":
             answer = {
-                "answer": "delete_local",
+                "answer": "@delete_local",
                 "data": data,
             }
         elif action == "contacts":
             answer = {
-                "answer": "get_contacts!",
+                "answer": "@get_contacts",
                 "data": data,
             }
         OUTGOING_QUEUE.append(answer)
@@ -542,7 +542,7 @@ def handle_websocket():
         result = login(email, password)
         if not result['success']:
             wsock.send(json.dumps(dict(
-                answer="Error!",
+                answer="@error",
                 data=result["reason"],
             )))
             wsock.close()
@@ -589,6 +589,6 @@ if __name__ == "__main__":
     from geventwebsocket import WebSocketError
     from geventwebsocket.handler import WebSocketHandler
 
-    server = WSGIServer(("0.0.0.0", 8084), app,
-                        handler_class=WebSocketHandler)
+    server = WSGIServer(("0.0.0.0", 8084), app,  # app must be a WSGI application object, as defined by PEP 333. (Basically a callable that can take the environmental variables, and the response socket iterable)
+                        handler_class=WebSocketHandler)  # handler_class basically allows to modify the environmental variables, perhaps making the request compatible with websockets
     server.serve_forever()
