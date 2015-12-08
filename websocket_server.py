@@ -27,7 +27,7 @@ def test_async_websocket():
             break
 
 
-def addClipAndDeleteOld(data, system, owner_id):
+def addClipAndDeleteOld(data, system, owner_id, publisher, email):
     data["owner_id"] = owner_id
     data["system"] = system
     data['timestamp_server'] = time.time()
@@ -43,17 +43,20 @@ def addClipAndDeleteOld(data, system, owner_id):
     # delete old crap
     MONGO_CLIPS.delete_many({"_id": {'$in': map(lambda each: each["_id"], old)}})
 
+    #publish change
+    publisher.send_string(u"%s newest %s" % (email, json.dumps([data]))) #data needs to be in list
+
     return _id
 
 
-def addNotification(for_account, reason, from_email=None, notification_type=u"confirmation", ):
+def addNotification(for_account, reason, publisher, from_email=None, notification_type=u"confirmation", ):
     for_id = for_account["_id"]
     if not from_email:
         from_email = for_account["email"]
     data = {u'clip_display': reason, u'timestamp_server': datetime.datetime.utcnow(), u'clip_type': notification_type,
             "session_id": str(uuid.uuid4()), "hash": str(uuid.uuid4()),
             u'host_name': from_email}  # uuid as a dummy hash is needed so it is not ignored by client or server
-    addClipAndDeleteOld(data, "notification", for_id)
+    addClipAndDeleteOld(data, "notification", for_id, publisher, from_email)
 
 
 def incomingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher,
@@ -101,13 +104,13 @@ def incomingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher,
                 data["host_name"] = MY_EMAIL
                 data.pop("_id", None)  # or else duplicate error
 
-                success = addClipAndDeleteOld(data, "share", his_id)
+                success = addClipAndDeleteOld(data, "share", his_id, publisher, his_email)
             except AssertionError as e:
                 reason = e[0]
             else:
                 reason = "You sent a clip to %s" % his_name
 
-            addNotification(MY_ACCOUNT, reason, his_email)
+            addNotification(MY_ACCOUNT, reason, publisher, MY_EMAIL)
 
             response.update(dict(
                 answer="Share!",
@@ -168,11 +171,11 @@ def incomingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher,
 
                     reason = "{first_name} {last_name} sent you a contact invite!".format(first_name=MY_FIRST_NAME,
                                                                                           last_name=MY_LAST_NAME)
-                    addNotification(his_account, reason, MY_EMAIL, notification_type=u"invite")
+                    addNotification(his_account, reason, publisher, MY_EMAIL, notification_type=u"invite")
 
                     reason = "You sent {first_name} {last_name} a contact invite!".format(first_name=his_first_name,
                                                                                           last_name=his_last_name)
-                    addNotification(MY_ACCOUNT, reason, his_email)
+                    addNotification(MY_ACCOUNT, reason, publisher, his_email)
                 else:
                     pass  # EMAIL THIS PERSON TO JOIN
 
@@ -229,7 +232,7 @@ def incomingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher,
                         u'clip_type': u'confirmation', "session_id": None, "hash": str(uuid.uuid4()),
                         u'host_name': MY_EMAIL}  # uuid as a dummy hash
 
-                addClipAndDeleteOld(data, "notification", his_id)
+                addClipAndDeleteOld(data, "notification", his_id, publisher, his_email)
 
                 reason = "You accepted a contact invite from {first_name} {last_name}!".format(
                     first_name=his_account["first_name"].capitalize(), last_name=his_account["last_name"].capitalize())
@@ -237,7 +240,7 @@ def incomingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher,
                         u'clip_type': u'confirmation', "session_id": None, "hash": str(uuid.uuid4()),
                         u'host_name': his_email}  # uuid as a dummy hash
 
-                addClipAndDeleteOld(data, "notification", MY_ID)
+                addClipAndDeleteOld(data, "notification", MY_ID, publisher, MY_EMAIL)
 
                 MONGO_INVITES.find_one_and_update({"_id": previous_invite["_id"]}, {"$set": {"used": True}})
 
@@ -321,7 +324,7 @@ def incomingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher,
                 "owner_id": MY_ID,  # so enforce with user_id
             }))  # find_one returns None if none found
             if not exists:
-                success = bool(addClipAndDeleteOld(data, "starred", MY_ID))
+                success = bool(addClipAndDeleteOld(data, "starred", MY_ID, publisher, MY_EMAIL))
             else:
                 reason = "Already starred"
                 success = False
@@ -411,9 +414,9 @@ def incomingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher,
             }).sort('_id', pymongo.DESCENDING).limit(1)) or [
                         {}]).pop()  # do not consider starred clips or friends #cannot bool iterators, so must convert to list, and then pop the row
 
-            if prev.get("hash") != data.get("hash"):
+            if prev.get("hash") != data["hash"]:
 
-                success = bool(addClipAndDeleteOld(data, "main", MY_ID))
+                success = bool(addClipAndDeleteOld(data, "main", MY_ID, publisher, MY_EMAIL))
             else:
 
                 success = False  # DO NOT SEND NONE as this NONE indicates bad connection to client (remember AsyncResult.wait() ) and will result in infinite loop
@@ -452,6 +455,20 @@ def outgoingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher, OUTGOING
         },
     ))
 
+    server_latest_clips = [each for each in MONGO_CLIPS.find({
+        #"_id": {"$gt": server_latest_row["_id"]},
+        "owner_id": MY_ID,
+    }).sort('_id', pymongo.DESCENDING).limit(
+        10)]  # DO NOT USE ASCENDING, USE DESCENDING AND THEN REVERSED THE LIST INSTEAD!... AS AFTER 50, THE LATEST CLIP ON DB WILL ALWAYS BE HIGHER THAN THE LATEST CLIP OF THE INITIAL 50 CLIPS SENT TO CLIENT. THIS WILL RESULT IN THE SENDING OF NEW CLIPS IN BATCHES OF 50 UNTIL THE LATEST CLIP MATCHES THAT ON DB.
+
+
+    OUTGOING_QUEUE.append(dict(
+        answer="@newest_clips",
+        data=server_latest_clips,
+    ))
+
+    prev = set([])
+
     for second in timeout:
 
         sleep(0.1)
@@ -462,32 +479,19 @@ def outgoingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher, OUTGOING
 
         except IndexError:  # then monitor for external changes
 
-            try:
-                if server_latest_clips:
-                    server_latest_row = server_latest_clips[0]
-
-                if server_latest_row.get('_id') != server_previous_row.get(
-                        '_id'):  # change to Reload if signature of last 50 clips changed
-                    # PRINT("sending new",server_latest_row.get('_id'))
-                    wsock.send(json.dumps(dict(
-                        answer="@newest_clips",  # when there is a new clip from an outside source, or deletion
-                        data=server_latest_clips,
-                    )))
-                    server_previous_row = server_latest_row  # reset prev
-
-                server_latest_clips = [each for each in MONGO_CLIPS.find({
-                    "_id": {"$gt": server_latest_row["_id"]},
-                    "owner_id": MY_ID,
-                }).sort('_id', pymongo.DESCENDING).limit(
-                    1)]  # DO NOT USE ASCENDING, USE DESCENDING AND THEN REVERSED THE LIST INSTEAD!... AS AFTER 50, THE LATEST CLIP ON DB WILL ALWAYS BE HIGHER THAN THE LATEST CLIP OF THE INITIAL 50 CLIPS SENT TO CLIENT. THIS WILL RESULT IN THE SENDING OF NEW CLIPS IN BATCHES OF 50 UNTIL THE LATEST CLIP MATCHES THAT ON DB.
-
-            except UnboundLocalError:  # no server previous row
-                server_previous_row = {}
-                server_latest_clips = [each for each in MONGO_CLIPS.find({"owner_id": MY_ID, }).sort('_id',
-                                                                                                     pymongo.DESCENDING)]  # .limit( 5 )] #returns an iterator but we want a list
-
+            pass
         else:
             print send
+            if "@newest_clips" in send["answer"]:
+                # prevents looped updating
+                hashes = set([])
+                for each in send["data"]:
+                    hashes.add(each["_id"])
+                if hashes == prev:  # don't double send
+                    continue
+                else:
+                    prev = hashes
+
             wsock.send(json.dumps(send))
 
     wsock.close()
@@ -517,6 +521,11 @@ def subscriberGreenlet(wsock, timeout, MY_ACCOUNT, OUTGOING_QUEUE, port=8883):
         elif action == "contacts":
             answer = {
                 "answer": "@get_contacts",
+                "data": data,
+            }
+        elif action == "newest":
+            answer = {
+                "answer": "@newest_clips",
                 "data": data,
             }
         OUTGOING_QUEUE.append(answer)
