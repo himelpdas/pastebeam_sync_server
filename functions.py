@@ -31,22 +31,10 @@ MONGO_INVITES = collection.invites
 import gridfs
 
 grid_collection = client.gridfs_example
-grid_fs = gridfs.GridFS(grid_collection)
+GRID_FS = gridfs.GridFS(grid_collection)
 
 
 # import pymongo; client=pymongo.MongoClient();collection = client.test_database;clips = collection.clips; clips.remove()
-
-def get_latest_row_and_clips():
-    latest_clips = clips.find().sort('_id', pymongo.DESCENDING).limit(
-        50)  # latest one on mongo #note find() returns a cursor object so nothing is really in memory yet, and sort is a not the in-memory built in sort that python uses
-
-    latest_row = None
-    if latest_clips.count():
-        latest_row = latest_clips[0]
-
-    latest_row_and_clips = dict(latest_row=latest_row, latest_clips=latest_clips)
-
-    return latest_row_and_clips
 
 
 def login(email, my_password):

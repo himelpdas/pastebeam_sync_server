@@ -27,7 +27,7 @@ def test_async_websocket():
             break
 
 
-def addClipAndDeleteOld(data, system, owner_id, publisher, email):
+def add_clip_and_delete_old(data, system, owner_id, publisher, broadcast_email):
     data["owner_id"] = owner_id
     data["system"] = system
     data['timestamp_server'] = time.time()
@@ -40,26 +40,71 @@ def addClipAndDeleteOld(data, system, owner_id, publisher, email):
         "owner_id": owner_id,
     }).sort('_id', pymongo.DESCENDING)[tmp_free_user_limit:]
 
+    old_list = list(old)  # mongo results are iterators, so turn into list if using more than once
+
     # delete old crap
-    MONGO_CLIPS.delete_many({"_id": {'$in': map(lambda each: each["_id"], old)}})
+    MONGO_CLIPS.delete_many({"_id": {'$in': map(lambda each: each["_id"], old_list)}})
+    for each_clip in old_list:
+        delete_clip_file_and_versions(each_clip)
 
     #publish change
-    publisher.send_string(u"%s newest %s" % (email, json.dumps([data]))) #data needs to be in list
+    publisher.send_string(u"%s newest %s" % (broadcast_email, json.dumps([data]))) #data needs to be in list
 
     return _id
 
 
-def addNotification(for_account, reason, publisher, from_email=None, notification_type=u"confirmation", ):
+def delete_clip_file_and_versions(clip_to_delete):
+
+    if clip_to_delete:
+        if not clip_to_delete["system"] == "notification":
+            container_name = clip_to_delete["container_name"]
+            all_file_versions = GRID_FS.find({"filename":container_name})
+            for each_file in all_file_versions:
+                GRID_FS.delete(each_file._id)
+            success = True
+        else:
+            LOG.info("Notifications don't have files: %s" % clip_to_delete["_id"])
+            success = False
+    else:
+        LOG.info("File already deleted: %s" % clip_to_delete["_id"])
+        success = False
+    return success
+
+def delete_single_clip(remove_id, owner_id, owner_email, publisher):
+
+    delete_location = str(remove_id)
+
+    clip_to_delete = MONGO_CLIPS.find_one({"_id":remove_id, "owner_id":owner_id})
+
+    delete_clip_file_and_versions(clip_to_delete)
+
+    result = MONGO_CLIPS.delete_one({
+        "_id": remove_id,  # WARNING comes from user!
+        "owner_id": owner_id,
+        # Mongo ids are not secure alone, make sure the clip belongs to this user before deleting. MY_ID is not spoofable since it cannot not come from the attacker. http://stackoverflow.com/questions/11577450/are-mongodb-ids-guessable
+    }).deleted_count
+
+    data = {"location": delete_location}
+
+    publisher.send_string(u"%s delete %s" % (owner_email, json.dumps(data)))
+
+    success = bool(result)
+
+    return success
+
+
+def add_notification(for_account, reason, publisher, from_email=None, notification_type=u"confirmation", ):
     for_id = for_account["_id"]
+    my_email = for_account["email"]
     if not from_email:
-        from_email = for_account["email"]
+        from_email = my_email
     data = {u'clip_display': reason, u'timestamp_server': datetime.datetime.utcnow(), u'clip_type': notification_type,
             "session_id": str(uuid.uuid4()), "hash": str(uuid.uuid4()),
             u'host_name': from_email}  # uuid as a dummy hash is needed so it is not ignored by client or server
-    addClipAndDeleteOld(data, "notification", for_id, publisher, from_email)
+    add_clip_and_delete_old(data, "notification", for_id, publisher, my_email)
 
 
-def incomingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher,
+def incoming_greenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher,
                       OUTGOING_QUEUE):  # these seem to run in another namespace, you must pass them global or inner variables
     # """Checks login every incoming request"""
     for second in timeout:  # Even though greenlets don't use much memory, if the user disconnects, this server greenlet will run forever, and this "little memory" will become a big problem
@@ -75,7 +120,7 @@ def incomingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher,
 
         data = delivered['data']
 
-        print delivered
+        LOG.info(delivered)
 
         response = {"echo": delivered["echo"]}
 
@@ -87,6 +132,7 @@ def incomingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher,
             "_id"]  # need to keep this the most updated, incoming greenlet is ideal since it blocks and will reduce db hits
         MY_EMAIL = MY_ACCOUNT["email"].lower()
         MY_FIRST_NAME, MY_LAST_NAME = MY_ACCOUNT["first_name"].capitalize(), MY_ACCOUNT["last_name"].capitalize()
+        MY_FULL_NAME = "%s %s"%(MY_FIRST_NAME, MY_LAST_NAME)
 
         if question == "Share?":
             his_email = data["recipient"]
@@ -98,25 +144,28 @@ def incomingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher,
 
                 his_clips = MONGO_CLIPS.find({"owner_id": his_id})
                 assert not data["hash"] in map(lambda each_clip: each_clip["hash"],
-                                               his_clips), "%s already has a clip you sent!" % his_name
+                                               his_clips), "%s already has an item you just sent!" % his_name
 
                 # final modifications before sending to recipient's clips
                 data["host_name"] = MY_EMAIL
                 data.pop("_id", None)  # or else duplicate error
 
-                success = addClipAndDeleteOld(data, "share", his_id, publisher, his_email)
+                success = add_clip_and_delete_old(data, "share", his_id, publisher, his_email)
             except AssertionError as e:
-                reason = e[0]
+                my_reason = e[0]
             else:
-                reason = "You sent a clip to %s" % his_name
+                his_reason = "%s sent you an item" % MY_FULL_NAME
+                add_notification(his_account, his_reason, publisher, MY_EMAIL)
+                
+                my_reason = "You sent a clip to %s" % his_name
 
-            addNotification(MY_ACCOUNT, reason, publisher, MY_EMAIL)
+            add_notification(MY_ACCOUNT, my_reason, publisher, his_email)
 
             response.update(dict(
                 answer="Share!",
                 data={
                     "success": success,
-                    "reason": reason
+                    "reason": my_reason
                 }
             ))
 
@@ -171,11 +220,11 @@ def incomingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher,
 
                     reason = "{first_name} {last_name} sent you a contact invite!".format(first_name=MY_FIRST_NAME,
                                                                                           last_name=MY_LAST_NAME)
-                    addNotification(his_account, reason, publisher, MY_EMAIL, notification_type=u"invite")
+                    add_notification(his_account, reason, publisher, MY_EMAIL, notification_type=u"invite")
 
                     reason = "You sent {first_name} {last_name} a contact invite!".format(first_name=his_first_name,
                                                                                           last_name=his_last_name)
-                    addNotification(MY_ACCOUNT, reason, publisher, his_email)
+                    add_notification(MY_ACCOUNT, reason, publisher, his_email)
                 else:
                     pass  # EMAIL THIS PERSON TO JOIN
 
@@ -232,7 +281,7 @@ def incomingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher,
                         u'clip_type': u'confirmation', "session_id": None, "hash": str(uuid.uuid4()),
                         u'host_name': MY_EMAIL}  # uuid as a dummy hash
 
-                addClipAndDeleteOld(data, "notification", his_id, publisher, his_email)
+                add_clip_and_delete_old(data, "notification", his_id, publisher, his_email)
 
                 reason = "You accepted a contact invite from {first_name} {last_name}!".format(
                     first_name=his_account["first_name"].capitalize(), last_name=his_account["last_name"].capitalize())
@@ -240,7 +289,7 @@ def incomingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher,
                         u'clip_type': u'confirmation', "session_id": None, "hash": str(uuid.uuid4()),
                         u'host_name': his_email}  # uuid as a dummy hash
 
-                addClipAndDeleteOld(data, "notification", MY_ID, publisher, MY_EMAIL)
+                add_clip_and_delete_old(data, "notification", MY_ID, publisher, MY_EMAIL)
 
                 MONGO_INVITES.find_one_and_update({"_id": previous_invite["_id"]}, {"$set": {"used": True}})
 
@@ -316,7 +365,6 @@ def incomingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher,
             ))
 
         if question == "Star?":
-
             # success = bool(MONGO_CLIPS.find_one_and_update({"_id":data["_id"]},{"bookmarked":True}) )
 
             exists = bool(MONGO_CLIPS.find_one({
@@ -324,7 +372,9 @@ def incomingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher,
                 "owner_id": MY_ID,  # so enforce with user_id
             }))  # find_one returns None if none found
             if not exists:
-                success = bool(addClipAndDeleteOld(data, "starred", MY_ID, publisher, MY_EMAIL))
+                if "_id" in data:
+                    del data["_id"] #this will have an ID, but mongo can't insert if _id is present
+                success = bool(add_clip_and_delete_old(data, "starred", MY_ID, publisher, MY_EMAIL))
             else:
                 reason = "Already starred"
                 success = False
@@ -340,42 +390,16 @@ def incomingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher,
         if question == "Delete?":
 
             remove_id = data["remove_id"]
-            remove_row = data["remove_row"]
-            list_widget_name = data["list_widget_name"]
 
-            location = list_widget_name, remove_row
-
-            clip_to_delete = MONGO_CLIPS.find_one({"_id":remove_id, "owner_id":MY_ID})
-
-            if clip_to_delete:
-                if not clip_to_delete["system"] == "notification":
-                    container_name = clip_to_delete["container_name"]
-                    all_file_versions = grid_fs.find({"filename":container_name})
-                    for each_file in all_file_versions:
-                        grid_fs.delete(each_file._id)
-            else:
-                LOG.info("already deleted: %s"%remove_id)
-
-            result = MONGO_CLIPS.delete_one({
-                "_id": remove_id,  # WARNING comes from user!
-                "owner_id": MY_ID,
-                # Mongo ids are not secure alone, make sure the clip belongs to this user before deleting. MY_ID is not spoofable since it cannot not come from the attacker. http://stackoverflow.com/questions/11577450/are-mongodb-ids-guessable
-            }).deleted_count
-
-            success = bool(result)
+            success = delete_single_clip(remove_id, MY_ID, MY_EMAIL, publisher)
 
             if not success:
-                reason = "already deleted"
-
-            print "ROW ID: %s, DELETED: %s" % (remove_id, result)
+                reason = "Already deleted on server"
 
             data = {
                     "success": success,
-                    "location": location,
                     "reason": reason
                 }
-
-            publisher.send_string(u"%s delete %s" % (MY_EMAIL, json.dumps(data)))
 
             response.update(dict(
                 answer="Delete!",
@@ -385,7 +409,7 @@ def incomingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher,
         if question == "Upload?":
             container_name = data or ""
 
-            PRINT("container_name", container_name)
+            LOG.info("container_name: %s" % container_name)
 
             file_path = os.path.join(UPLOAD_DIR, container_name)
 
@@ -400,7 +424,7 @@ def incomingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher,
                 }
             ))
 
-            PRINT("container_exists", container_exists)
+            LOG.info("container_exists: %s" % container_exists)
 
         if question == "Update?":
 
@@ -416,7 +440,7 @@ def incomingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher,
 
             if prev.get("hash") != data["hash"]:
 
-                success = bool(addClipAndDeleteOld(data, "main", MY_ID, publisher, MY_EMAIL))
+                success = bool(add_clip_and_delete_old(data, "main", MY_ID, publisher, MY_EMAIL))
             else:
 
                 success = False  # DO NOT SEND NONE as this NONE indicates bad connection to client (remember AsyncResult.wait() ) and will result in infinite loop
@@ -435,7 +459,7 @@ def incomingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher,
 
         OUTGOING_QUEUE.append(response)
 
-        PRINT("incoming", "wait...")
+        LOG.info("Incoming wait...")
         sleep(0.1)
 
     wsock.close()  # OR IT WILL LEAVE THE GREENLET HANGING!
@@ -443,8 +467,7 @@ def incomingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher,
 
 def outgoingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher, OUTGOING_QUEUE):
     # """does not check login every iteration, so in the case of changed password, an attacker can get updates until websocket expires"""
-    MY_ID = MY_ACCOUNT[
-        "_id"]  # no point in getting from incoming greenlet since it'll close the connection if password changes. WARNING- connection will stay active if user happens to change password
+    MY_ID = MY_ACCOUNT["_id"]  # no point in getting from incoming greenlet since it'll close the connection if password changes. WARNING- connection will stay active if user happens to change password
 
     OUTGOING_QUEUE.append(dict(
         answer="@connected",
@@ -459,7 +482,7 @@ def outgoingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher, OUTGOING
         #"_id": {"$gt": server_latest_row["_id"]},
         "owner_id": MY_ID,
     }).sort('_id', pymongo.DESCENDING).limit(
-        10)]  # DO NOT USE ASCENDING, USE DESCENDING AND THEN REVERSED THE LIST INSTEAD!... AS AFTER 50, THE LATEST CLIP ON DB WILL ALWAYS BE HIGHER THAN THE LATEST CLIP OF THE INITIAL 50 CLIPS SENT TO CLIENT. THIS WILL RESULT IN THE SENDING OF NEW CLIPS IN BATCHES OF 50 UNTIL THE LATEST CLIP MATCHES THAT ON DB.
+        5*4)]  # DO NOT USE ASCENDING, USE DESCENDING AND THEN REVERSED THE LIST INSTEAD!... AS AFTER 50, THE LATEST CLIP ON DB WILL ALWAYS BE HIGHER THAN THE LATEST CLIP OF THE INITIAL 50 CLIPS SENT TO CLIENT. THIS WILL RESULT IN THE SENDING OF NEW CLIPS IN BATCHES OF 50 UNTIL THE LATEST CLIP MATCHES THAT ON DB.
 
 
     OUTGOING_QUEUE.append(dict(
@@ -480,6 +503,7 @@ def outgoingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher, OUTGOING
         except IndexError:  # then monitor for external changes
 
             pass
+
         else:
             print send
             if "@newest_clips" in send["answer"]:
@@ -582,7 +606,7 @@ def handle_websocket():
             OUTGOING_QUEUE]  # Only objects in the main thread are visible to greenlets, all other cases, pass the objects as arguments to greenlet.
 
     # send_update_command.set(None)
-    g1 = gevent.spawn(incomingGreenlet, *args)
+    g1 = gevent.spawn(incoming_greenlet, *args)
     g1.link_exception(handle_exception)
     g2 = gevent.spawn(outgoingGreenlet, *args)
     g2.link_exception(handle_exception)

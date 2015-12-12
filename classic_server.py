@@ -31,14 +31,14 @@ def handle_upload():
     except IOError:
         pass
     """
-    grid_fs.put(upload.file, filename = upload.filename)
+    GRID_FS.put(upload.file, filename = upload.filename)
 
     response.content_type =  "application/json; charset=UTF8"
     return json.dumps({"upload_result":result})
 
 @app.get('/static/<filename>')
 def handle_download(filename):
-    gridout = grid_fs.get_last_version(filename) #http://goo.gl/ioQXfh
+    gridout = GRID_FS.get_last_version(filename) #http://goo.gl/ioQXfh
     response.content_type = "application/octet-stream" #just in case, but not necessary since we're not using a browser
     response.content_length = gridout.length #this used to be handled by static_file, but we're directly making the fileobject response ourselves
     return gridout #"You can directly return file objects, but static_file() is the recommended way to serve static files"
