@@ -93,7 +93,7 @@ def delete_single_clip(remove_id, owner_id, owner_email, publisher):
     return success
 
 
-def add_notification(for_account, reason, publisher, from_email=None, notification_type=u"confirmation", ):
+def add_notification(for_account, reason, publisher, from_email=None, notification_type=u"confirmation"):
     for_id = for_account["_id"]
     my_email = for_account["email"]
     if not from_email:
