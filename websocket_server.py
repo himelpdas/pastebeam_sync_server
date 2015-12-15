@@ -596,7 +596,7 @@ def handle_websocket():
         except Exception, e:
             LOG.error(e)  # THIS HAPPENS WHEN THERE IS NO MONGO CONNECTION
         finally:
-            wsock.stream.handler.socket.close()  # socket still lingers after close (hence the 1024 socket limit error over time), this seems to solve that # https://bitbucket.org/noppo/gevent-websocket/issues/69/websocketclose-keeping-file-descriptors-in
+            # wsock.stream.handler.socket.close()  # socket still lingers after close (hence the 1024 socket limit error over time), this seems to solve that # https://bitbucket.org/noppo/gevent-websocket/issues/69/websocketclose-keeping-file-descriptors-in
             wsock.close()
             abort(500, 'Websocket failure.')
 
