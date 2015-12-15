@@ -1,5 +1,6 @@
 __author__ = 'Himel'
 from gevent import monkey; monkey.patch_all()
+from functions import LOG
 import zmq.green as zmq  #http://learning-0mq-with-pyzmq.readthedocs.org/en/latest/pyzmq/devices/forwarder.html
 
 
@@ -21,7 +22,7 @@ def main():
         zmq.device(zmq.FORWARDER, frontend, backend)
     except Exception, e:
         print e
-        print "bringing down zmq device"
+        LOG.error(e)
     finally:
         pass
         frontend.close()

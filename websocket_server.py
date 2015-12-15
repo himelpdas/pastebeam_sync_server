@@ -31,6 +31,13 @@ def add_clip_and_delete_old(data, system, owner_id, publisher, broadcast_email):
     data["owner_id"] = owner_id
     data["system"] = system
     data['timestamp_server'] = time.time()
+
+    redundant = MONGO_CLIPS.find({'hash':data["hash"], 'system':system})
+
+    for each_redundant in redundant:
+        delete_single_clip(each_redundant["_id"], owner_id, broadcast_email, publisher, delete_container=False)  # user did not expl. say so
+    #gevent.sleep(.1)  # can be sent after newest, resulting in new clip in client before old clip delete
+
     _id = bool(MONGO_CLIPS.insert_one(data).inserted_id)
 
     # find old crap
@@ -44,8 +51,8 @@ def add_clip_and_delete_old(data, system, owner_id, publisher, broadcast_email):
 
     # delete old crap
     MONGO_CLIPS.delete_many({"_id": {'$in': map(lambda each: each["_id"], old_list)}})
-    for each_clip in old_list:
-        delete_clip_file_and_versions(each_clip)
+    for each_old_clip in old_list:
+        delete_single_clip(each_old_clip["_id"], owner_id, broadcast_email, publisher)
 
     #publish change
     publisher.send_string(u"%s newest %s" % (broadcast_email, json.dumps([data]))) #data needs to be in list
@@ -66,17 +73,18 @@ def delete_clip_file_and_versions(clip_to_delete):
             LOG.info("Notifications don't have files: %s" % clip_to_delete["_id"])
             success = False
     else:
-        LOG.info("File already deleted: %s" % clip_to_delete["_id"])
+        LOG.info("delete_clip_file_and_versions: File already deleted: %s" % clip_to_delete["_id"])
         success = False
     return success
 
-def delete_single_clip(remove_id, owner_id, owner_email, publisher):
+def delete_single_clip(remove_id, owner_id, owner_email, publisher, delete_container=True):
 
     delete_location = str(remove_id)
 
     clip_to_delete = MONGO_CLIPS.find_one({"_id":remove_id, "owner_id":owner_id})
 
-    delete_clip_file_and_versions(clip_to_delete)
+    if delete_container and clip_to_delete:
+        delete_clip_file_and_versions(clip_to_delete)
 
     result = MONGO_CLIPS.delete_one({
         "_id": remove_id,  # WARNING comes from user!
@@ -109,6 +117,8 @@ def incoming_greenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher,
     # """Checks login every incoming request"""
     for second in timeout:  # Even though greenlets don't use much memory, if the user disconnects, this server greenlet will run forever, and this "little memory" will become a big problem
 
+        LOG.info("incoming_greenlet: wait...")
+
         received = wsock.receive()
 
         if not received:
@@ -120,7 +130,7 @@ def incoming_greenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher,
 
         data = delivered['data']
 
-        LOG.info(delivered)
+        LOG.info("incoming_greenlet: delivered: %s" % data)
 
         response = {"echo": delivered["echo"]}
 
@@ -424,7 +434,7 @@ def incoming_greenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher,
                 }
             ))
 
-            LOG.info("container_exists: %s" % container_exists)
+            LOG.info("incoming_greenlet: container_exists: %s" % container_exists)
 
         if question == "Update?":
 
@@ -435,11 +445,9 @@ def incoming_greenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher,
                 # "starred":{"$ne":True},
                 "system": "main",
                 "owner_id": MY_ID,
-            }).sort('_id', pymongo.DESCENDING).limit(1)) or [
-                        {}]).pop()  # do not consider starred clips or friends #cannot bool iterators, so must convert to list, and then pop the row
+            }).sort('_id', pymongo.DESCENDING).limit(1)) or [{}]).pop()  # do not consider starred clips or friends #cannot bool iterators, so must convert to list, and then pop the row
 
             if prev.get("hash") != data["hash"]:
-
                 success = bool(add_clip_and_delete_old(data, "main", MY_ID, publisher, MY_EMAIL))
             else:
 
@@ -459,8 +467,7 @@ def incoming_greenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher,
 
         OUTGOING_QUEUE.append(response)
 
-        LOG.info("Incoming wait...")
-        sleep(0.1)
+        #sleep(.01)  # not needed because receive is blocking (before monkey-patch) and therefore yields
 
     wsock.close()  # OR IT WILL LEAVE THE GREENLET HANGING!
 
@@ -494,7 +501,7 @@ def outgoingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher, OUTGOING
 
     for second in timeout:
 
-        sleep(0.1)
+        sleep(.01)
 
         try:
 
@@ -505,7 +512,7 @@ def outgoingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher, OUTGOING
             pass
 
         else:
-            print send
+            LOG.info("outgoingGreenlet: %s" % send)
             if "@newest_clips" in send["answer"]:
                 # prevents looped updating
                 hashes = set([])
@@ -517,6 +524,7 @@ def outgoingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher, OUTGOING
                     prev = hashes
 
             wsock.send(json.dumps(send))
+            LOG.info("outgoingGreenlet: wait...")
 
     wsock.close()
 
@@ -530,8 +538,9 @@ def subscriberGreenlet(wsock, timeout, MY_ACCOUNT, OUTGOING_QUEUE, port=8883):
     socket.setsockopt_string(zmq.SUBSCRIBE, topicfilter)
     # listener
     for second in timeout:
+        LOG.info("subscriberGreenlet: wait...")
         string = socket.recv_string()
-        print string
+        LOG.info("subscriberGreenlet: %s" % string)
         action = string.split(" ")[1]
         if action == "kill":
             wsock.close()
@@ -553,7 +562,7 @@ def subscriberGreenlet(wsock, timeout, MY_ACCOUNT, OUTGOING_QUEUE, port=8883):
                 "data": data,
             }
         OUTGOING_QUEUE.append(answer)
-        # gevent.sleep(0.1)
+        #gevent.sleep(0.01)
 
 
 @app.route('/ws')
@@ -561,8 +570,6 @@ def handle_websocket():
     gevent.sleep(1)  # prevent many connections
 
     # websocket_id = uuid.uuid4()
-
-
 
     wsock = request.environ.get('wsgi.websocket')
 
@@ -583,9 +590,13 @@ def handle_websocket():
         return result
 
     def handle_exception(greenlet=None):
-        LOG.error(type(greenlet.exception))
-        wsock.close()
-        abort(500, 'Websocket failure.')
+        try:
+            LOG.error(type(greenlet.exception))
+        except Exception, e:
+            LOG.error(e)  # THIS HAPPENS WHEN THERE IS NO MONGO CONNECTION
+        finally:
+            wsock.close()
+            abort(500, 'Websocket failure.')
 
     timeout = xrange(40000)
 

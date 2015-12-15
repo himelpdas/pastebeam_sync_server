@@ -11,8 +11,8 @@ import gevent
 from bottle import route, abort, request, response, debug
 from time import sleep
 import pymongo
-import \
-    bson.json_util as json  # can't use regular json module or else type error will occur for unknown types like ObjectID(...), use pymongo's bson module http://api.mongodb.org/python/current/api/bson/json_util.html
+import bson.json_util as json  # can't use regular json module or else type error will occur for unknown types like ObjectID(...), use pymongo's bson module http://api.mongodb.org/python/current/api/bson/json_util.html
+from bson.objectid import ObjectId
 import sys, os, time, uuid, datetime
 import validators
 from Crypto.PublicKey import RSA
@@ -38,7 +38,7 @@ GRID_FS = gridfs.GridFS(grid_collection)
 
 
 def login(email, my_password):
-    print email
+    LOG.info("login: %s" % email)
     found = MONGO_ACCOUNTS.find_one({"email": email})
     if not found:
         return dict(success=False, reason="Account not found")
