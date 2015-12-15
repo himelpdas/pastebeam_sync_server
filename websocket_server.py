@@ -1,7 +1,8 @@
 # TODO get sentry to track stacktraces
-from gevent import monkey
+from gevent import monkey; monkey.patch_all()  # declare BEFORE all imports
 
-monkey.patch_all()  # declare BEFORE all imports
+import wsaccel  # speeds up geventwebsocket https://bitbucket.org/noppo/gevent-websocket
+
 from classic_server import *
 import zmq.green as zmq
 from collections import deque
@@ -595,6 +596,7 @@ def handle_websocket():
         except Exception, e:
             LOG.error(e)  # THIS HAPPENS WHEN THERE IS NO MONGO CONNECTION
         finally:
+            #wsock.shutdown()  # socket still lingers after close (hence the 1024 socket limit error over time), this seems to solve that # http://stackoverflow.com/questions/409783/socket-shutdown-vs-socket-close
             wsock.close()
             abort(500, 'Websocket failure.')
 
@@ -629,6 +631,7 @@ def handle_websocket():
 
 if __name__ == "__main__":
     # geventwebsocket implementation
+    # USE GUNICORN WORKER IN PRODUCTION https://pypi.python.org/pypi/gevent-websocket/
     from gevent.pywsgi import WSGIServer
     from geventwebsocket import WebSocketError
     from geventwebsocket.handler import WebSocketHandler
