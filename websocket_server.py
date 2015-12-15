@@ -1,6 +1,6 @@
 # TODO get sentry to track stacktraces
 from gevent import monkey; monkey.patch_all()  # declare BEFORE all imports
-
+import gevent.queue
 import wsaccel  # speeds up geventwebsocket https://bitbucket.org/noppo/gevent-websocket
 
 from classic_server import *
@@ -78,6 +78,7 @@ def delete_clip_file_and_versions(clip_to_delete):
         success = False
     return success
 
+
 def delete_single_clip(remove_id, owner_id, owner_email, publisher, delete_container=True):
 
     delete_location = str(remove_id)
@@ -113,12 +114,20 @@ def add_notification(for_account, reason, publisher, from_email=None, notificati
     add_clip_and_delete_old(data, "notification", for_id, publisher, my_email)
 
 
-def incoming_greenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher,
+def incoming_greenlet(wsock, timeout, MY_ACCOUNT, publisher,
                       OUTGOING_QUEUE):  # these seem to run in another namespace, you must pass them global or inner variables
-    # """Checks login every incoming request"""
-    for second in timeout:  # Even though greenlets don't use much memory, if the user disconnects, this server greenlet will run forever, and this "little memory" will become a big problem
+    """Checks login every incoming request"""
 
-        LOG.info("incoming_greenlet: wait...")
+
+    # TODO- move outside of loop, and disconnect all websockets via web2py and 0mq when user account changes
+    MY_ID = MY_ACCOUNT["_id"]  # need to keep this the most updated, incoming greenlet is ideal since it blocks and will reduce db hits
+    MY_EMAIL = MY_ACCOUNT["email"].lower()
+    MY_FIRST_NAME, MY_LAST_NAME = MY_ACCOUNT["first_name"].capitalize(), MY_ACCOUNT["last_name"].capitalize()
+    MY_FULL_NAME = "%s %s"%(MY_FIRST_NAME, MY_LAST_NAME)
+
+    for time_now in timeout:  # Even though greenlets don't use much memory, if the user disconnects, this server greenlet will run forever, and this "little memory" will become a big problem
+
+        LOG.info("incoming_greenlet: %s: wait..." % time_now)
 
         received = wsock.receive()
 
@@ -136,14 +145,6 @@ def incoming_greenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher,
         response = {"echo": delivered["echo"]}
 
         success = reason = None
-
-        # TODO- move this back to handle_websocket, and disconnect all websockets via web2py and 0mq when user account changes
-        MY_ACCOUNT.update(checkLogin()["found"])
-        MY_ID = MY_ACCOUNT[
-            "_id"]  # need to keep this the most updated, incoming greenlet is ideal since it blocks and will reduce db hits
-        MY_EMAIL = MY_ACCOUNT["email"].lower()
-        MY_FIRST_NAME, MY_LAST_NAME = MY_ACCOUNT["first_name"].capitalize(), MY_ACCOUNT["last_name"].capitalize()
-        MY_FULL_NAME = "%s %s"%(MY_FIRST_NAME, MY_LAST_NAME)
 
         if question == "Share?":
             his_email = data["recipient"]
@@ -466,18 +467,18 @@ def incoming_greenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher,
 
             # prev = hash
 
-        OUTGOING_QUEUE.append(response)
+        OUTGOING_QUEUE.put(response)
 
         #sleep(.01)  # not needed because receive is blocking (before monkey-patch) and therefore yields
 
     wsock.close()  # OR IT WILL LEAVE THE GREENLET HANGING!
 
 
-def outgoingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher, OUTGOING_QUEUE):
+def outgoingGreenlet(wsock, timeout, MY_ACCOUNT, publisher, OUTGOING_QUEUE):
     # """does not check login every iteration, so in the case of changed password, an attacker can get updates until websocket expires"""
     MY_ID = MY_ACCOUNT["_id"]  # no point in getting from incoming greenlet since it'll close the connection if password changes. WARNING- connection will stay active if user happens to change password
 
-    OUTGOING_QUEUE.append(dict(
+    OUTGOING_QUEUE.put(dict(
         answer="@connected",
         data={
             "initial_contacts": MY_ACCOUNT["contacts_list"],
@@ -493,23 +494,27 @@ def outgoingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher, OUTGOING
         5*4)]  # DO NOT USE ASCENDING, USE DESCENDING AND THEN REVERSED THE LIST INSTEAD!... AS AFTER 50, THE LATEST CLIP ON DB WILL ALWAYS BE HIGHER THAN THE LATEST CLIP OF THE INITIAL 50 CLIPS SENT TO CLIENT. THIS WILL RESULT IN THE SENDING OF NEW CLIPS IN BATCHES OF 50 UNTIL THE LATEST CLIP MATCHES THAT ON DB.
 
 
-    OUTGOING_QUEUE.append(dict(
+    OUTGOING_QUEUE.put(dict(
         answer="@newest_clips",
         data=server_latest_clips,
     ))
 
     prev = set([])
 
-    for second in timeout:
+    for time_now in timeout:
 
-        sleep(.01)
+        sleep()
+
+        print time_now
 
         try:
 
-            send = OUTGOING_QUEUE.pop()  # get all the queues first... raises index error when empty.
+            #send = OUTGOING_QUEUE.pop()  # get all the queues first... raises index error when empty.
+            send = OUTGOING_QUEUE.get(block=True, timeout=60)  #using a blocking gevent queue since outgoingGreenlet will be the only non-blccked loop, thus many iterations (cpu cycles?) will occur
 
-        except IndexError:  # then monitor for external changes
-
+        #except IndexError:  # then monitor for external changes
+        except gevent.queue.Empty:  # then monitor for external changes
+            LOG.info("outgoingGreenlet: empty queue")
             pass
 
         else:
@@ -525,7 +530,7 @@ def outgoingGreenlet(wsock, timeout, MY_ACCOUNT, checkLogin, publisher, OUTGOING
                     prev = hashes
 
             wsock.send(json.dumps(send))
-            LOG.info("outgoingGreenlet: wait...")
+            LOG.info("outgoingGreenlet: %s: wait..." % time_now)
 
     wsock.close()
 
@@ -538,8 +543,8 @@ def subscriberGreenlet(wsock, timeout, MY_ACCOUNT, OUTGOING_QUEUE, port=8883):
     topicfilter = MY_ACCOUNT["email"]
     socket.setsockopt_string(zmq.SUBSCRIBE, topicfilter)
     # listener
-    for second in timeout:
-        LOG.info("subscriberGreenlet: wait...")
+    for time_now in timeout:
+        LOG.info("subscriberGreenlet: %s: wait..." % time_now)
         string = socket.recv_string()
         LOG.info("subscriberGreenlet: %s" % string)
         action = string.split(" ")[1]
@@ -562,8 +567,32 @@ def subscriberGreenlet(wsock, timeout, MY_ACCOUNT, OUTGOING_QUEUE, port=8883):
                 "answer": "@newest_clips",
                 "data": data,
             }
-        OUTGOING_QUEUE.append(answer)
+        OUTGOING_QUEUE.put(answer)
         #gevent.sleep(0.01)
+
+# don't use "email=request.query.email, password=request.query.password" here because email and password are None until an actual request is made, not during module init
+def check_login(wsock, email, password):
+
+    ###Uncomment to enable Login
+    result = login(email, password)
+    if not result['success']:
+        wsock.send(json.dumps(dict(
+            answer="@error",
+            data=result["reason"],
+        )))
+        wsock.close()
+        abort(500, 'Invalid account.')
+    return result
+
+
+def timeout_generator(kill_after_x_hours=10):
+    end = datetime.datetime.now() + datetime.timedelta(hours=kill_after_x_hours)
+    while 1:
+        now = datetime.datetime.now()
+        if end > now:
+            yield now
+        else:
+            break
 
 
 @app.route('/ws')
@@ -573,22 +602,10 @@ def handle_websocket():
     # websocket_id = uuid.uuid4()
 
     wsock = request.environ.get('wsgi.websocket')
+    raw_sock = wsock.stream.handler.socket
 
     if not wsock:
         abort(400, 'Expected WebSocket request.')
-
-    def checkLogin(email=request.query.email, password=request.query.password):
-
-        ###Uncomment to enable Login
-        result = login(email, password)
-        if not result['success']:
-            wsock.send(json.dumps(dict(
-                answer="@error",
-                data=result["reason"],
-            )))
-            wsock.close()
-            abort(500, 'Invalid account.')
-        return result
 
     def handle_exception(greenlet=None):
         try:
@@ -596,16 +613,17 @@ def handle_websocket():
         except Exception, e:
             LOG.error(e)  # THIS HAPPENS WHEN THERE IS NO MONGO CONNECTION
         finally:
-            # wsock.stream.handler.socket.close()  # socket still lingers after close (hence the 1024 socket limit error over time), this seems to solve that # https://bitbucket.org/noppo/gevent-websocket/issues/69/websocketclose-keeping-file-descriptors-in
+            raw_sock.close()  # socket still lingers after close (hence the 1024 socket limit error over time), this seems to solve that # https://bitbucket.org/noppo/gevent-websocket/issues/69/websocketclose-keeping-file-descriptors-in
             wsock.close()
             abort(500, 'Websocket failure.')
 
-    timeout = xrange(40000)
+    timeout = timeout_generator(kill_after_x_hours=10)
 
-    OUTGOING_QUEUE = deque()
+    #OUTGOING_QUEUE = deque()
+    OUTGOING_QUEUE = gevent.queue.Queue()
 
     try:
-        MY_ACCOUNT = checkLogin()["found"]
+        MY_ACCOUNT = check_login(wsock, email=request.query.email, password=request.query.password)["found"]
     except pymongo.errors.ServerSelectionTimeoutError:
         handle_exception()
 
@@ -615,7 +633,7 @@ def handle_websocket():
         publisher_socket.connect("tcp://localhost:%s" % port)
         return publisher_socket
 
-    args = [wsock, timeout, MY_ACCOUNT, checkLogin, setup_pub(),
+    args = [wsock, timeout, MY_ACCOUNT, setup_pub(),
             OUTGOING_QUEUE]  # Only objects in the main thread are visible to greenlets, all other cases, pass the objects as arguments to greenlet.
 
     # send_update_command.set(None)
