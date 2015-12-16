@@ -3,11 +3,12 @@ from bottle import Bottle, static_file
 
 app = Bottle()
 
+"""
 if os.name == "nt":
     UPLOAD_DIR = r"C:\Users\Himel\btsync\Coding\virtualenv\projects\PasteBeam\sync_server\.server"
 else:
     UPLOAD_DIR = "/media/sf_btsync/Coding/virtualenv/projects/PasteBeam/sync_server/.server"
-
+"""
 
 response.content_type = 'application/json'  # for http
 

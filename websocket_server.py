@@ -423,9 +423,11 @@ def incoming_greenlet(wsock, timeout, MY_ACCOUNT, publisher,
 
             LOG.info("container_name: %s" % container_name)
 
-            file_path = os.path.join(UPLOAD_DIR, container_name)
-
-            container_exists = os.path.isfile(file_path)
+            try:
+                container_exists = bool(GRID_FS.get_last_version(container_name))
+            except gridfs.errors.NoFile:
+                container_exists = False
+                reason = "Couldn't find %s" % container_name
 
             response.update(dict(
                 answer="Upload!",
