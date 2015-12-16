@@ -132,7 +132,7 @@ def incoming_greenlet(wsock, timeout, MY_ACCOUNT, publisher,
         received = wsock.receive()
 
         if not received:
-            raise WebSocketError
+            return
 
         delivered = json.loads(received)
 
@@ -471,8 +471,6 @@ def incoming_greenlet(wsock, timeout, MY_ACCOUNT, publisher,
 
         #sleep(.01)  # not needed because receive is blocking (before monkey-patch) and therefore yields
 
-    wsock.close()  # OR IT WILL LEAVE THE GREENLET HANGING!
-
 
 def outgoingGreenlet(wsock, timeout, MY_ACCOUNT, publisher, OUTGOING_QUEUE):
     # """does not check login every iteration, so in the case of changed password, an attacker can get updates until websocket expires"""
@@ -604,18 +602,12 @@ def handle_websocket():
     wsock = request.environ.get('wsgi.websocket')
     raw_sock = wsock.stream.handler.socket
 
+    def close_websocket():
+        raw_sock.close()  # socket still lingers after close (hence the 1024 socket limit error over time), this seems to solve that # https://bitbucket.org/noppo/gevent-websocket/issues/69/websocketclose-keeping-file-descriptors-in
+        wsock.close()
+
     if not wsock:
         abort(400, 'Expected WebSocket request.')
-
-    def handle_exception(greenlet=None):
-        try:
-            LOG.error(type(greenlet.exception))
-        except Exception, e:
-            LOG.error(e)  # THIS HAPPENS WHEN THERE IS NO MONGO CONNECTION
-        finally:
-            raw_sock.close()  # socket still lingers after close (hence the 1024 socket limit error over time), this seems to solve that # https://bitbucket.org/noppo/gevent-websocket/issues/69/websocketclose-keeping-file-descriptors-in
-            wsock.close()
-            abort(500, 'Websocket failure.')
 
     timeout = timeout_generator(kill_after_x_hours=10)
 
@@ -624,28 +616,44 @@ def handle_websocket():
 
     try:
         MY_ACCOUNT = check_login(wsock, email=request.query.email, password=request.query.password)["found"]
-    except pymongo.errors.ServerSelectionTimeoutError:
-        handle_exception()
+    except pymongo.errors.ServerSelectionTimeoutError, e:
+        wsock.send(json.dumps(dict(
+            answer="@error",
+            data="Server couldn't connect to database. Try restarting the app",
+        )))
+        LOG.error("%s %s" % (type(e), str(e)))
+        return
 
-    def setup_pub(port=8882):
+    def get_publisher(port=8882):
         publisher_context = zmq.Context()
         publisher_socket = publisher_context.socket(zmq.PUB)
         publisher_socket.connect("tcp://localhost:%s" % port)
         return publisher_socket
 
-    args = [wsock, timeout, MY_ACCOUNT, setup_pub(),
-            OUTGOING_QUEUE]  # Only objects in the main thread are visible to greenlets, all other cases, pass the objects as arguments to greenlet.
+    args = [wsock, timeout, MY_ACCOUNT, get_publisher(), OUTGOING_QUEUE]  # Only objects in the main thread are visible to greenlets, all other cases, pass the objects as arguments to greenlet.
 
-    # send_update_command.set(None)
+    def handle_exception(greenlet):
+        if greenlet.exception:
+            status = "Failed in %s with %s" % (greenlet, type(greenlet.exception))
+        else:
+            status = "Killed in %s" % greenlet
+        LOG.error(status)
+        gevent.killall(greenlets, block=False)  # block MUST equal False or else gevent will wait until the greenlets are dead naturally (which will never happen because of sock.recv)
+        close_websocket()
+
     g1 = gevent.spawn(incoming_greenlet, *args)
-    g1.link_exception(handle_exception)
+    g1.link_exception(handle_exception)  # handle when error
+    g1.link(handle_exception)  # handle when returned
     g2 = gevent.spawn(outgoingGreenlet, *args)
     g2.link_exception(handle_exception)
+    g2.link(handle_exception)
     g3 = gevent.spawn(subscriberGreenlet, wsock, timeout, MY_ACCOUNT, OUTGOING_QUEUE)
     g3.link_exception(handle_exception)
+    g3.link(handle_exception)
     greenlets = [g1,g2,g3]
     gevent.joinall(greenlets)
 
+    LOG.info("Exiting micro thread")
 
 if __name__ == "__main__":
     # geventwebsocket implementation
